@@ -1070,6 +1070,9 @@ abstract final class Pref {
   static bool get liquidGlass =>
       _setting.get(SettingBoxKey.liquidGlass, defaultValue: true);
 
+  static bool get videoGlassRefraction =>
+      _setting.get(SettingBoxKey.videoGlassRefraction, defaultValue: true);
+
   static bool get removeSafeArea =>
       _setting.get(SettingBoxKey.removeSafeArea, defaultValue: false);
 

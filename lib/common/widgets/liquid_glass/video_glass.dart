@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
@@ -127,6 +128,8 @@ class VideoGlass extends StatelessWidget {
       t: VideoGlassHidden.of(context) ? 0 : t.clamp(0.0, 1.0),
       style: style ?? _darkStyle,
       rim: rim,
+      // Bending costs a shader pass a pane each frame; frosting, one blur.
+      refract: Pref.videoGlassRefraction,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,
       child: child,
@@ -160,6 +163,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.t,
     required this.style,
     required this.rim,
+    required this.refract,
     required this.devicePixelRatio,
     required this.backdropKey,
     super.child,
@@ -169,6 +173,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final double t;
   final LiquidGlassStyle style;
   final LiquidGlassRim? rim;
+  final bool refract;
   final double devicePixelRatio;
   final BackdropKey? backdropKey;
 
@@ -179,6 +184,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         t: t,
         style: style,
         rim: rim,
+        refract: refract,
         devicePixelRatio: devicePixelRatio,
         backdropKey: backdropKey,
       );
@@ -193,6 +199,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..t = t
       ..style = style
       ..rim = rim
+      ..refract = refract
       ..devicePixelRatio = devicePixelRatio
       ..backdropKey = backdropKey;
   }
@@ -204,6 +211,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._t,
     required this._style,
     required this._rim,
+    required this._refract,
     required this._devicePixelRatio,
     required this._backdropKey,
   });
@@ -244,6 +252,17 @@ class _RenderVideoGlass extends RenderProxyBox {
     markNeedsPaint();
   }
 
+  /// Whether the pane bends the video where shader filters allow, or only
+  /// frosts it.
+  bool get refract => _refract;
+  bool _refract;
+  set refract(bool value) {
+    if (_refract == value) return;
+    _refract = value;
+    if (attached) _track();
+    markNeedsPaint();
+  }
+
   double get devicePixelRatio => _devicePixelRatio;
   double _devicePixelRatio;
   set devicePixelRatio(double value) {
@@ -270,7 +289,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   Offset? _placed;
   bool _awaitingPaint = false;
 
-  bool get _bends => _program != null;
+  bool get _bends => _refract && _program != null;
 
   void _onProgram() {
     _program = liquidGlassProgram(_onProgram);
@@ -455,7 +474,10 @@ class _RenderVideoGlass extends RenderProxyBox {
   static var _checking = false;
 
   void _track() {
-    if (!_bends) return;
+    if (!_bends) {
+      _tracked.remove(this);
+      return;
+    }
     _tracked.add(this);
     if (!_checking) {
       _checking = true;

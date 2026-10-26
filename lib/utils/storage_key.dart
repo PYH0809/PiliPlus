@@ -155,6 +155,7 @@ abstract final class SettingBoxKey {
       touchSlopH = 'touchSlopH',
       floatingNavBar = 'floatingNavBar',
       liquidGlass = 'liquidGlass',
+      videoGlassRefraction = 'videoGlassRefraction',
       removeSafeArea = 'removeSafeArea',
       angleDegrees = 'angleDegrees',
       liveStream = 'liveStream',
