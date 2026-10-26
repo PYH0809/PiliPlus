@@ -43,6 +43,9 @@ final _openSeconds = _openDuration.inMicroseconds / 1e6;
 const _contentOut = 0.1;
 const _fillOut = 0.16;
 
+// A blur the page takes below this does not show, so it takes none.
+const _blurUnseen = 0.5;
+
 /// A [LiquidGlassButton] that opens a page out of itself, as FlClash's and
 /// iOS's buttons open their popovers: the page grows out of the button's
 /// glass, and returns into it as a drop of glass as it closes. [onTap] opens
@@ -373,8 +376,7 @@ class _RenderMorph extends RenderBox
   late final _pane = LiquidGlassPane(markNeedsPaint);
   final _clip = LayerHandle<ClipPathLayer>();
   final _transform = LayerHandle<TransformLayer>();
-  final _opacity = LayerHandle<OpacityLayer>();
-  final _blur = LayerHandle<ImageFilterLayer>();
+  final _filter = LayerHandle<ImageFilterLayer>();
   final _faceOpacity = LayerHandle<OpacityLayer>();
 
   _Morph? _config;
@@ -447,8 +449,7 @@ class _RenderMorph extends RenderBox
     _pane.clear();
     _clip.layer = null;
     _transform.layer = null;
-    _opacity.layer = null;
-    _blur.layer = null;
+    _filter.layer = null;
     _faceOpacity.layer = null;
   }
 
@@ -652,21 +653,31 @@ class _RenderMorph extends RenderBox
       return;
     }
     final card = Offset.zero & size;
-    _pane.paint(
-      context,
-      shape.shift(offset),
-      shape: LiquidGlassGoo(
-        outline.shift(-shape.topLeft),
-        [platter.shift(-shape.topLeft), droplet.shift(-shape.topLeft)],
-        [blend],
-        firstRadius: math.max(radius, 1e-3),
-      ),
-      style: style,
-      hold: card
-          .expandToInclude(anchor.inflate(anchor.longestSide))
-          .inflate(size.longestSide * 0.1)
-          .shift(offset),
-    );
+    // Under a full fill the glass would not show: most of the opening.
+    if (fill < 1) {
+      _pane.paint(
+        context,
+        shape.shift(offset),
+        shape: LiquidGlassGoo(
+          outline.shift(-shape.topLeft),
+          [platter.shift(-shape.topLeft), droplet.shift(-shape.topLeft)],
+          [blend],
+          firstRadius: math.max(radius, 1e-3),
+        ),
+        style: style,
+        // One capture as it grows, at the lighter glass's frost, which the
+        // shader frosts past: the glass thickens from the button's to the
+        // page's, and a capture taken at each would redraw what lies
+        // behind, the whole screen, frame after frame.
+        hold: card
+            .expandToInclude(anchor.inflate(anchor.longestSide))
+            .inflate(size.longestSide * 0.1)
+            .shift(offset),
+        holdFrost: math.min(config.buttonStyle.blur, config.pageStyle.blur),
+      );
+    } else {
+      _pane.clear();
+    }
     final canvas = context.canvas;
     final path = outline.shift(offset);
     paintGlassShadowsOutside(
@@ -726,9 +737,25 @@ class _RenderMorph extends RenderBox
     if (opacity <= 0 || platter.isEmpty) {
       _clip.layer = null;
       _transform.layer = null;
-      _opacity.layer = null;
-      _blur.layer = null;
+      _filter.layer = null;
       return;
+    }
+    // The fade and the blur in one pass offscreen, the page's size, and none
+    // once a blur would no longer show.
+    ui.ImageFilter? filter;
+    if (blur > _blurUnseen) {
+      filter = ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur);
+    }
+    if (opacity < 1) {
+      final fade = ColorFilter.matrix([
+        ...[1, 0, 0, 0, 0],
+        ...[0, 1, 0, 0, 0],
+        ...[0, 0, 1, 0, 0],
+        ...[0, 0, 0, opacity, 0],
+      ]);
+      filter = filter == null
+          ? fade
+          : ui.ImageFilter.compose(outer: fade, inner: filter);
     }
     final scale = platter.width / size.width;
     final transform = Matrix4.identity()
@@ -748,27 +775,16 @@ class _RenderMorph extends RenderBox
           offset,
           transform,
           (context, offset) {
-            _opacity.layer = context.pushOpacity(
-              offset,
-              (opacity * 255).round(),
-              (context, offset) {
-                if (blur > 0.05) {
-                  context.pushLayer(
-                    (_blur.layer ??= ImageFilterLayer())
-                      ..imageFilter = ui.ImageFilter.blur(
-                        sigmaX: blur,
-                        sigmaY: blur,
-                      ),
-                    (context, offset) => context.paintChild(_page, offset),
-                    offset,
-                  );
-                } else {
-                  _blur.layer = null;
-                  context.paintChild(_page, offset);
-                }
-              },
-              oldLayer: _opacity.layer,
-            );
+            if (filter == null) {
+              _filter.layer = null;
+              context.paintChild(_page, offset);
+            } else {
+              context.pushLayer(
+                (_filter.layer ??= ImageFilterLayer())..imageFilter = filter,
+                (context, offset) => context.paintChild(_page, offset),
+                offset,
+              );
+            }
           },
           oldLayer: _transform.layer,
         );
