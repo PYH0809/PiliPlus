@@ -143,7 +143,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
 
   int? _pointer;
   int? _pressedIndex;
-  double _pressX = 0;
+  Offset _pressAt = Offset.zero;
   bool _dragging = false;
   bool _dropping = false;
   VelocityTracker? _tracker;
@@ -271,7 +271,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
 
     final index = _indexAt(_positionAt(event.localPosition));
     _pressedIndex = index;
-    _pressX = event.localPosition.dx;
+    _pressAt = event.localPosition;
     _dragging = false;
     _dropping = false;
     _springTo(_lift, 1, _liftSpring);
@@ -287,7 +287,14 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
     _glowAt = position;
     _shine();
     if (!_dragging) {
-      if ((position.dx - _pressX).abs() < kTouchSlop) {
+      final moved = position - _pressAt;
+      if (moved.distance < kTouchSlop) {
+        return;
+      }
+      // As with a tap anywhere else, a press that slides up or down was not a
+      // tap: the bar lets it go.
+      if (moved.dy.abs() > moved.dx.abs()) {
+        _endPress(commit: false);
         return;
       }
       _dragging = true;
@@ -311,13 +318,18 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
     if (event.pointer != _pointer) {
       return;
     }
-    _pointer = null;
     final tracker = _tracker;
-    _tracker = null;
     if (event is PointerUpEvent && tracker != null) {
       _fling(tracker.getVelocity().pixelsPerSecond.dx);
     }
-    _release(commit: event is PointerUpEvent);
+    _endPress(commit: event is PointerUpEvent);
+  }
+
+  // Lets the bar go; the rest of a pointer let go early is ignored.
+  void _endPress({required bool commit}) {
+    _pointer = null;
+    _tracker = null;
+    _release(commit: commit);
     _springTo(_glow, 0, _glowOutSpring);
     _springTo(_glowSpread, 1, _glowOutSpring);
     _springTo(_pull, 0, _pressSpring);
