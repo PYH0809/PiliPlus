@@ -148,6 +148,13 @@ List<SettingsModel> get styleSettings => [
     defaultVal: true,
     needReboot: true,
   ),
+  const SwitchModel(
+    title: '视频上的玻璃折射',
+    subtitle: '播放器控件的玻璃折射视频画面；关闭后只做磨砂，更省电。需启用 Impeller',
+    leading: Icon(Icons.blur_linear),
+    setKey: SettingBoxKey.videoGlassRefraction,
+    defaultVal: true,
+  ),
   SwitchModel(
     title: '显示粉丝勋章',
     leading: const Icon(MdiIcons.medalOutline),

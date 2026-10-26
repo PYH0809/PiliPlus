@@ -1,12 +1,16 @@
 // Run both ways: `flutter test` frosts, `flutter test --enable-impeller`
 // bends through the shader.
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:flutter/rendering.dart';
+import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
 // Stripes standing in for the video.
@@ -43,6 +47,18 @@ double _variance(ByteData pixels, int width, Rect rect) {
 }
 
 void main() {
+  // VideoGlass reads whether to bend through Pref.
+  late Directory tempDir;
+  setUpAll(() async {
+    tempDir = await Directory.systemTemp.createTemp('piliplus-glass-test-');
+    Hive.init(tempDir.path);
+    GStorage.setting = await Hive.openBox('setting');
+  });
+  tearDownAll(() async {
+    await Hive.close();
+    await tempDir.delete(recursive: true);
+  });
+
   testWidgets('the glass softens what lies under it', (tester) async {
     final key = GlobalKey();
     await tester.pumpWidget(
@@ -157,4 +173,36 @@ void main() {
       );
     },
   );
+
+  testWidgets('with refraction off a pane only frosts', (tester) async {
+    Future<int> filters({required bool refract}) async {
+      // Hive writes real files, outside the test's fake clock.
+      await tester.runAsync(
+        () => GStorage.setting.put(SettingBoxKey.videoGlassRefraction, refract),
+      );
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          key: ValueKey(refract),
+          child: const Center(
+            child: VideoGlass.capsule(child: SizedBox(width: 120, height: 36)),
+          ),
+        ),
+      );
+      // The shader loads off the frame.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump();
+      return tester.layers.whereType<BackdropFilterLayer>().length;
+    }
+
+    // Bending stacks the shader's filter on the frost's.
+    final bends = ui.ImageFilter.isShaderFilterSupported;
+    expect(await filters(refract: true), bends ? 2 : 1);
+    expect(await filters(refract: false), 1);
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassRefraction),
+    );
+  });
 }
