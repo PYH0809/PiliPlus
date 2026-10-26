@@ -50,7 +50,7 @@ class LiquidGlassTabBar extends StatelessWidget {
               ),
               indicatorSize: TabBarIndicatorSize.tab,
               labelColor: colorScheme.primary,
-              unselectedLabelColor: colorScheme.onSurfaceVariant,
+              unselectedLabelColor: colorScheme.onSurface,
               labelPadding: const EdgeInsets.symmetric(horizontal: 14),
               overlayColor: const WidgetStatePropertyAll(Colors.transparent),
               splashFactory: NoSplash.splashFactory,

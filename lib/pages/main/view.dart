@@ -163,8 +163,7 @@ class _MainAppState extends PopScopeState<MainApp>
                 .map(
                   (e) => LiquidGlassNavigationDestination(
                     label: e.label,
-                    icon: _buildIcon(type: e),
-                    selectedIcon: _buildIcon(type: e, selected: true),
+                    icon: _buildIcon(type: e, selected: true),
                   ),
                 )
                 .toList(),

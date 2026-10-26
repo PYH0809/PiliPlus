@@ -1,4 +1,3 @@
-import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The soft, wide drop under floating glass, as FlClash's dock casts: three
@@ -19,11 +18,10 @@ List<BoxShadow> floatingGlassShadows(ColorScheme colorScheme) {
   ];
 }
 
-/// What marks the current item on glass at rest, as FlClash's platter: the
-/// secondary hue at tone 90, or 4 in dark, which sinks it below the glass.
-Color glassPlatterColor(ColorScheme colorScheme) {
-  final dark = colorScheme.brightness == Brightness.dark;
-  final hct = Hct.fromInt(colorScheme.secondary.toARGB32())
-    ..tone = dark ? 4.0 : 90.0;
-  return Color(hct.toInt()).withValues(alpha: 0.85);
-}
+/// What marks the current item on glass at rest, as iOS's tab bars do: a
+/// neutral shade, darker on light glass and lighter on dark, leaving the
+/// item's own color to say which it is.
+Color glassPlatterColor(ColorScheme colorScheme) =>
+    colorScheme.brightness == Brightness.dark
+    ? const Color(0x24FFFFFF)
+    : const Color(0x1A000000);
