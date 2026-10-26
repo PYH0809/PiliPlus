@@ -24,7 +24,7 @@ jobs:
             pull-requests: write
         env:
             HAS_KEY: ${{ secrets.OPENROUTER_API_KEY != '' }}
-            MODEL: ${{ vars.AI_REVIEW_MODEL || 'openai/gpt-5.6-sol' }}
+            MODEL: ${{ vars.AI_REVIEW_MODEL || 'openai/gpt-6.1-sol' }}
             PR: ${{ github.event.pull_request.number }}
         steps:
             - name: Skip without an OpenRouter key
