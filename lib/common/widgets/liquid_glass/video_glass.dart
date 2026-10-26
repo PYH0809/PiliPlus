@@ -9,7 +9,7 @@ import 'package:material_ui/material_ui.dart';
 
 // The player's glass is dark whatever the theme: its icons are white. Its
 // frost blurs the danmaku passing under them.
-const _style = LiquidGlassStyle(
+const _darkStyle = LiquidGlassStyle(
   tint: Color(0x47000000),
   blur: 10,
   saturation: 1.6,
@@ -125,7 +125,7 @@ class VideoGlass extends StatelessWidget {
     return _VideoGlassPane(
       radius: radius,
       t: VideoGlassHidden.of(context) ? 0 : t.clamp(0.0, 1.0),
-      style: style ?? _style,
+      style: style ?? _darkStyle,
       rim: rim,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,

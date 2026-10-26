@@ -3,6 +3,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,4 +98,63 @@ void main() {
       reason: 'shader filters: ${ui.ImageFilter.isShaderFilterSupported}',
     );
   });
+
+  // Headless, Impeller reads a stale backdrop under a pane drawn in a
+  // later test, so this one checks the frost; the bend's own style is
+  // checked on a device.
+  testWidgets(
+    'a frosted pane takes the style it is given',
+    skip: ui.ImageFilter.isShaderFilterSupported,
+    (tester) async {
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: RepaintBoundary(
+              key: key,
+              child: const ColoredBox(
+                color: Colors.black,
+                child: SizedBox(
+                  width: 200,
+                  height: 100,
+                  child: Center(
+                    child: VideoGlass(
+                      radius: 24,
+                      // A light panel's glass, as over the full-screen video.
+                      style: LiquidGlassStyle(
+                        tint: Color(0xCCFFFFFF),
+                        blur: 30,
+                      ),
+                      child: SizedBox(width: 160, height: 60),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump();
+      final pixels = await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage();
+        final data = await image.toByteData();
+        image.dispose();
+        return data!;
+      });
+      // The middle of the pane, over black: light only through its own tint.
+      const i = (50 * 200 + 100) * 4;
+      expect(
+        pixels!.getUint8(i),
+        greaterThan(150),
+        reason: 'shader filters: ${ui.ImageFilter.isShaderFilterSupported}',
+      );
+    },
+  );
 }
