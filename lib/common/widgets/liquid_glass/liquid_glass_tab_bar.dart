@@ -11,12 +11,18 @@ class LiquidGlassTabBar extends StatelessWidget {
     required this.labels,
     this.onTap,
     this.height = 40,
+    this.labelStyle,
+    this.labelPadding = const EdgeInsets.symmetric(horizontal: 14),
   });
 
   final TabController controller;
   final List<String> labels;
   final ValueChanged<int>? onTap;
   final double height;
+
+  /// The labels' text style, the theme's when null.
+  final TextStyle? labelStyle;
+  final EdgeInsetsGeometry labelPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +57,8 @@ class LiquidGlassTabBar extends StatelessWidget {
               indicatorSize: TabBarIndicatorSize.tab,
               labelColor: colorScheme.primary,
               unselectedLabelColor: colorScheme.onSurfaceVariant,
-              labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+              labelStyle: labelStyle,
+              labelPadding: labelPadding,
               overlayColor: const WidgetStatePropertyAll(Colors.transparent),
               splashFactory: NoSplash.splashFactory,
               onTap: onTap,
