@@ -116,12 +116,22 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   Widget build(BuildContext context) {
     super.build(context);
     final colorScheme = ColorScheme.of(context);
+    // Logged out, the panel of followed UPs could only fail to load: leave it
+    // out, drawer and all, so that the content keeps the whole width.
+    return Obx(
+      () => _buildPage(
+        colorScheme,
+        showUpPanel: _dynamicsController.accountService.isLogin.value,
+      ),
+    );
+  }
 
+  Widget _buildPage(ColorScheme colorScheme, {required bool showUpPanel}) {
     Widget? drawer;
     Widget? endDrawer;
 
     Widget? leading;
-    Widget actions;
+    Widget? actions;
 
     Widget child = tabBarView(
       controller: _dynamicsController.tabController,
@@ -134,7 +144,7 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
       case .top:
         child = Column(
           children: [
-            upPanelPart(colorScheme),
+            if (showUpPanel) upPanelPart(colorScheme),
             Expanded(child: child),
           ],
         );
@@ -142,7 +152,7 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
       case .leftFixed:
         child = Row(
           children: [
-            upPanelPart(colorScheme),
+            if (showUpPanel) upPanelPart(colorScheme),
             Expanded(child: child),
           ],
         );
@@ -151,18 +161,22 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
         child = Row(
           children: [
             Expanded(child: child),
-            upPanelPart(colorScheme),
+            if (showUpPanel) upPanelPart(colorScheme),
           ],
         );
         actions = _createDynamicBtn(colorScheme);
       case .leftDrawer:
-        drawer = upPanelPart(colorScheme);
+        if (showUpPanel) {
+          drawer = upPanelPart(colorScheme);
+          leading = const DrawerButton();
+        }
         actions = _createDynamicBtn(colorScheme);
-        leading = const DrawerButton();
       case .rightDrawer:
-        endDrawer = upPanelPart(colorScheme);
+        if (showUpPanel) {
+          endDrawer = upPanelPart(colorScheme);
+          actions = const EndDrawerButton();
+        }
         leading = _createDynamicBtn(colorScheme, isRight: false);
-        actions = const EndDrawerButton();
     }
 
     return Scaffold(
@@ -198,7 +212,7 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
                 },
               ),
             ),
-            actions,
+            ?actions,
           ],
         ),
       ),
