@@ -1,6 +1,11 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_height_widget.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/pages/common/common_page.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
@@ -26,8 +31,12 @@ class _HomePageState extends CommonPageState<HomePage>
   final _homeController = Get.putOrFind(HomeController.new);
   final _mainController = Get.find<MainController>();
 
+  // The glass header is laid over the content and slides away rather than
+  // shrinking it, so the content needs no correction as it hides.
+  late final bool _glass = _mainController.liquidGlass;
+
   @override
-  bool get needsCorrection => _homeController.hideTopBar;
+  bool get needsCorrection => _homeController.hideTopBar && !_glass;
 
   @override
   bool get wantKeepAlive => true;
@@ -41,6 +50,9 @@ class _HomePageState extends CommonPageState<HomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (_glass) {
+      return _buildGlass();
+    }
     Widget tabBar;
     if (_homeController.tabs.length > 1) {
       tabBar = Padding(
@@ -56,12 +68,7 @@ class _HomePageState extends CommonPageState<HomePage>
             dividerHeight: 0,
             splashBorderRadius: Style.mdRadius,
             tabAlignment: TabAlignment.center,
-            onTap: (_) {
-              feedBack();
-              if (!_homeController.tabController.indexIsChanging) {
-                _homeController.animateToTop();
-              }
-            },
+            onTap: _onTabTap,
           ),
         ),
       );
@@ -90,6 +97,142 @@ class _HomePageState extends CommonPageState<HomePage>
           ),
         ),
       ],
+    );
+  }
+
+  void _onTabTap(int index) {
+    feedBack();
+    if (!_homeController.tabController.indexIsChanging) {
+      _homeController.animateToTop();
+    }
+  }
+
+  void _toSearch() => Get.toNamed(
+    '/search',
+    parameters: _homeController.enableSearchWord
+        ? {'hintText': _homeController.defaultSearch.value}
+        : null,
+  );
+
+  /// The header in liquid glass, laid over the content, which scrolls under it
+  /// starting below it.
+  Widget _buildGlass() {
+    final showSearch =
+        !_mainController.useSideBar && MediaQuery.sizeOf(context).isPortrait;
+    final hasTabs = _homeController.tabs.length > 1;
+    const tabsExtent = 6.0 + 40.0 + 4.0;
+    final inset =
+        (showSearch ? Style.topBarHeight : 0.0) + (hasTabs ? tabsExtent : 6.0);
+
+    Widget header = LiquidGlassHeader(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showSearch) _glassSearchRow(),
+          if (hasTabs)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+              child: LiquidGlassTabBar(
+                controller: _homeController.tabController,
+                labels: _homeController.tabs.map((e) => e.label).toList(),
+                onTap: _onTabTap,
+              ),
+            )
+          else
+            const SizedBox(height: 6),
+        ],
+      ),
+    );
+
+    if (showSearch && _homeController.hideTopBar) {
+      if (_mainController.barOffset case final barOffset?) {
+        final child = header;
+        header = Obx(
+          () => Transform.translate(
+            offset: Offset(0, -barOffset.value),
+            child: child,
+          ),
+        );
+      } else if (_homeController.showTopBar case final showTopBar?) {
+        final child = header;
+        header = Obx(
+          () => TweenAnimationBuilder<double>(
+            tween: Tween(end: showTopBar.value ? 0 : -Style.topBarHeight),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOutCubicEmphasized,
+            builder: (context, dy, child) =>
+                Transform.translate(offset: Offset(0, dy), child: child),
+            child: child,
+          ),
+        );
+      }
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: HeaderOverlayInset(
+            inset: inset,
+            child: onBuild(
+              tabBarView(
+                controller: _homeController.tabController,
+                children: _homeController.tabs.map((e) => e.page).toList(),
+              ),
+            ),
+          ),
+        ),
+        Positioned(top: 0, left: 0, right: 0, child: header),
+      ],
+    );
+  }
+
+  Widget _glassSearchRow() {
+    return SizedBox(
+      height: Style.topBarHeight,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 44,
+                child: LiquidGlassButton(
+                  onTap: _toSearch,
+                  shadows: floatingGlassShadows(_colorScheme),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 14),
+                      Icon(
+                        Icons.search_outlined,
+                        color: _colorScheme.onSecondaryContainer,
+                        semanticLabel: '搜索',
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Obx(
+                          () => Text(
+                            _homeController.defaultSearch.value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: _colorScheme.outline),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            msgBadge(_mainController, glass: true),
+            userAvatar(
+              colorScheme: _colorScheme,
+              mainController: _mainController,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -157,12 +300,7 @@ class _HomePageState extends CommonPageState<HomePage>
             splashColor: _colorScheme.primaryContainer.withValues(
               alpha: 0.3,
             ),
-            onTap: () => Get.toNamed(
-              '/search',
-              parameters: _homeController.enableSearchWord
-                  ? {'hintText': _homeController.defaultSearch.value}
-                  : null,
-            ),
+            onTap: _toSearch,
             child: Row(
               children: [
                 const SizedBox(width: 14),
@@ -269,29 +407,45 @@ Widget userAvatar({
   );
 }
 
-Widget msgBadge(MainController mainController) {
+void _openMessages(MainController mainController) {
+  mainController
+    ..clearUnreadMsg()
+    ..lastCheckUnreadAt = DateTime.now().millisecondsSinceEpoch;
+  Get.toNamed('/whisper');
+}
+
+Widget msgBadge(MainController mainController, {bool glass = false}) {
   return Obx(
     () {
       if (mainController.accountService.isLogin.value) {
         final count = mainController.msgUnReadCount.value;
         final isNumBadge = mainController.msgBadgeMode == .number;
+        final icon = Badge(
+          isLabelVisible:
+              mainController.msgBadgeMode != .hidden && count != null,
+          alignment: isNumBadge
+              ? const Alignment(0.0, -0.85)
+              : const Alignment(1.0, -0.85),
+          label: isNumBadge && count != null ? Text(count) : null,
+          child: const Icon(Icons.notifications_none),
+        );
+        if (glass) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: SizedBox.square(
+              dimension: 40,
+              child: LiquidGlassButton(
+                tooltip: '消息',
+                onTap: () => _openMessages(mainController),
+                child: Center(child: icon),
+              ),
+            ),
+          );
+        }
         return IconButton(
           tooltip: '消息',
-          onPressed: () {
-            mainController
-              ..clearUnreadMsg()
-              ..lastCheckUnreadAt = DateTime.now().millisecondsSinceEpoch;
-            Get.toNamed('/whisper');
-          },
-          icon: Badge(
-            isLabelVisible:
-                mainController.msgBadgeMode != .hidden && count != null,
-            alignment: isNumBadge
-                ? const Alignment(0.0, -0.85)
-                : const Alignment(1.0, -0.85),
-            label: isNumBadge && count != null ? Text(count) : null,
-            child: const Icon(Icons.notifications_none),
-          ),
+          onPressed: () => _openMessages(mainController),
+          icon: icon,
         );
       }
       return const SizedBox.shrink();

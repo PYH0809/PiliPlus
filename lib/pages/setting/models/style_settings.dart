@@ -140,10 +140,10 @@ List<SettingsModel> get styleSettings => [
     needReboot: true,
   ),
   const SwitchModel(
-    title: '液态玻璃底栏',
-    subtitle: '实验性：悬浮底栏改用液态玻璃，未启用 Impeller 时只有磨砂效果',
+    title: '液态玻璃',
+    subtitle: '实验性：底栏和首页顶栏改用液态玻璃，未启用 Impeller 时只有磨砂效果',
     leading: Icon(Icons.blur_on),
-    setKey: SettingBoxKey.liquidGlassNavBar,
+    setKey: SettingBoxKey.liquidGlass,
     defaultVal: false,
     needReboot: true,
   ),

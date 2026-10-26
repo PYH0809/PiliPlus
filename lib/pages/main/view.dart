@@ -4,7 +4,6 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
-import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/main_layout.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
@@ -155,7 +154,7 @@ class _MainAppState extends PopScopeState<MainApp>
   Widget? get _bottomNav {
     Widget? bottomNav;
     if (_mainController.navigationBars.length > 1) {
-      if (_mainController.liquidGlassNavBar) {
+      if (_mainController.liquidGlass) {
         bottomNav = Obx(
           () => LiquidGlassNavigationBar(
             onDestinationSelected: _mainController.setIndex,
@@ -386,16 +385,6 @@ class _MainAppState extends PopScopeState<MainApp>
         body: Padding(padding: padding, child: child),
       ),
     );
-
-    if (_mainController.liquidGlassNavBar) {
-      // Always in the tree while the setting is on, so that rotating to the
-      // side bar keeps the pages' state; it captures only for the bottom bar.
-      final glass = bottomNav != null;
-      child = LiquidGlassScope(
-        enabled: glass,
-        child: LiquidGlassHost(enabled: glass, child: child),
-      );
-    }
 
     if (PlatformUtils.isMobile) {
       return AnnotatedRegion<SystemUiOverlayStyle>(

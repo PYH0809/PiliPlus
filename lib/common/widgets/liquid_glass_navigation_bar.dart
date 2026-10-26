@@ -1,12 +1,10 @@
 import 'dart:math' as math;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/physics.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:material_ui/material_ui.dart';
 
 // The floating bar's metrics, as FloatingNavigationBar's.
@@ -131,13 +129,13 @@ class LiquidGlassNavigationBar extends StatefulWidget {
 
 class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
     with TickerProviderStateMixin {
-  late final _lens = _Spring(this, widget.selectedIndex.toDouble());
-  late final _lift = _Spring(this, 0);
-  late final _swell = _Spring(this, 0);
-  late final _pull = _Spring(this, 0);
-  late final _jelly = _Spring(this, 0, rest: _kJellyRest);
-  late final _glow = _Spring(this, 0);
-  late final _glowSpread = _Spring(this, 0);
+  late final _lens = GlassSpring(this, widget.selectedIndex.toDouble());
+  late final _lift = GlassSpring(this, 0);
+  late final _swell = GlassSpring(this, 0);
+  late final _pull = GlassSpring(this, 0);
+  late final _jelly = GlassSpring(this, 0, rest: _kJellyRest);
+  late final _glow = GlassSpring(this, 0);
+  late final _glowSpread = GlassSpring(this, 0);
   late final Listenable _barMotion = Listenable.merge([_swell, _pull]);
   late final Listenable _motion = Listenable.merge([_lens, _lift, _jelly]);
   final _touchGlow = ValueNotifier(LiquidGlassGlow.none);
@@ -189,7 +187,11 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
     super.dispose();
   }
 
-  void _springTo(_Spring spring, double target, SpringDescription description) {
+  void _springTo(
+    GlassSpring spring,
+    double target,
+    SpringDescription description,
+  ) {
     if (MediaQuery.disableAnimationsOf(context)) {
       spring.jumpTo(target);
     } else {
@@ -437,25 +439,11 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
     );
     final lensed = lift > 0;
 
-    // FlClash's platter: the secondary hue at tone 90, or 4 in dark, which
-    // sinks it below the bar.
-    final hct = Hct.fromInt(colorScheme.secondary.toARGB32())
-      ..tone = dark ? 4.0 : 90.0;
-    final platter = Color(hct.toInt()).withValues(alpha: 0.85 * (1 - lift));
+    final platter = glassPlatterColor(colorScheme);
+    final restPlatter = platter.withValues(alpha: platter.a * (1 - lift));
 
     final strength = dark ? 3.0 : 1.0;
-    final barShadows = [
-      BoxShadow(
-        color: colorScheme.shadow.withValues(alpha: 0.08 * strength),
-        blurRadius: 24,
-        offset: const Offset(0, 8),
-      ),
-      BoxShadow(
-        color: colorScheme.shadow.withValues(alpha: 0.04 * strength),
-        blurRadius: 3,
-        offset: const Offset(0, 1),
-      ),
-    ];
+    final barShadows = floatingGlassShadows(colorScheme);
 
     final labelStyle = theme.textTheme.labelMedium!;
     final highlighted = _indexAt(position);
@@ -517,7 +505,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: ShapeDecoration(
-                color: platter,
+                color: restPlatter,
                 shape: const StadiumBorder(),
               ),
             ),
@@ -644,90 +632,4 @@ class _LensClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(_LensClipper oldClipper) =>
       oldClipper.lens != lens || oldClipper.hole != hole;
-}
-
-/// A value that springs toward a target the finger may move every frame,
-/// from FlClash's navigation dock.
-///
-/// [AnimationController.animateWith] restarts its ticker, whose first frame
-/// reads no elapsed time, so retargeting it on every pointer move would hold
-/// the value still for as long as the finger keeps moving.
-class _Spring extends ChangeNotifier implements ValueListenable<double> {
-  _Spring(TickerProvider vsync, this._value, {this.rest = 1e-3}) {
-    _ticker = vsync.createTicker(_tick);
-  }
-
-  final double rest;
-
-  late final Ticker _ticker;
-  double _value;
-  double _target = 0;
-  SpringSimulation? _simulation;
-  SpringDescription? _spring;
-  double _now = 0;
-  double _start = 0;
-
-  @override
-  double get value => _value;
-
-  double get target => _simulation == null ? _value : _target;
-
-  double get velocity => _simulation?.dx(_now - _start) ?? 0;
-
-  double get acceleration {
-    final spring = _spring;
-    if (_simulation == null || spring == null) {
-      return 0;
-    }
-    return (spring.stiffness * (_target - _value) - spring.damping * velocity) /
-        spring.mass;
-  }
-
-  void springTo(double target, SpringDescription spring) {
-    _simulation = SpringSimulation(
-      spring,
-      _value,
-      target,
-      velocity,
-      tolerance: Tolerance(
-        distance: rest,
-        velocity: rest * math.sqrt(spring.stiffness / spring.mass),
-      ),
-    );
-    _spring = spring;
-    _target = target;
-    if (_ticker.isActive) {
-      _start = _now;
-      return;
-    }
-    _now = _start = 0;
-    _ticker.start();
-  }
-
-  void jumpTo(double value) {
-    _simulation = null;
-    _ticker.stop();
-    _value = value;
-    notifyListeners();
-  }
-
-  void _tick(Duration elapsed) {
-    _now = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
-    final simulation = _simulation!;
-    final time = _now - _start;
-    if (simulation.isDone(time)) {
-      _value = _target;
-      _simulation = null;
-      _ticker.stop();
-    } else {
-      _value = simulation.x(time);
-    }
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
 }
