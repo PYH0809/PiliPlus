@@ -87,7 +87,7 @@ index eb3580d..d924e5a 100644
            spacing: spacing,
            overflowAlignment: actionsOverflowAlignment ?? OverflowBarAlignment.end,
 diff --git a/lib/src/popup_menu.dart b/lib/src/popup_menu.dart
-index 0022a99..751c447 100644
+index 0022a99..8cf43c2 100644
 --- a/lib/src/popup_menu.dart
 +++ b/lib/src/popup_menu.dart
 @@ -26,6 +26,7 @@ import 'list_tile.dart';
@@ -195,17 +195,29 @@ index 0022a99..751c447 100644
      return AnimatedBuilder(
        animation: widget.route.animation!,
        builder: (BuildContext context, Widget? child) {
-@@ -975,6 +1021,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -947,6 +993,7 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+   _PopupMenuRoute({
+     this.position,
+     this.positionBuilder,
++    this.anchorBuilder,
+     required this.items,
+     required this.itemKeys,
+     this.initialValue,
+@@ -975,6 +1022,13 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
  
    final RelativeRect? position;
    final PopupMenuPositionBuilder? positionBuilder;
 +
 +  /// PiliPlus: where the menu opens from, in the coordinates it is laid out in.
 +  Rect? anchor;
++
++  /// PiliPlus: the rect of what opens the menu, where [position] is not it,
++  /// as a button's menu placed under it.
++  final PopupMenuPositionBuilder? anchorBuilder;
    final List<PopupMenuEntry<T>> items;
    final List<GlobalKey> itemKeys;
    final List<Size?> itemSizes;
-@@ -1017,6 +1066,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -1017,6 +1071,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
    @override
    Duration get transitionDuration => popUpAnimationStyle?.duration ?? _kMenuDuration;
  
@@ -217,12 +229,13 @@ index 0022a99..751c447 100644
    @override
    bool get barrierDismissible => true;
  
-@@ -1063,9 +1117,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -1063,9 +1122,12 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
        removeRight: true,
        child: LayoutBuilder(
          builder: (BuildContext context, BoxConstraints constraints) {
 +          final RelativeRect position = positionBuilder?.call(context, constraints) ?? this.position!;
-+          anchor = position.toRect(Offset.zero & constraints.biggest);
++          anchor = (anchorBuilder?.call(context, constraints) ?? position)
++              .toRect(Offset.zero & constraints.biggest);
            return CustomSingleChildLayout(
              delegate: _PopupMenuRouteLayout(
 -              positionBuilder?.call(context, constraints) ?? position!,
@@ -230,7 +243,64 @@ index 0022a99..751c447 100644
                itemSizes,
                selectedItemIndex,
                Directionality.of(context),
-@@ -1819,15 +1875,17 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+@@ -1187,6 +1249,8 @@ Future<T?> showMenu<T>({
+   required BuildContext context,
+   RelativeRect? position,
+   PopupMenuPositionBuilder? positionBuilder,
++  // PiliPlus: where the menu opens from, if not [position].
++  PopupMenuPositionBuilder? anchorBuilder,
+   required List<PopupMenuEntry<T>> items,
+   T? initialValue,
+   double? elevation,
+@@ -1227,6 +1291,7 @@ Future<T?> showMenu<T>({
+     _PopupMenuRoute<T>(
+       position: position,
+       positionBuilder: positionBuilder,
++      anchorBuilder: anchorBuilder,
+       items: items,
+       itemKeys: menuItemKeys,
+       initialValue: initialValue,
+@@ -1637,6 +1702,7 @@ class PopupMenuButton<T> extends StatefulWidget {
+ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+   bool _isMenuExpanded = false;
+   RelativeRect? _lastPosition;
++  RelativeRect? _lastAnchor;
+   late PopupMenuThemeData _popupMenuTheme;
+   RenderBox? _cachedButtonRenderBox;
+   RenderBox? _cachedOverlayRenderBox;
+@@ -1678,6 +1744,23 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+     return _lastPosition ?? RelativeRect.fromSize(Rect.zero, constraints.biggest);
+   }
+ 
++  // PiliPlus: the button itself, which a menu placed under it, or offset,
++  // opens from and returns into.
++  RelativeRect _anchorBuilder(BuildContext context, BoxConstraints constraints) {
++    final RenderBox? button = _cachedButtonRenderBox;
++    final RenderBox? overlay = _cachedOverlayRenderBox;
++    if (!mounted || button == null || overlay == null || !button.attached || !overlay.attached) {
++      return _lastAnchor ?? _positionBuilder(context, constraints);
++    }
++    return _lastAnchor = RelativeRect.fromRect(
++      Rect.fromPoints(
++        button.localToGlobal(Offset.zero, ancestor: overlay),
++        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
++      ),
++      Offset.zero & overlay.size,
++    );
++  }
++
+   RelativeRect _positionBuilder(BuildContext _, BoxConstraints constraints) {
+     if (!mounted) {
+       // When the route is displayed, the `_positionBuilder` closure is stored.
+@@ -1748,6 +1831,7 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+         items: items,
+         initialValue: widget.initialValue,
+         positionBuilder: _positionBuilder,
++        anchorBuilder: _anchorBuilder,
+         shape: widget.shape,
+         menuPadding: widget.menuPadding,
+         color: widget.color,
+@@ -1819,15 +1903,17 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
        // that assistive technologies describe the popup menu button the same way
        // regardless of whether it is built from [child] or from [icon], in which
        // case the semantics come from the [IconButton].
@@ -254,7 +324,7 @@ index 0022a99..751c447 100644
        child: IconButton(
          key: StandardComponentType.moreButton.key,
          icon: Semantics(expanded: _isMenuExpanded, child: widget.icon ?? Icon(Icons.adaptive.more)),
-@@ -1840,8 +1898,15 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+@@ -1840,8 +1926,15 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
          enableFeedback: enableFeedback,
          style: widget.style,
        ),
