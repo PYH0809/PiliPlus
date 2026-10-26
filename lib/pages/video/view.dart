@@ -7,6 +7,9 @@ import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -46,6 +49,7 @@ import 'package:PiliPlus/pages/video/related/view.dart';
 import 'package:PiliPlus/pages/video/reply/controller.dart';
 import 'package:PiliPlus/pages/video/reply/view.dart';
 import 'package:PiliPlus/pages/video/view_point/view.dart';
+import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/pages/video/widgets/intro_layout.dart';
 import 'package:PiliPlus/pages/video/widgets/player_focus.dart';
@@ -125,6 +129,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       videoDetailController.plPlayerController.pipNoDanmaku;
 
   bool isShowing = true;
+
+  /// Whether the tabs and their buttons are liquid glass, read once.
+  late final bool _glass = GlassSurfaces.installed;
 
   bool get isFullScreen =>
       videoDetailController.plPlayerController.isFullScreen.value;
@@ -596,7 +603,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               key: videoDetailController.childKey,
               body: Column(
                 children: [
-                  buildTabBar(onTap: videoDetailController.animToTop),
+                  buildTabBar(
+                    width: maxWidth,
+                    onTap: videoDetailController.animToTop,
+                  ),
                   Expanded(
                     child: tabBarView(
                       hitTestBehavior: .translucent,
@@ -807,7 +817,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  buildTabBar(),
+                  buildTabBar(width: introWidth),
                   Expanded(
                     child: tabBarView(
                       controller: videoDetailController.tabCtr,
@@ -870,7 +880,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     key: videoDetailController.childKey,
                     body: Column(
                       children: [
-                        buildTabBar(showIntro: false),
+                        buildTabBar(width: introWidth, showIntro: false),
                         Expanded(
                           child: tabBarView(
                             controller: videoDetailController.tabCtr,
@@ -954,6 +964,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   buildTabBar(
+                    width: maxWidth - width - padding.horizontal,
                     introText: '相关视频',
                     showIntro: videoDetailController.isFileSource
                         ? true
@@ -1055,7 +1066,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               body: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  buildTabBar(needIndicator: false),
+                  buildTabBar(
+                    width: maxWidth - padding.horizontal,
+                    needIndicator: false,
+                  ),
                   Expanded(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1299,7 +1313,39 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         : child;
   }
 
+  void _onTabTap(
+    List<String> tabs,
+    int index, {
+    required bool flag,
+    VoidCallback? onTap,
+  }) {
+    if (!flag && videoDetailController.tabCtr.indexIsChanging) {
+      return;
+    }
+    if (onTap != null) {
+      onTap();
+      return;
+    }
+    String text = tabs[index];
+    if (videoDetailController.isFileSource || text == '简介' || text == '相关视频') {
+      videoDetailController.introScrollCtr?.animToTop();
+    } else if (text.startsWith('评论')) {
+      _videoReplyController.animateToTop();
+    }
+  }
+
+  void _toggleDanmaku() {
+    final ctr = videoDetailController.plPlayerController;
+    final newVal = !ctr.enableShowDanmaku.value;
+    ctr.enableShowDanmaku.value = newVal;
+    if (!ctr.tempPlayerConf) {
+      GStorage.setting.put(SettingBoxKey.enableShowDanmaku, newVal);
+    }
+  }
+
+  /// [width] is the column's, for the glass row to fit its pills to.
   Widget buildTabBar({
+    required double width,
     bool needIndicator = true,
     String? introText,
     bool showIntro = true,
@@ -1322,6 +1368,27 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       );
     }
 
+    if (_glass) {
+      return GlassDetailTabRow(
+        controller: videoDetailController.tabCtr,
+        tabs: tabs,
+        replyCount: videoDetailController.showReply
+            ? _videoReplyController.count
+            : null,
+        showPlatter: needIndicator && tabs.length > 1,
+        onTap: (value) => _onTabTap(
+          tabs,
+          value,
+          flag: !needIndicator || tabs.length == 1,
+          onTap: onTap,
+        ),
+        onSendDanmaku: videoDetailController.showShootDanmakuSheet,
+        showDanmaku: videoDetailController.plPlayerController.enableShowDanmaku,
+        onToggleDanmaku: _toggleDanmaku,
+        compact: GlassDetailTabRow.isCompact(width, tabs.length),
+      );
+    }
+
     Widget tabBar() {
       final flag = !needIndicator || tabs.length == 1;
       return TabBar(
@@ -1335,28 +1402,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         labelStyle:
             TabBarTheme.of(context).labelStyle?.copyWith(fontSize: 13) ??
             const TextStyle(fontSize: 13),
-        onTap: (value) {
-          void animToTop() {
-            if (onTap != null) {
-              onTap();
-              return;
-            }
-            String text = tabs[value];
-            if (videoDetailController.isFileSource ||
-                text == '简介' ||
-                text == '相关视频') {
-              videoDetailController.introScrollCtr?.animToTop();
-            } else if (text.startsWith('评论')) {
-              _videoReplyController.animateToTop();
-            }
-          }
-
-          if (flag) {
-            animToTop();
-          } else if (!videoDetailController.tabCtr.indexIsChanging) {
-            animToTop();
-          }
-        },
+        onTap: (value) => _onTabTap(tabs, value, flag: flag, onTap: onTap),
         tabs: tabs.map((text) {
           if (text == '评论') {
             return Obx(() {
@@ -1425,16 +1471,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                   final ctr = videoDetailController.plPlayerController;
                   final enableShowDanmaku = ctr.enableShowDanmaku.value;
                   return IconButton(
-                    onPressed: () {
-                      final newVal = !enableShowDanmaku;
-                      ctr.enableShowDanmaku.value = newVal;
-                      if (!ctr.tempPlayerConf) {
-                        GStorage.setting.put(
-                          SettingBoxKey.enableShowDanmaku,
-                          newVal,
-                        );
-                      }
-                    },
+                    onPressed: _toggleDanmaku,
                     icon: Icon(
                       size: 22,
                       enableShowDanmaku
@@ -1690,9 +1727,13 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         SliverToBoxAdapter(
           child: SizedBox(
             height:
-                (videoDetailController.isPlayAll && !isPortrait
-                    ? 80
-                    : Style.safeSpace) +
+                (!videoDetailController.isPlayAll
+                    ? Style.safeSpace
+                    : _glass
+                    ? 54.0 + 24.0
+                    : isPortrait
+                    ? Style.safeSpace
+                    : 80) +
                 padding.bottom,
           ),
         ),
@@ -1702,44 +1743,97 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     if (videoDetailController.isPlayAll) {
       child = IntroLayout(
         body: child,
-        playlist: Padding(
-          padding: .only(left: 12, right: 12, bottom: 12 + padding.bottom),
-          child: Material(
-            type: .transparency,
-            child: InkWell(
-              onTap: () => videoDetailController.showMediaListPanel(context),
-              borderRadius: const .all(.circular(14)),
-              child: Container(
-                height: 54,
-                padding: const .symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: colorScheme.secondaryContainer.withValues(alpha: 0.95),
-                  borderRadius: const .all(.circular(14)),
+        playlist: _glass
+            ? _glassPlaylist()
+            : Padding(
+                padding: .only(
+                  left: 12,
+                  right: 12,
+                  bottom: 12 + padding.bottom,
                 ),
-                child: Row(
-                  spacing: 10,
-                  children: [
-                    const Icon(Icons.playlist_play, size: 24),
-                    Expanded(
-                      child: Text(
-                        videoDetailController.watchLaterTitle,
-                        style: TextStyle(
-                          color: colorScheme.onSecondaryContainer,
-                          fontWeight: .bold,
-                          letterSpacing: 0.2,
+                child: Material(
+                  type: .transparency,
+                  child: InkWell(
+                    onTap: () =>
+                        videoDetailController.showMediaListPanel(context),
+                    borderRadius: const .all(.circular(14)),
+                    child: Container(
+                      height: 54,
+                      padding: const .symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: colorScheme.secondaryContainer.withValues(
+                          alpha: 0.95,
                         ),
+                        borderRadius: const .all(.circular(14)),
+                      ),
+                      child: Row(
+                        spacing: 10,
+                        children: [
+                          const Icon(Icons.playlist_play, size: 24),
+                          Expanded(
+                            child: Text(
+                              videoDetailController.watchLaterTitle,
+                              style: TextStyle(
+                                color: colorScheme.onSecondaryContainer,
+                                fontWeight: .bold,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.keyboard_arrow_up_rounded, size: 26),
+                        ],
                       ),
                     ),
-                    const Icon(Icons.keyboard_arrow_up_rounded, size: 26),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-        ),
       );
     }
     return KeepAliveWrapper(child: child);
+  }
+
+  /// The watch-later list's capsule floating over the intro, in glass.
+  Widget _glassPlaylist() {
+    return Padding(
+      padding: .only(left: 12, right: 12, bottom: 12 + padding.bottom),
+      child: SizedBox(
+        height: 54,
+        child: LiquidGlassButton(
+          onTap: () => videoDetailController.showMediaListPanel(context),
+          shadows: floatingGlassShadows(colorScheme),
+          child: Padding(
+            padding: const .symmetric(horizontal: 16),
+            child: Row(
+              spacing: 10,
+              children: [
+                Icon(
+                  Icons.playlist_play,
+                  size: 24,
+                  color: colorScheme.onSurface,
+                ),
+                Expanded(
+                  child: Text(
+                    videoDetailController.watchLaterTitle,
+                    maxLines: 1,
+                    overflow: .ellipsis,
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: .bold,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.keyboard_arrow_up_rounded,
+                  size: 26,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget get seasonPanel {

@@ -3,7 +3,8 @@ import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Tabs on one pill of liquid glass. The current tab stands on a platter that
-/// slides with [controller] as the pages do.
+/// slides with [controller] as the pages do, unless [showPlatter] is false, as
+/// for a single tab, which then reads in [ColorScheme.onSurface].
 class LiquidGlassTabBar extends StatelessWidget {
   const LiquidGlassTabBar({
     super.key,
@@ -11,12 +12,21 @@ class LiquidGlassTabBar extends StatelessWidget {
     required this.labels,
     this.onTap,
     this.height = 40,
+    this.labelStyle,
+    this.labelPadding = const EdgeInsets.symmetric(horizontal: 14),
+    this.showPlatter = true,
   });
 
   final TabController controller;
   final List<String> labels;
   final ValueChanged<int>? onTap;
   final double height;
+
+  /// The labels' text style, the theme's when null.
+  final TextStyle? labelStyle;
+  final EdgeInsetsGeometry labelPadding;
+
+  final bool showPlatter;
 
   @override
   Widget build(BuildContext context) {
@@ -44,14 +54,19 @@ class LiquidGlassTabBar extends StatelessWidget {
               tabAlignment: TabAlignment.center,
               dividerColor: Colors.transparent,
               dividerHeight: 0,
-              indicator: ShapeDecoration(
-                color: glassPlatterColor(colorScheme),
-                shape: const StadiumBorder(),
-              ),
+              indicator: showPlatter
+                  ? ShapeDecoration(
+                      color: glassPlatterColor(colorScheme),
+                      shape: const StadiumBorder(),
+                    )
+                  : const BoxDecoration(),
               indicatorSize: TabBarIndicatorSize.tab,
-              labelColor: colorScheme.primary,
+              labelColor: showPlatter
+                  ? colorScheme.primary
+                  : colorScheme.onSurface,
               unselectedLabelColor: colorScheme.onSurfaceVariant,
-              labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+              labelStyle: labelStyle,
+              labelPadding: labelPadding,
               overlayColor: const WidgetStatePropertyAll(Colors.transparent),
               splashFactory: NoSplash.splashFactory,
               onTap: onTap,

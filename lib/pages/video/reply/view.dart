@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/skeleton/video_reply.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_floating_header.dart';
@@ -12,6 +13,7 @@ import 'package:PiliPlus/pages/common/fab_mixin.dart';
 import 'package:PiliPlus/pages/video/reply/controller.dart';
 import 'package:PiliPlus/pages/video/reply/vote/reply_vote_item.dart';
 import 'package:PiliPlus/pages/video/reply/widgets/reply_item_grpc.dart';
+import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -42,6 +44,9 @@ class _VideoReplyPanelState extends State<VideoReplyPanel>
   late VideoReplyController _videoReplyController;
 
   String get heroTag => widget.heroTag;
+
+  /// Whether the sort row and the button to comment are liquid glass.
+  late final bool _glass = GlassSurfaces.installed;
 
   @override
   bool get wantKeepAlive => true;
@@ -80,70 +85,92 @@ class _VideoReplyPanelState extends State<VideoReplyPanel>
             physics: const AlwaysScrollableScrollPhysics(),
             key: const PageStorageKey(_VideoReplyPanelState),
             slivers: [
-              SliverFloatingHeaderWidget(
-                backgroundColor: colorScheme.surface,
-                child: Padding(
-                  padding: const .fromLTRB(12, 2.5, 6, 2.5),
-                  child: Obx(() {
-                    final sortType = _videoReplyController.sortType.value;
-                    return Row(
-                      mainAxisAlignment: .spaceBetween,
-                      children: [
-                        Text(
-                          sortType.desc,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        TextButton.icon(
-                          style: Style.buttonStyle,
-                          onPressed: _videoReplyController.queryBySort,
-                          icon: Icon(
-                            Icons.sort,
-                            size: 16,
-                            color: colorScheme.secondary,
+              if (_glass)
+                SliverFloatingHeaderWidget(
+                  backgroundColor: colorScheme.surface,
+                  child: _glassSortRow(),
+                )
+              else
+                SliverFloatingHeaderWidget(
+                  backgroundColor: colorScheme.surface,
+                  child: Padding(
+                    padding: const .fromLTRB(12, 2.5, 6, 2.5),
+                    child: Obx(() {
+                      final sortType = _videoReplyController.sortType.value;
+                      return Row(
+                        mainAxisAlignment: .spaceBetween,
+                        children: [
+                          Text(
+                            sortType.desc,
+                            style: const TextStyle(fontSize: 13),
                           ),
-                          label: Text(
-                            sortType.descShort,
-                            style: TextStyle(
-                              fontSize: 13,
+                          TextButton.icon(
+                            style: Style.buttonStyle,
+                            onPressed: _videoReplyController.queryBySort,
+                            icon: Icon(
+                              Icons.sort,
+                              size: 16,
                               color: colorScheme.secondary,
                             ),
+                            label: Text(
+                              sortType.descShort,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.secondary,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
-                    );
-                  }),
+                        ],
+                      );
+                    }),
+                  ),
                 ),
-              ),
               Obx(() => _buildBody(_videoReplyController.loadingState.value)),
             ],
           ),
           fab: SlideTransition(
             position: fabAnimation,
             child: Padding(
+              // On glass, room above for the drop's shadow, which then slides
+              // out of sight with it.
               padding: .only(
+                top: _glass ? 24 : 0,
                 right: kFloatingActionButtonMargin,
                 bottom: kFloatingActionButtonMargin + bottom,
               ),
-              child: FloatingActionButton(
-                heroTag: null,
-                onPressed: () {
-                  feedBack();
-                  _videoReplyController.onReply(
-                    null,
-                    oid: _videoReplyController.aid,
-                    replyType: _videoReplyController.videoType.replyType,
-                    mentionItem: _videoReplyController.mentionItem,
-                  );
-                },
-                tooltip: '发表评论',
-                child: const Icon(Icons.reply),
-              ),
+              child: _glass
+                  ? GlassReplyFab(onTap: _onReply)
+                  : FloatingActionButton(
+                      heroTag: null,
+                      onPressed: _onReply,
+                      tooltip: '发表评论',
+                      child: const Icon(Icons.reply),
+                    ),
             ),
           ),
         ),
       ),
     );
   }
+
+  void _onReply() {
+    feedBack();
+    _videoReplyController.onReply(
+      null,
+      oid: _videoReplyController.aid,
+      replyType: _videoReplyController.videoType.replyType,
+      mentionItem: _videoReplyController.mentionItem,
+    );
+  }
+
+  Widget _glassSortRow() => Obx(() {
+    final sortType = _videoReplyController.sortType.value;
+    return GlassReplySortRow(
+      desc: sortType.desc,
+      label: sortType.descShort,
+      onSort: _videoReplyController.queryBySort,
+    );
+  });
 
   Widget _buildBody(LoadingState<List<ReplyInfo>?> loadingState) {
     switch (loadingState) {
