@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/gesture/tap_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/models_new/video/video_ai_conclusion/model_result.dart';
 import 'package:PiliPlus/pages/common/slide/common_slide_page.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
@@ -44,10 +45,23 @@ class AiConclusionPanel extends CommonSlidePage {
             ),
             if (hasOutline)
               SliverToBoxAdapter(
-                child: Divider(
-                  height: 20,
-                  color: theme.dividerColor.withValues(alpha: 0.1),
-                  thickness: 6,
+                // On glass, a hairline as the menus' rather than a band.
+                child: Builder(
+                  builder: (context) => GlassSurfaces.onGlass(context)
+                      ? Divider(
+                          height: 20,
+                          indent: 14,
+                          endIndent: 14,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.14,
+                          ),
+                          thickness: 1,
+                        )
+                      : Divider(
+                          height: 20,
+                          color: theme.dividerColor.withValues(alpha: 0.1),
+                          thickness: 6,
+                        ),
                 ),
               ),
           ],

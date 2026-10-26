@@ -1,3 +1,5 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 Widget iconButton({
@@ -14,8 +16,14 @@ Widget iconButton({
   Color? foregroundColor = iconColor;
   if (context != null) {
     final colorScheme = ColorScheme.of(context);
-    backgroundColor = colorScheme.secondaryContainer;
-    foregroundColor = colorScheme.onSecondaryContainer;
+    // On glass, filled as its other controls are.
+    if (GlassSurfaces.onGlass(context)) {
+      backgroundColor = glassFillOf(colorScheme);
+      foregroundColor = colorScheme.onSurface;
+    } else {
+      backgroundColor = colorScheme.secondaryContainer;
+      foregroundColor = colorScheme.onSecondaryContainer;
+    }
   }
   return SizedBox(
     width: size,

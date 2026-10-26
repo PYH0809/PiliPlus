@@ -12,6 +12,7 @@ import 'package:PiliPlus/common/widgets/disabled_icon.dart';
 import 'package:PiliPlus/common/widgets/gesture/immediate_tap_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/gesture/mouse_interactive_viewer.dart';
 import 'package:PiliPlus/common/widgets/gesture/player_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
@@ -1050,17 +1051,29 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             maskColor: Colors.transparent,
             displayTime: const Duration(milliseconds: 1500),
             animationTime: const Duration(milliseconds: 200),
-            builder: (context) => Container(
-              padding: const .symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                borderRadius: const .all(.circular(6)),
-                color: colorScheme.secondaryContainer,
-              ),
-              child: Text(
-                '松开手指，取消进退',
-                style: TextStyle(color: colorScheme.onSecondaryContainer),
-              ),
-            ),
+            // On glass, a pill of glass as a toast's.
+            builder: (context) => GlassSurfaces.installed
+                ? GlassSurfaces.pill(
+                    context,
+                    child: Padding(
+                      padding: const .symmetric(horizontal: 14, vertical: 7),
+                      child: Text(
+                        '松开手指，取消进退',
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
+                    ),
+                  )
+                : Container(
+                    padding: const .symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: const .all(.circular(6)),
+                      color: colorScheme.secondaryContainer,
+                    ),
+                    child: Text(
+                      '松开手指，取消进退',
+                      style: TextStyle(color: colorScheme.onSecondaryContainer),
+                    ),
+                  ),
           );
         }
         return;

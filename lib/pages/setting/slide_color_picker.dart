@@ -1,3 +1,5 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_alert_actions.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/utils/danmaku_utils.dart';
 import 'package:flutter/services.dart'
     show LengthLimitingTextInputFormatter, FilteringTextInputFormatter;
@@ -80,16 +82,43 @@ class _SlideColorPickerState extends State<SlideColorPicker> {
     );
   }
 
+  void _reset() {
+    Get.back();
+    widget.onChanged(null);
+  }
+
+  void _confirm() {
+    Get.back();
+    widget.onChanged(DmUtils.decimalToColor(_rgb));
+  }
+
   @override
   Widget build(BuildContext context) {
+    // On glass, the preview is inset with corners concentric to the alert's,
+    // and the buttons are its capsules.
+    final glass = GlassSurfaces.installed;
     return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            height: 100,
-            color: DmUtils.decimalToColor(_rgb),
-          ),
+          if (glass)
+            Padding(
+              padding: const .symmetric(horizontal: 16),
+              child: DecoratedBox(
+                decoration: ShapeDecoration(
+                  color: DmUtils.decimalToColor(_rgb),
+                  shape: const RoundedSuperellipseBorder(
+                    borderRadius: .all(.circular(18)),
+                  ),
+                ),
+                child: const SizedBox(height: 100, width: double.infinity),
+              ),
+            )
+          else
+            Container(
+              height: 100,
+              color: DmUtils.decimalToColor(_rgb),
+            ),
           const SizedBox(height: 10),
           IntrinsicWidth(
             child: TextField(
@@ -143,38 +172,45 @@ class _SlideColorPickerState extends State<SlideColorPicker> {
               });
             },
           ),
-          Row(
-            children: [
-              if (widget.showResetBtn) ...[
-                const SizedBox(width: 16),
+          if (glass)
+            Padding(
+              padding: const .fromLTRB(16, 16, 16, 0),
+              child: GlassAlertActions(
+                actions: [
+                  TextButton(onPressed: Get.back, child: const Text('取消')),
+                  if (widget.showResetBtn)
+                    TextButton(onPressed: _reset, child: const Text('重置')),
+                  TextButton(onPressed: _confirm, child: const Text('确定')),
+                ],
+              ),
+            )
+          else
+            Row(
+              children: [
+                if (widget.showResetBtn) ...[
+                  const SizedBox(width: 16),
+                  TextButton(
+                    onPressed: _reset,
+                    child: const Text('重置'),
+                  ),
+                ],
+                const Spacer(),
                 TextButton(
-                  onPressed: () {
-                    Get.back();
-                    widget.onChanged(null);
-                  },
-                  child: const Text('重置'),
-                ),
-              ],
-              const Spacer(),
-              TextButton(
-                onPressed: Get.back,
-                child: Text(
-                  '取消',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.outline,
+                  onPressed: Get.back,
+                  child: Text(
+                    '取消',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Get.back();
-                  widget.onChanged(DmUtils.decimalToColor(_rgb));
-                },
-                child: const Text('确定'),
-              ),
-              const SizedBox(width: 16),
-            ],
-          ),
+                TextButton(
+                  onPressed: _confirm,
+                  child: const Text('确定'),
+                ),
+                const SizedBox(width: 16),
+              ],
+            ),
         ],
       ),
     );

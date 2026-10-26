@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/skeleton/space_opus.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/grpc/bilibili/app/dynamic/v2.pb.dart'
@@ -114,8 +115,21 @@ class _MemberOpusState extends State<MemberOpus>
                                   ..type.value = e
                                   ..onReload();
                               },
-                              tileColor: e == _controller.type.value
+                              // On glass, the current filter is checked,
+                              // as a menu's current value.
+                              tileColor:
+                                  !GlassSurfaces.installed &&
+                                      e == _controller.type.value
                                   ? ColorScheme.of(context).onInverseSurface
+                                  : null,
+                              trailing:
+                                  GlassSurfaces.installed &&
+                                      e == _controller.type.value
+                                  ? Icon(
+                                      Icons.check_rounded,
+                                      size: 18,
+                                      color: ColorScheme.of(context).primary,
+                                    )
                                   : null,
                               title: Text(
                                 e.text ?? e.tabName!,

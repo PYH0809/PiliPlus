@@ -5,6 +5,7 @@ import 'dart:math' show max, min;
 import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/assets.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -1822,18 +1823,31 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
                     constraints: BoxConstraints(
                       maxWidth: min(MediaQuery.widthOf(context) / 3, 350),
                     ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          width: 5,
-                          color: ColorScheme.of(context).surface,
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(5),
-                        child: RawImage(image: image),
-                      ),
-                    ),
+                    // On glass, the shot sits in a frame of glass.
+                    child: GlassSurfaces.installed
+                        ? GlassSurfaces.panel(
+                            context,
+                            radius: 16,
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: ClipRSuperellipse(
+                                borderRadius: const .all(.circular(10)),
+                                child: RawImage(image: image),
+                              ),
+                            ),
+                          )
+                        : DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                width: 5,
+                                color: ColorScheme.of(context).surface,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(5),
+                              child: RawImage(image: image),
+                            ),
+                          ),
                   ),
                 ),
               ),

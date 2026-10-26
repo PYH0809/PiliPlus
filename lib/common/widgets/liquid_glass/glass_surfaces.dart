@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_panel.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_switch.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -43,13 +44,15 @@ abstract final class GlassSurfaces {
       final colorScheme = theme.colorScheme;
       return _AlertMotion(
         child: GlassPanel(
-          style: LiquidGlassStyle.alert(colorScheme),
+          style: _alertStyle(colorScheme),
           rim: LiquidGlassRim.alert(colorScheme),
           shadows: menuShadows(colorScheme),
           radius: _alertRadius,
-          child: Theme(
-            data: _withoutRipples(theme),
-            child: Material(type: MaterialType.transparency, child: child),
+          child: _OnGlass(
+            child: Theme(
+              data: _withoutRipples(theme),
+              child: Material(type: MaterialType.transparency, child: child),
+            ),
           ),
         ),
       );
@@ -62,15 +65,17 @@ abstract final class GlassSurfaces {
         animation: animation,
         anchor: anchor,
         radius: _menuRadius,
-        child: Theme(
-          data: _withoutRipples(theme).copyWith(
-            dividerTheme: theme.dividerTheme.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.14),
-              thickness: 1,
-              space: _menuInset * 2 + 1,
+        child: _OnGlass(
+          child: Theme(
+            data: _withoutRipples(theme).copyWith(
+              dividerTheme: theme.dividerTheme.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.14),
+                thickness: 1,
+                space: _menuInset * 2 + 1,
+              ),
             ),
+            child: Material(type: MaterialType.transparency, child: child),
           ),
-          child: Material(type: MaterialType.transparency, child: child),
         ),
       );
     };
@@ -102,6 +107,53 @@ abstract final class GlassSurfaces {
         ),
       );
     };
+  }
+
+  /// A floating card of the menus' glass, with their rim and shadow, for a
+  /// call site's own popover or banner.
+  static Widget panel(
+    BuildContext context, {
+    required double radius,
+    required Widget child,
+  }) {
+    final colorScheme = ColorScheme.of(context);
+    return GlassPanel(
+      style: LiquidGlassStyle.menu(colorScheme),
+      rim: LiquidGlassRim.menu(colorScheme),
+      shadows: menuShadows(colorScheme),
+      radius: radius,
+      child: _OnGlass(child: child),
+    );
+  }
+
+  /// Whether [context] is on one of these surfaces, for controls that fill
+  /// themselves as glass controls are there and as Material's elsewhere.
+  static bool onGlass(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_OnGlass>() != null;
+
+  /// A pill of glass, as a toast's, for a short note over content.
+  static Widget pill(BuildContext context, {required Widget child}) {
+    final colorScheme = ColorScheme.of(context);
+    return LiquidGlass(
+      style: LiquidGlassStyle.pill(colorScheme),
+      shadows: floatingGlassShadows(colorScheme),
+      child: child,
+    );
+  }
+
+  // Thicker than FlClash's, as an iOS alert is: over busy covers its text
+  // reads on a soft wash of their colors rather than the covers themselves.
+  static LiquidGlassStyle _alertStyle(ColorScheme colorScheme) {
+    final menu = LiquidGlassStyle.menu(colorScheme);
+    final dark = colorScheme.brightness == Brightness.dark;
+    return LiquidGlassStyle(
+      tint: menu.tint.withValues(alpha: dark ? 0.8 : 0.74),
+      contrast: menu.contrast,
+      blur: 30,
+      saturation: dark ? 1.3 : 1.4,
+      brightness: menu.brightness,
+      rim: 0,
+    );
   }
 
   // On glass a pressed row stands on a platter, without a ripple.
@@ -224,4 +276,11 @@ class _AlertMotionState extends State<_AlertMotion>
       ),
     );
   }
+}
+
+class _OnGlass extends InheritedWidget {
+  const _OnGlass({required super.child});
+
+  @override
+  bool updateShouldNotify(_OnGlass oldWidget) => false;
 }

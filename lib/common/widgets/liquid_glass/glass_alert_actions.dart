@@ -13,30 +13,88 @@ const double _pressedFillShare = 0.4;
 const double _pressedDarkDefaultShare = 0.5;
 
 /// An alert's buttons as iOS lays them out: capsules, two side by side when
-/// both labels fit half the width, any other count stacked with the first,
-/// the cancel action by convention, at the bottom. The last one is the
-/// default action and is filled, unless its caller colored it, as a
-/// destructive one is.
+/// both labels fit half the width, any other count stacked with the cancel
+/// action, 取消 or the first, at the bottom. The last one is the default
+/// action and is filled, unless its caller colored it, as a destructive one
+/// is.
 class GlassAlertActions extends StatelessWidget {
   const GlassAlertActions({super.key, required this.actions});
 
   final List<Widget> actions;
 
-  static bool _colored(Widget action) => switch (action) {
-    ButtonStyleButton(:final style?) when style.foregroundColor != null => true,
-    ButtonStyleButton(child: Text(:final style?)) when style.color != null =>
-      true,
-    _ => false,
-  };
+  // A caller's own color, as a destructive action's; the outline color it
+  // mutes a cancel action in doesn't count.
+  static bool _colored(Widget action, ColorScheme colorScheme) =>
+      switch (action) {
+        ButtonStyleButton(:final style?) when style.foregroundColor != null =>
+          true,
+        ButtonStyleButton(child: Text(:final style?))
+            when style.color != null && style.color != colorScheme.outline =>
+          true,
+        _ => false,
+      };
+
+  static bool _isCancel(Widget action, ColorScheme colorScheme) =>
+      switch (action) {
+        ButtonStyleButton(child: Text(:final data)) when data == '取消' => true,
+        ButtonStyleButton(child: Text(:final style?))
+            when style.color == colorScheme.outline =>
+          true,
+        _ => false,
+      };
+
+  // On a capsule the outline color reads as disabled: a muted cancel action
+  // takes the capsule's own color.
+  static Widget _unmuted(Widget action, ColorScheme colorScheme) =>
+      switch (action) {
+        TextButton(
+          :final key,
+          :final onPressed,
+          :final onLongPress,
+          :final style,
+          child: Text(:final data?, style: final textStyle?),
+        )
+            when textStyle.color == colorScheme.outline =>
+          TextButton(
+            key: key,
+            onPressed: onPressed,
+            onLongPress: onLongPress,
+            style: style,
+            child: Text(
+              data,
+              style: TextStyle(
+                fontSize: textStyle.fontSize,
+                fontWeight: textStyle.fontWeight,
+              ),
+            ),
+          ),
+        _ => action,
+      };
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = ColorScheme.of(context);
+    // The cancel action ends a stack, or starts a pair, wherever the caller
+    // put it.
+    final cancel = actions.indexWhere(
+      (action) => _isCancel(action, colorScheme),
+    );
+    final ordered = cancel <= 0
+        ? actions
+        : [
+            actions[cancel],
+            ...actions.take(cancel),
+            ...actions.skip(cancel + 1),
+          ];
     return _AlertActions(
       children: [
-        for (final (index, action) in actions.indexed)
+        for (final (index, action) in ordered.indexed)
           _AlertAction(
-            isDefault: index == actions.length - 1 && !_colored(action),
-            child: action,
+            isDefault:
+                index == ordered.length - 1 &&
+                !(index == 0 && cancel >= 0) &&
+                !_colored(action, colorScheme),
+            child: _unmuted(action, colorScheme),
           ),
       ],
     );
