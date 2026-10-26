@@ -144,7 +144,7 @@ List<SettingsModel> get styleSettings => [
     subtitle: '实验性：底栏和首页顶栏改用液态玻璃，未启用 Impeller 时只有磨砂效果',
     leading: Icon(Icons.blur_on),
     setKey: SettingBoxKey.liquidGlass,
-    defaultVal: false,
+    defaultVal: true,
     needReboot: true,
   ),
   SwitchModel(

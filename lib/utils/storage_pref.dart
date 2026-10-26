@@ -1068,7 +1068,7 @@ abstract final class Pref {
       _setting.get(SettingBoxKey.floatingNavBar, defaultValue: false);
 
   static bool get liquidGlass =>
-      _setting.get(SettingBoxKey.liquidGlass, defaultValue: false);
+      _setting.get(SettingBoxKey.liquidGlass, defaultValue: true);
 
   static bool get removeSafeArea =>
       _setting.get(SettingBoxKey.removeSafeArea, defaultValue: false);
