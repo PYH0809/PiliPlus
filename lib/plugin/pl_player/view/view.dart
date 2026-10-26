@@ -13,6 +13,7 @@ import 'package:PiliPlus/common/widgets/gesture/immediate_tap_gesture_recognizer
 import 'package:PiliPlus/common/widgets/gesture/mouse_interactive_viewer.dart';
 import 'package:PiliPlus/common/widgets/gesture/player_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
@@ -881,7 +882,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
     List<BottomControlType> userSpecifyItemLeft = [
       .playOrPause,
-      .time,
+      // On glass the times flank the progress bar.
+      if (!_glass) .time,
       if (!isNotFileSource || anySeason) ...[.pre, .next],
     ];
 
@@ -913,9 +915,50 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
   PlPlayerController get plPlayerController => widget.plPlayerController;
 
+  /// A note over the video that fades in and out: on glass the pane eases in
+  /// as glass does, as fading the filter itself would break it.
+  Widget _indicator({
+    required bool visible,
+    required double radius,
+    required EdgeInsetsGeometry padding,
+    required Widget child,
+  }) {
+    if (_glass) {
+      return TweenAnimationBuilder<double>(
+        tween: Tween(end: visible ? 1 : 0),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeInOut,
+        builder: (context, t, child) => VideoGlass(
+          radius: radius,
+          t: t,
+          child: Opacity(opacity: t, child: child),
+        ),
+        child: Padding(padding: padding, child: child),
+      );
+    }
+    return AnimatedOpacity(
+      curve: Curves.easeInOut,
+      opacity: visible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 150),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: const Color(0x88000000),
+          borderRadius: BorderRadius.all(Radius.circular(radius)),
+        ),
+        child: child,
+      ),
+    );
+  }
+
   bool get isFullScreen => plPlayerController.isFullScreen.value;
 
   late final TransformationController _transformationController;
+
+  // The controls float on glass, read once as the switch takes effect on
+  // restart.
+  final _glass = GlassSurfaces.installed;
+  final _backdropKey = BackdropKey();
 
   late ColorScheme colorScheme;
   late double maxWidth;
@@ -1364,7 +1407,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     );
     final isLive = plPlayerController.isLive;
 
-    final child = Stack(
+    Widget child = Stack(
       fit: StackFit.passthrough,
       key: _playerKey,
       children: <Widget>[
@@ -1413,25 +1456,16 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     ? const Offset(0.0, 1.2)
                     : const Offset(0.0, 0.8),
                 child: Obx(
-                  () => AnimatedOpacity(
-                    curve: Curves.easeInOut,
-                    opacity: plPlayerController.longPressStatus.value
-                        ? 1.0
-                        : 0.0,
-                    duration: const Duration(milliseconds: 150),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: Color(0x88000000),
-                        borderRadius: BorderRadius.all(Radius.circular(16)),
-                      ),
-                      child: Obx(
-                        () => Text(
-                          '${plPlayerController.enableAutoLongPressSpeed ? (plPlayerController.longPressStatus.value ? plPlayerController.lastPlaybackSpeed : plPlayerController.playbackSpeed) * 2 : plPlayerController.longPressSpeed}倍速中',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                          ),
+                  () => _indicator(
+                    visible: plPlayerController.longPressStatus.value,
+                    radius: 16,
+                    padding: const EdgeInsets.all(6),
+                    child: Obx(
+                      () => Text(
+                        '${plPlayerController.enableAutoLongPressSpeed ? (plPlayerController.longPressStatus.value ? plPlayerController.lastPlaybackSpeed : plPlayerController.playbackSpeed) * 2 : plPlayerController.longPressSpeed}倍速中',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
                         ),
                       ),
                     ),
@@ -1452,43 +1486,36 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     ? const Offset(0.0, 1.2)
                     : const Offset(0.0, 0.8),
                 child: Obx(
-                  () => AnimatedOpacity(
-                    curve: Curves.easeInOut,
-                    opacity: plPlayerController.isSeeking.value ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 150),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Color(0x88000000),
-                        borderRadius: BorderRadius.all(Radius.circular(64)),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        spacing: 2,
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Obx(
-                            () => Text(
-                              DurationUtils.formatDuration(
-                                plPlayerController.seekPosition.value,
-                              ),
-                              style: textStyle,
+                  () => _indicator(
+                    visible: plPlayerController.isSeeking.value,
+                    radius: 64,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      spacing: 2,
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Obx(
+                          () => Text(
+                            DurationUtils.formatDuration(
+                              plPlayerController.seekPosition.value,
                             ),
+                            style: textStyle,
                           ),
-                          const Text('/', style: textStyle),
-                          Obx(
-                            () => Text(
-                              DurationUtils.formatDuration(
-                                plPlayerController.duration.value,
-                              ),
-                              style: textStyle,
+                        ),
+                        const Text('/', style: textStyle),
+                        Obx(
+                          () => Text(
+                            DurationUtils.formatDuration(
+                              plPlayerController.duration.value,
                             ),
+                            style: textStyle,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1504,42 +1531,35 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             child: Obx(
               () {
                 final volume = plPlayerController.volume.value;
-                return AnimatedOpacity(
-                  curve: Curves.easeInOut,
-                  opacity: plPlayerController.volumeIndicator.value ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
-                    ),
-                    decoration: const BoxDecoration(
-                      color: Color(0x88000000),
-                      borderRadius: BorderRadius.all(Radius.circular(64)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Icon(
-                          volume == 0.0
-                              ? Icons.volume_off
-                              : volume < 0.5
-                              ? Icons.volume_down
-                              : Icons.volume_up,
+                return _indicator(
+                  visible: plPlayerController.volumeIndicator.value,
+                  radius: 64,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Icon(
+                        volume == 0.0
+                            ? Icons.volume_off
+                            : volume < 0.5
+                            ? Icons.volume_down
+                            : Icons.volume_up,
+                        color: Colors.white,
+                        size: 20.0,
+                      ),
+                      const SizedBox(width: 2.0),
+                      Text(
+                        '${(volume * 100.0).round()}%',
+                        style: const TextStyle(
+                          fontSize: 13.0,
                           color: Colors.white,
-                          size: 20.0,
                         ),
-                        const SizedBox(width: 2.0),
-                        Text(
-                          '${(volume * 100.0).round()}%',
-                          style: const TextStyle(
-                            fontSize: 13.0,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -1553,42 +1573,35 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           child: Align(
             alignment: Alignment.center,
             child: Obx(
-              () => AnimatedOpacity(
-                curve: Curves.easeInOut,
-                opacity: _brightnessIndicator.value ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 150),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: Color(0x88000000),
-                    borderRadius: BorderRadius.all(Radius.circular(64)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Icon(
-                        _brightnessValue.value < 1.0 / 3.0
-                            ? Icons.brightness_low
-                            : _brightnessValue.value < 2.0 / 3.0
-                            ? Icons.brightness_medium
-                            : Icons.brightness_high,
+              () => _indicator(
+                visible: _brightnessIndicator.value,
+                radius: 64,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 5,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Icon(
+                      _brightnessValue.value < 1.0 / 3.0
+                          ? Icons.brightness_low
+                          : _brightnessValue.value < 2.0 / 3.0
+                          ? Icons.brightness_medium
+                          : Icons.brightness_high,
+                      color: Colors.white,
+                      size: 18.0,
+                    ),
+                    const SizedBox(width: 2.0),
+                    Text(
+                      '${(_brightnessValue.value * 100.0).round()}%',
+                      style: const TextStyle(
+                        fontSize: 13.0,
                         color: Colors.white,
-                        size: 18.0,
                       ),
-                      const SizedBox(width: 2.0),
-                      Text(
-                        '${(_brightnessValue.value * 100.0).round()}%',
-                        style: const TextStyle(
-                          fontSize: 13.0,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1609,6 +1622,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     controller: _animationController,
                     isFullScreen: isFullScreen,
                     removeSafeArea: plPlayerController.removeSafeArea,
+                    glass: _glass,
                     child: plPlayerController.isDesktopPip
                         ? GestureDetector(
                             behavior: HitTestBehavior.translucent,
@@ -1623,6 +1637,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     controller: _animationController,
                     isFullScreen: isFullScreen,
                     removeSafeArea: plPlayerController.removeSafeArea,
+                    glass: _glass,
                     child:
                         widget.bottomControl ??
                         BottomControl(
@@ -2001,6 +2016,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           }),
       ],
     );
+    if (_glass) {
+      // The controls' panes read the screen once between them.
+      child = BackdropGroup(backdropKey: _backdropKey, child: child);
+    }
     if (PlatformUtils.isDesktop) {
       return Obx(
         () => MouseRegion(
