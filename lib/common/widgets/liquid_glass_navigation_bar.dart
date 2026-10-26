@@ -89,7 +89,7 @@ double _rubberBand(double overshoot, double limit) {
 double _saturate(double value) => 1 - 2 / (math.exp(2 * value) + 1);
 
 /// A destination of [LiquidGlassNavigationBar]. As in iOS's tab bars, its
-/// filled [icon] shows whether or not it is selected; the color tells.
+/// filled [icon] shows whether or not it is selected; its color tells.
 class LiquidGlassNavigationDestination {
   const LiquidGlassNavigationDestination({
     required this.label,
@@ -531,7 +531,7 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
                             label: destination.label,
                             color: index == highlighted
                                 ? colorScheme.primary
-                                : colorScheme.onSurface,
+                                : colorScheme.onSurfaceVariant,
                             labelStyle: labelStyle,
                           ),
                         ),
