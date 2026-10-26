@@ -18,9 +18,10 @@ turns on every glass part. It only takes effect after a restart.
 - **Dialogs and popup menus** turn to glass without touching their call sites.
   `lib/scripts/material/surface_builders.patch` gives material_ui's `Dialog`, popup menu (with the rect it opens from
   and its route animation), `AlertDialog` actions, `PopupMenuItem` ink, the mark on a menu's current value, the text
-  selection toolbar and every `Switch` hooks (`SurfaceBuilders`), and `GlassSurfaces.install()` in `main()` fills them
-  while the switch is on, as FlClash's alerts, menus and switches look. `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`. After
-  changing the patch, check it still applies after each platform's patch set in `patch.ps1`.
+  selection toolbar, every `Switch` and every `PopupMenuButton`'s press hooks (`SurfaceBuilders`), and
+  `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's alerts, menus and switches
+  look. `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`. After changing the
+  patch, check it still applies after each platform's patch set in `patch.ps1`.
 - **Choice rows** (`PopupListTile`, behind every `PopupModel` setting) turn into FlClash's pull-downs with the switch
   on: the value sits at the row's end with an up-down chevron, and the menu opens out of it, its current value
   checked.
@@ -33,6 +34,7 @@ turns on every glass part. It only takes effect after a restart.
 | File | Role | Edit? |
 | ---- | ---- | ----- |
 | `liquid_glass.dart`, `liquid_glass_capture.dart` (part), `shaders/liquid_glass.frag` | Glass core, ported from FlClash (GPL-3.0) | Only with a `// PiliPlus:` comment on each change. Don't reformat |
+| `goo.dart` | Two shapes flowing together as one outline, ported from FlClash's `lib/ui/goo.dart` (GPL-3.0) | Same as the core |
 | `glass_support.dart` | The FlClash helpers the core imports (tone shift, motion, radii, shapes) | Yes |
 | `glass_spring.dart` | `GlassSpring`, a retargetable spring that is a `ValueListenable<double>` | Yes |
 | `glass_theme.dart` | `floatingGlassShadows`, `glassPlatterColor` | Yes |
@@ -43,7 +45,8 @@ turns on every glass part. It only takes effect after a restart.
 | `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled, 取消 at the bottom | Yes |
 | `glass_switch.dart` | `GlassSwitch`, FlClash's switch: a press lifts the thumb into a lens over the track | Yes |
 | `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, thicker glass, grow in, swell on press), menus (24 dp, rows inset 8), the selection toolbar and switches; `panel`, `pill`, `onGlass` for call sites | Yes |
-| `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card, and back into it as it closes | Yes |
+| `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass | Yes |
+| `glass_menu_press.dart` | `GlassMenuPress`: a `PopupMenuButton` opens on press and carries the press on into its menu | Yes |
 | `../liquid_glass_navigation_bar.dart` | The nav bar: a lens you can press, drag and fling | Yes |
 | `../header_overlay_inset.dart` | Tells content how much a header laid over it covers | Yes |
 

@@ -87,7 +87,7 @@ index eb3580d..d924e5a 100644
            spacing: spacing,
            overflowAlignment: actionsOverflowAlignment ?? OverflowBarAlignment.end,
 diff --git a/lib/src/popup_menu.dart b/lib/src/popup_menu.dart
-index 0022a99..62e483b 100644
+index 0022a99..751c447 100644
 --- a/lib/src/popup_menu.dart
 +++ b/lib/src/popup_menu.dart
 @@ -26,6 +26,7 @@ import 'list_tile.dart';
@@ -121,7 +121,13 @@ index 0022a99..62e483b 100644
          ),
        ),
      );
-@@ -466,6 +481,8 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+@@ -461,11 +476,13 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+       );
+     }
+ 
+-    return MergeSemantics(
++    final Widget result = MergeSemantics(
+       child: buildSemantics(
          child: InkWell(
            onTap: widget.enabled ? handleTap : null,
            canRequestFocus: widget.enabled,
@@ -130,7 +136,18 @@ index 0022a99..62e483b 100644
            mouseCursor: _EffectiveMouseCursor(widget.mouseCursor, popupMenuTheme.mouseCursor),
            child: ListTileTheme.merge(
              contentPadding: EdgeInsets.zero,
-@@ -677,6 +694,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
+@@ -475,6 +492,10 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+         ),
+       ),
+     );
++    // PiliPlus: lets a press carried on into the menu find this item.
++    return SurfaceBuilders.popupMenuButton == null
++        ? result
++        : MetaData(metaData: this, behavior: HitTestBehavior.translucent, child: result);
+   }
+ 
+   /// Builds the semantic wrapper for the popup menu item.
+@@ -677,6 +698,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
    }
  }
  
@@ -145,7 +162,7 @@ index 0022a99..62e483b 100644
  class _PopupMenu<T> extends StatefulWidget {
    const _PopupMenu({
      required this.itemKeys,
-@@ -756,7 +781,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -756,7 +785,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
        Widget item = widget.route.items[i];
        if (widget.route.initialValue != null &&
            widget.route.items[i].represents(widget.route.initialValue)) {
@@ -157,7 +174,7 @@ index 0022a99..62e483b 100644
        }
        children.add(
          _MenuItem(
-@@ -792,6 +820,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -792,6 +824,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
        ),
      );
  
@@ -178,7 +195,7 @@ index 0022a99..62e483b 100644
      return AnimatedBuilder(
        animation: widget.route.animation!,
        builder: (BuildContext context, Widget? child) {
-@@ -975,6 +1017,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -975,6 +1021,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
  
    final RelativeRect? position;
    final PopupMenuPositionBuilder? positionBuilder;
@@ -188,7 +205,19 @@ index 0022a99..62e483b 100644
    final List<PopupMenuEntry<T>> items;
    final List<GlobalKey> itemKeys;
    final List<Size?> itemSizes;
-@@ -1063,9 +1108,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -1017,6 +1066,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+   @override
+   Duration get transitionDuration => popUpAnimationStyle?.duration ?? _kMenuDuration;
+ 
++  // PiliPlus: as long as the app's own close needs.
++  @override
++  Duration get reverseTransitionDuration =>
++      SurfaceBuilders.popupMenuReverseDuration ?? super.reverseTransitionDuration;
++
+   @override
+   bool get barrierDismissible => true;
+ 
+@@ -1063,9 +1117,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
        removeRight: true,
        child: LayoutBuilder(
          builder: (BuildContext context, BoxConstraints constraints) {
@@ -201,12 +230,53 @@ index 0022a99..62e483b 100644
                itemSizes,
                selectedItemIndex,
                Directionality.of(context),
+@@ -1819,15 +1875,17 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+       // that assistive technologies describe the popup menu button the same way
+       // regardless of whether it is built from [child] or from [icon], in which
+       // case the semantics come from the [IconButton].
+-      return Semantics(
+-        button: true,
+-        enabled: widget.enabled,
+-        expanded: _isMenuExpanded,
+-        child: result,
++      return _pressable(
++        Semantics(
++          button: true,
++          enabled: widget.enabled,
++          expanded: _isMenuExpanded,
++          child: result,
++        ),
+       );
+     }
+ 
+-    return Semantics(
++    return _pressable(Semantics(
+       child: IconButton(
+         key: StandardComponentType.moreButton.key,
+         icon: Semantics(expanded: _isMenuExpanded, child: widget.icon ?? Icon(Icons.adaptive.more)),
+@@ -1840,8 +1898,15 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+         enableFeedback: enableFeedback,
+         style: widget.style,
+       ),
+-    );
++    ));
+   }
++
++  // PiliPlus: the app's press on the button, which may open the menu itself.
++  Widget _pressable(Widget button) => switch (SurfaceBuilders.popupMenuButton) {
++    final PopupMenuButtonBuilder builder when widget.enabled =>
++      builder(context, showButtonMenu, button),
++    _ => button,
++  };
+ }
+ 
+ // This WidgetStateProperty is passed along to the menu item's InkWell which
 diff --git a/lib/src/surface_builders.dart b/lib/src/surface_builders.dart
 new file mode 100644
-index 0000000..21d942f
+index 0000000..5250cad
 --- /dev/null
 +++ b/lib/src/surface_builders.dart
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,63 @@
 +// PiliPlus: lets the app draw the surfaces of dialogs and popup menus itself,
 +// as liquid glass does, in place of their Material.
 +
@@ -235,6 +305,11 @@ index 0000000..21d942f
 +typedef SwitchBuilder =
 +    Widget Function(BuildContext context, bool value, ValueChanged<bool>? onChanged);
 +
++/// Builds a PopupMenuButton around its [button], given what [open]s its
++/// menu, so that a press can open it rather than a tap.
++typedef PopupMenuButtonBuilder =
++    Widget Function(BuildContext context, VoidCallback open, Widget button);
++
 +/// What the app draws itself. Each one left null keeps the component's own.
 +abstract final class SurfaceBuilders {
 +  static SurfaceBuilder? dialog;
@@ -255,6 +330,15 @@ index 0000000..21d942f
 +
 +  /// Every Switch, and so every SwitchListTile's.
 +  static SwitchBuilder? switchBuilder;
++
++  /// Every PopupMenuButton's button. While set, each PopupMenuItem also
++  /// carries its state as the metadata of a MetaData, so that a press carried
++  /// on into the menu can find the item under it.
++  static PopupMenuButtonBuilder? popupMenuButton;
++
++  /// How long a popup menu takes to close, if the app's close needs longer
++  /// than the opening.
++  static Duration? popupMenuReverseDuration;
 +}
 diff --git a/lib/src/switch.dart b/lib/src/switch.dart
 index dd0fc48..644b98c 100644

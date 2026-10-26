@@ -2,6 +2,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_alert_actions.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_press.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_panel.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_switch.dart';
@@ -84,6 +85,11 @@ abstract final class GlassSurfaces {
     );
     // A platter is a press; the current value takes a check, as FlClash's.
     SurfaceBuilders.popupMenuCheck = const Icon(Icons.check_rounded, size: 18);
+    // As iOS's: a press on a menu's button opens it, and can slide on to an
+    // item; it closes back into the button as a drop of glass.
+    SurfaceBuilders.popupMenuButton = (context, open, button) =>
+        GlassMenuPress(open: open, child: button);
+    SurfaceBuilders.popupMenuReverseDuration = glassMenuReturn;
     // As FlClash's: a press lifts the thumb into a lens over the track.
     SurfaceBuilders.switchBuilder = (context, value, onChanged) =>
         GlassSwitch(value: value, onChanged: onChanged);
