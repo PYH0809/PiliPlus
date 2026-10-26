@@ -7,6 +7,8 @@ import 'package:PiliPlus/common/widgets/flutter/dyn_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
 import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
@@ -287,7 +289,51 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
         : [ratioWidget(maxWidth), const SizedBox(width: 16)],
   );
 
+  void _onTabTap(int value) {
+    if (!tabController.indexIsChanging) {
+      final positions = PrimaryScrollController.of(context).positions;
+      if (positions.length == 1) {
+        final postion = positions.single;
+        if (postion.pixels >= postion.maxScrollExtent) {
+          postion.jumpTo(postion.pixels);
+        }
+        switch (value) {
+          case 0:
+            _onRefresh(_repostController.onRefresh());
+          case 1:
+            _onRefresh(controller.onRefresh());
+          case 2:
+            _onRefresh(_likeController.onRefresh());
+        }
+      } else if (positions.length > 1) {
+        positions.elementAt(1).jumpTo(0);
+      }
+    }
+  }
+
+  String _tabLabel(DynType type) {
+    final count = switch (type) {
+      .repost => _repostController.count.value,
+      .reply => controller.count.value,
+      .like => _likeController.count.value,
+    };
+    return '${type.label}${count < 0 ? '' : ' ${NumUtils.numFormat(count)}'}';
+  }
+
   Widget _buildTabBar() {
+    if (GlassSurfaces.installed) {
+      // Stays in place: the content doesn't scroll under it.
+      return Padding(
+        padding: const .fromLTRB(14, 6, 14, 4),
+        child: Obx(
+          () => LiquidGlassTabBar(
+            controller: tabController,
+            labels: DynType.values.map(_tabLabel).toList(),
+            onTap: _onTabTap,
+          ),
+        ),
+      );
+    }
     return SizedBox(
       height: 40,
       child: DynTabBar(
@@ -298,42 +344,9 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
         controller: tabController,
         labelPadding: const .symmetric(horizontal: 12),
         dividerColor: theme.colorScheme.outline.withValues(alpha: 0.1),
-        onTap: (value) {
-          if (!tabController.indexIsChanging) {
-            final positions = PrimaryScrollController.of(context).positions;
-            if (positions.length == 1) {
-              final postion = positions.single;
-              if (postion.pixels >= postion.maxScrollExtent) {
-                postion.jumpTo(postion.pixels);
-              }
-              switch (value) {
-                case 0:
-                  _onRefresh(_repostController.onRefresh());
-                case 1:
-                  _onRefresh(controller.onRefresh());
-                case 2:
-                  _onRefresh(_likeController.onRefresh());
-              }
-            } else if (positions.length > 1) {
-              positions.elementAt(1).jumpTo(0);
-            }
-          }
-        },
+        onTap: _onTabTap,
         tabs: DynType.values
-            .map(
-              (e) => Tab(
-                child: Obx(() {
-                  final count = switch (e) {
-                    .repost => _repostController.count.value,
-                    .reply => controller.count.value,
-                    .like => _likeController.count.value,
-                  };
-                  return Text(
-                    '${e.label}${count < 0 ? '' : ' ${NumUtils.numFormat(count)}'}',
-                  );
-                }),
-              ),
-            )
+            .map((e) => Tab(child: Obx(() => Text(_tabLabel(e)))))
             .toList(),
       ),
     );
@@ -494,12 +507,8 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
     }
 
     final primary = theme.colorScheme.primary;
-    final outline = theme.colorScheme.outline;
-    final btnStyle = TextButton.styleFrom(
-      tapTargetSize: .padded,
-      padding: const EdgeInsets.symmetric(horizontal: 15),
-      foregroundColor: outline,
-    );
+    final outline = actionBarIdleColor;
+    final btnStyle = actionButtonStyle;
 
     Widget textIconButton({
       required IconData icon,
@@ -536,23 +545,11 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Padding(
-            padding: const EdgeInsets.only(
-              right: kFloatingActionButtonMargin,
-              bottom: kFloatingActionButtonMargin,
-            ),
+            padding: replyButtonMargin,
             child: replyButton,
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              border: Border(
-                top: BorderSide(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.08),
-                ),
-              ),
-            ),
-            padding: EdgeInsets.only(bottom: padding.bottom),
-            child: Row(
+          actionBarSurface(
+            Row(
               children: [
                 Expanded(
                   child: Builder(
@@ -648,11 +645,8 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
             mainAxisAlignment: .spaceBetween,
             children: [
               Text(sortType.desc),
-              TextButton.icon(
-                style: Style.buttonStyle,
-                onPressed: controller.queryBySort,
-                icon: Icon(Icons.sort, size: 16, color: secondary),
-                label: Text(
+              sortButton(
+                Text(
                   sortType.descShort,
                   style: TextStyle(fontSize: 13, color: secondary),
                 ),
