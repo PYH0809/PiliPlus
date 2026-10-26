@@ -32,22 +32,35 @@ const double _frostSaturation = 1.6;
 /// tint is dark in either theme. [t] eases it in from bare air; at 0 it
 /// filters nothing. Put several under one [BackdropGroup], which on Impeller
 /// reads the screen once for all of them, and never one inside another.
+///
+/// A [style] in place of the dark one, with a [rim], makes a thicker pane
+/// over the video, as a panel slid in over it.
 class VideoGlass extends StatelessWidget {
   const VideoGlass({
     super.key,
     required double this.radius,
     this.t = 1,
+    this.style,
+    this.rim,
     this.child,
   });
 
   /// A pane as round as it is short.
-  const VideoGlass.capsule({super.key, this.t = 1, this.child}) : radius = null;
+  const VideoGlass.capsule({
+    super.key,
+    this.t = 1,
+    this.style,
+    this.rim,
+    this.child,
+  }) : radius = null;
 
   /// A disc [size] across, [child] at its center.
   VideoGlass.circle({
     super.key,
     double size = 44,
     this.t = 1,
+    this.style,
+    this.rim,
     Widget? child,
   }) : radius = null,
        child = SizedBox.square(
@@ -58,6 +71,8 @@ class VideoGlass extends StatelessWidget {
   /// The corner radius, or null for a capsule.
   final double? radius;
   final double t;
+  final LiquidGlassStyle? style;
+  final LiquidGlassRim? rim;
   final Widget? child;
 
   /// Replaces a button's fill with the glass, keeping its focus and
@@ -79,6 +94,8 @@ class VideoGlass extends StatelessWidget {
     return _VideoGlassPane(
       radius: radius,
       t: VideoGlassHidden.of(context) ? 0 : t.clamp(0.0, 1.0),
+      style: style ?? _style,
+      rim: rim,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,
       child: child,
@@ -110,6 +127,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   const _VideoGlassPane({
     required this.radius,
     required this.t,
+    required this.style,
+    required this.rim,
     required this.devicePixelRatio,
     required this.backdropKey,
     super.child,
@@ -117,6 +136,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
 
   final double? radius;
   final double t;
+  final LiquidGlassStyle style;
+  final LiquidGlassRim? rim;
   final double devicePixelRatio;
   final BackdropKey? backdropKey;
 
@@ -125,6 +146,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       _RenderVideoGlass(
         radius: radius,
         t: t,
+        style: style,
+        rim: rim,
         devicePixelRatio: devicePixelRatio,
         backdropKey: backdropKey,
       );
@@ -137,6 +160,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     renderObject
       ..radius = radius
       ..t = t
+      ..style = style
+      ..rim = rim
       ..devicePixelRatio = devicePixelRatio
       ..backdropKey = backdropKey;
   }
@@ -146,6 +171,8 @@ class _RenderVideoGlass extends RenderProxyBox {
   _RenderVideoGlass({
     required this._radius,
     required this._t,
+    required this._style,
+    required this._rim,
     required this._devicePixelRatio,
     required this._backdropKey,
   });
@@ -167,6 +194,22 @@ class _RenderVideoGlass extends RenderProxyBox {
     if (wasOn != value > 0) {
       markNeedsCompositingBitsUpdate();
     }
+    markNeedsPaint();
+  }
+
+  LiquidGlassStyle get style => _style;
+  LiquidGlassStyle _style;
+  set style(LiquidGlassStyle value) {
+    if (_style == value) return;
+    _style = value;
+    markNeedsPaint();
+  }
+
+  LiquidGlassRim? get rim => _rim;
+  LiquidGlassRim? _rim;
+  set rim(LiquidGlassRim? value) {
+    if (_rim == value) return;
+    _rim = value;
     markNeedsPaint();
   }
 
@@ -295,7 +338,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   }
 
   ui.ImageFilter _frostFilter() {
-    final sigma = _frostSigma * _t;
+    final sigma = math.max(_frostSigma, _style.blur) * _t;
     return ui.ImageFilter.compose(
       outer: ColorFilter.matrix(
         _saturate(1 + (_frostSaturation - 1) * _t),
@@ -325,7 +368,7 @@ class _RenderVideoGlass extends RenderProxyBox {
       ...everywhere, // uHazeClamp
       0.0, // uHaze
       0.0, 0.0, 0.0, 0.0, // uVeil
-      ...liquidGlassLook(size, corners, style),
+      ...liquidGlassLook(size, corners, style, rim: _rim?.scale(_t)),
     ];
     // The engine fills the first two, the texture's size.
     for (final (index, value) in uniforms.indexed) {

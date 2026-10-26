@@ -1681,15 +1681,18 @@ void forgetLiquidGlassProgram(VoidCallback onLoaded) =>
     _GlassProgram.forget(onLoaded);
 
 /// The shader's uniforms from the pane's shape on, as a pane of [size] with
-/// [corners] in [style] writes them after where it and its texture lie.
+/// [corners] in [style], lit by [rim], writes them after where it and its
+/// texture lie.
 List<double> liquidGlassLook(
   Size size,
   BorderRadius corners,
-  LiquidGlassStyle style,
-) {
+  LiquidGlassStyle style, {
+  LiquidGlassRim? rim,
+}) {
   final layer = _LiquidGlassLayer()
     ..rect = Offset.zero & size
-    ..corners = corners;
+    ..corners = corners
+    ..rim = rim;
   try {
     return layer._look(style);
   } finally {

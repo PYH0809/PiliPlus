@@ -527,9 +527,9 @@ class VideoDetailController extends GetxController
       if (plPlayerController.isFullScreen.value || showVideoSheet) {
         PageUtils.showVideoBottomSheet(
           context,
-          child: plPlayerController.darkVideoPage
-              ? Theme(data: ThemeUtils.darkTheme, child: panel())
-              : panel(),
+          theme: plPlayerController.darkVideoPage ? ThemeUtils.darkTheme : null,
+          overVideo: plPlayerController.isFullScreen.value,
+          child: panel(),
         );
       } else {
         childKey.currentState?.showBottomSheet(
@@ -1048,9 +1048,9 @@ class VideoDetailController extends GetxController
       );
       PageUtils.showVideoBottomSheet(
         context,
-        child: plPlayerController.darkVideoPage
-            ? Theme(data: ThemeUtils.darkTheme, child: child)
-            : child,
+        theme: plPlayerController.darkVideoPage ? ThemeUtils.darkTheme : null,
+        overVideo: plPlayerController.isFullScreen.value,
+        child: child,
       );
     } else {
       childKey.currentState?.showBottomSheet(
@@ -1396,9 +1396,9 @@ class VideoDetailController extends GetxController
       );
       PageUtils.showVideoBottomSheet(
         context,
-        child: plPlayerController.darkVideoPage
-            ? Theme(data: ThemeUtils.darkTheme, child: child)
-            : child,
+        theme: plPlayerController.darkVideoPage ? ThemeUtils.darkTheme : null,
+        overVideo: plPlayerController.isFullScreen.value,
+        child: child,
       );
     } else {
       childKey.currentState?.showBottomSheet(

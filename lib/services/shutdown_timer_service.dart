@@ -356,7 +356,9 @@ class ShutdownTimerService {
     PageUtils.showVideoBottomSheet(
       context,
       maxWidth: 512,
-      child: isLive ? Theme(data: ThemeUtils.darkTheme, child: child) : child,
+      theme: isLive ? ThemeUtils.darkTheme : null,
+      overVideo: isFullScreen,
+      child: child,
     );
   }
 }
