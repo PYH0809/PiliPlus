@@ -10,6 +10,36 @@ index 32e00a3..2db60f3 100644
  export 'src/switch.dart';
  export 'src/switch_list_tile.dart';
  export 'src/switch_theme.dart';
+diff --git a/lib/src/desktop_text_selection_toolbar.dart b/lib/src/desktop_text_selection_toolbar.dart
+index 321af0e..4c4597f 100644
+--- a/lib/src/desktop_text_selection_toolbar.dart
++++ b/lib/src/desktop_text_selection_toolbar.dart
+@@ -9,6 +9,7 @@ library;
+ import 'package:flutter/widgets.dart';
+ 
+ import 'material.dart';
++import 'surface_builders.dart';
+ import 'text_selection_toolbar.dart';
+ 
+ // These values were measured from a screenshot of TextEdit on macOS 10.15.7 on
+@@ -47,6 +48,17 @@ class DesktopTextSelectionToolbar extends StatelessWidget {
+ 
+   // Builds a desktop toolbar in the Material style.
+   static Widget _defaultToolbarBuilder(BuildContext context, Widget child) {
++    // PiliPlus: the app's surface in place of the toolbar's Material.
++    if (SurfaceBuilders.textSelectionToolbar case final SurfaceBuilder builder) {
++      return SizedBox(
++        width: _kToolbarWidth,
++        child: builder(
++          context,
++          const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(7.0))),
++          child,
++        ),
++      );
++    }
+     return SizedBox(
+       width: _kToolbarWidth,
+       child: Material(
 diff --git a/lib/src/dialog.dart b/lib/src/dialog.dart
 index eb3580d..d924e5a 100644
 --- a/lib/src/dialog.dart
@@ -173,10 +203,10 @@ index 0022a99..62e483b 100644
                Directionality.of(context),
 diff --git a/lib/src/surface_builders.dart b/lib/src/surface_builders.dart
 new file mode 100644
-index 0000000..6f770cc
+index 0000000..21d942f
 --- /dev/null
 +++ b/lib/src/surface_builders.dart
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,49 @@
 +// PiliPlus: lets the app draw the surfaces of dialogs and popup menus itself,
 +// as liquid glass does, in place of their Material.
 +
@@ -200,6 +230,11 @@ index 0000000..6f770cc
 +      Rect? anchor,
 +    );
 +
++/// Builds a switch for [value], in place of Material's track and thumb.
++/// [onChanged] is null when the switch is disabled.
++typedef SwitchBuilder =
++    Widget Function(BuildContext context, bool value, ValueChanged<bool>? onChanged);
++
 +/// What the app draws itself. Each one left null keeps the component's own.
 +abstract final class SurfaceBuilders {
 +  static SurfaceBuilder? dialog;
@@ -214,4 +249,62 @@ index 0000000..6f770cc
 +  /// Marks the item a popup menu opens on, its current value, at the item's
 +  /// end in place of a highlight.
 +  static Widget? popupMenuCheck;
++
++  /// The surface of the text selection toolbar, Android's and the desktop one.
++  static SurfaceBuilder? textSelectionToolbar;
++
++  /// Every Switch, and so every SwitchListTile's.
++  static SwitchBuilder? switchBuilder;
 +}
+diff --git a/lib/src/switch.dart b/lib/src/switch.dart
+index dd0fc48..644b98c 100644
+--- a/lib/src/switch.dart
++++ b/lib/src/switch.dart
+@@ -23,6 +23,7 @@ import 'constants.dart';
+ import 'debug.dart';
+ import 'material_state.dart';
+ import 'shadows.dart';
++import 'surface_builders.dart';
+ import 'switch_theme.dart';
+ import 'theme.dart';
+ import 'theme_data.dart';
+@@ -591,6 +592,10 @@ class Switch extends StatelessWidget {
+ 
+   @override
+   Widget build(BuildContext context) {
++    // PiliPlus: the app's switch in place of Material's.
++    if (SurfaceBuilders.switchBuilder case final SwitchBuilder builder) {
++      return builder(context, value, onChanged);
++    }
+     Color? effectiveActiveThumbColor;
+     Color? effectiveActiveTrackColor;
+     switch (_switchType) {
+diff --git a/lib/src/text_selection_toolbar.dart b/lib/src/text_selection_toolbar.dart
+index 4c296a5..c534178 100644
+--- a/lib/src/text_selection_toolbar.dart
++++ b/lib/src/text_selection_toolbar.dart
+@@ -19,6 +19,7 @@ import 'icon_button.dart';
+ import 'icons.dart';
+ import 'material.dart';
+ import 'material_localizations.dart';
++import 'surface_builders.dart';
+ import 'theme.dart';
+ 
+ const double _kToolbarHeight = 44.0;
+@@ -769,6 +770,16 @@ class _TextSelectionToolbarContainer extends StatelessWidget {
+ 
+   @override
+   Widget build(BuildContext context) {
++    // PiliPlus: the app's surface in place of the toolbar's Material.
++    if (SurfaceBuilders.textSelectionToolbar case final SurfaceBuilder builder) {
++      return builder(
++        context,
++        const RoundedRectangleBorder(
++          borderRadius: BorderRadius.all(Radius.circular(_kToolbarHeight / 2)),
++        ),
++        child,
++      );
++    }
+     final ThemeData theme = Theme.of(context);
+     return Material(
+       // This value was eyeballed to match the native text selection menu on

@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_alert_actions.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_panel.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_switch.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -78,6 +79,29 @@ abstract final class GlassSurfaces {
     );
     // A platter is a press; the current value takes a check, as FlClash's.
     SurfaceBuilders.popupMenuCheck = const Icon(Icons.check_rounded, size: 18);
+    // As FlClash's: a press lifts the thumb into a lens over the track.
+    SurfaceBuilders.switchBuilder = (context, value, onChanged) =>
+        GlassSwitch(value: value, onChanged: onChanged);
+    // The copy and paste menu floats over the text as iOS's edit menu does,
+    // a capsule of the menus' glass.
+    SurfaceBuilders.textSelectionToolbar = (context, shape, child) {
+      final theme = Theme.of(context);
+      final colorScheme = theme.colorScheme;
+      return GlassPanel(
+        style: LiquidGlassStyle.menu(colorScheme),
+        rim: LiquidGlassRim.menu(colorScheme),
+        shadows: menuShadows(colorScheme),
+        radius: switch (shape) {
+          RoundedRectangleBorder(:final borderRadius) =>
+            borderRadius.resolve(Directionality.of(context)).topLeft.x,
+          _ => 0,
+        },
+        child: Theme(
+          data: _withoutRipples(theme),
+          child: Material(type: MaterialType.transparency, child: child),
+        ),
+      );
+    };
   }
 
   // On glass a pressed row stands on a platter, without a ripple.
