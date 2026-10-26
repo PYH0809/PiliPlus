@@ -39,7 +39,7 @@ turns on every glass part. It only takes effect after a restart.
 | `goo.dart` | Two shapes flowing together as one outline, ported from FlClash's `lib/ui/goo.dart` (GPL-3.0) | Same as the core |
 | `glass_support.dart` | The FlClash helpers the core imports (tone shift, motion, radii, shapes) | Yes |
 | `glass_spring.dart` | `GlassSpring`, a retargetable spring that is a `ValueListenable<double>` | Yes |
-| `glass_theme.dart` | `floatingGlassShadows`, `glassPlatterColor` | Yes |
+| `glass_theme.dart` | `floatingGlassShadows`; `glassPlatterColor`, a neutral shade as iOS's tab bars have, the item's own color saying which is current | Yes |
 | `liquid_glass_button.dart` | A pressable pane: swells and glows under the finger, keyboard focusable | Yes |
 | `liquid_glass_tab_bar.dart` | Tabs on a glass pill, with a platter that slides with the pages | Yes |
 | `liquid_glass_header.dart` | A header over a soft fade, for content that scrolls under it | Yes |
