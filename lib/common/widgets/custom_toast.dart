@@ -1,3 +1,5 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -8,9 +10,29 @@ class CustomToast extends StatelessWidget {
 
   static double toastOpacity = Pref.defaultToastOp;
 
+  static final bool _glass = Pref.liquidGlass;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
+    if (_glass) {
+      // A pill of glass, as the nav bar; it frosts rather than bends, as
+      // toasts show above the glass host.
+      return Padding(
+        padding: .only(bottom: MediaQuery.viewPaddingOf(context).bottom + 30),
+        child: LiquidGlass(
+          style: LiquidGlassStyle.pill(colorScheme),
+          shadows: floatingGlassShadows(colorScheme),
+          child: Padding(
+            padding: const .symmetric(horizontal: 17, vertical: 10),
+            child: Text(
+              msg,
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
+            ),
+          ),
+        ),
+      );
+    }
     return Container(
       margin: .only(
         bottom: MediaQuery.viewPaddingOf(context).bottom + 30,

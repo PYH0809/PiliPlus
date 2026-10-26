@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/style.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/font_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -165,10 +166,8 @@ abstract final class ThemeUtils {
         },
       ),
     );
-    if (isDark && Pref.isPureBlackTheme) {
-      return darkenTheme(theme);
-    }
-    return theme;
+    final themed = isDark && Pref.isPureBlackTheme ? darkenTheme(theme) : theme;
+    return Pref.liquidGlass ? GlassSurfaces.themed(themed) : themed;
   }
 
   static ThemeData darkenTheme(ThemeData theme) {
