@@ -165,14 +165,19 @@ class GlassMorphButtonState extends State<GlassMorphButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: _hidden ? 0 : 1,
-      child: LiquidGlassButton(
-        styleOf: widget.styleOf,
-        shadows: widget.shadows,
-        tooltip: widget.tooltip,
-        onTap: () => widget.onTap(this),
-        child: widget.child,
+    // Hidden, it takes no taps either: as its page returns, the route lets
+    // taps through to the page below, which would open it again.
+    return IgnorePointer(
+      ignoring: _hidden,
+      child: Opacity(
+        opacity: _hidden ? 0 : 1,
+        child: LiquidGlassButton(
+          styleOf: widget.styleOf,
+          shadows: widget.shadows,
+          tooltip: widget.tooltip,
+          onTap: () => widget.onTap(this),
+          child: widget.child,
+        ),
       ),
     );
   }
