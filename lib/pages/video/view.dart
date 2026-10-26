@@ -1962,9 +1962,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       final child = listSheetContent(enableSlide: false);
       PageUtils.showVideoBottomSheet(
         context,
-        child: videoDetailController.plPlayerController.darkVideoPage
-            ? Theme(data: theme, child: child)
-            : child,
+        theme: videoDetailController.plPlayerController.darkVideoPage
+            ? theme
+            : null,
+        overVideo: isFullScreen,
+        child: child,
       );
     } else {
       videoDetailController.childKey.currentState?.showBottomSheet(
@@ -2042,9 +2044,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       );
       PageUtils.showVideoBottomSheet(
         context,
-        child: videoDetailController.plPlayerController.darkVideoPage
-            ? Theme(data: theme, child: child)
-            : child,
+        theme: videoDetailController.plPlayerController.darkVideoPage
+            ? theme
+            : null,
+        overVideo: isFullScreen,
+        child: child,
       );
     } else {
       videoDetailController.childKey.currentState?.showBottomSheet(
