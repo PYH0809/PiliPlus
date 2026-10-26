@@ -57,7 +57,7 @@ index eb3580d..d924e5a 100644
            spacing: spacing,
            overflowAlignment: actionsOverflowAlignment ?? OverflowBarAlignment.end,
 diff --git a/lib/src/popup_menu.dart b/lib/src/popup_menu.dart
-index 0022a99..e5b3258 100644
+index 0022a99..dcea7c5 100644
 --- a/lib/src/popup_menu.dart
 +++ b/lib/src/popup_menu.dart
 @@ -26,6 +26,7 @@ import 'list_tile.dart';
@@ -77,55 +77,56 @@ index 0022a99..e5b3258 100644
            mouseCursor: _EffectiveMouseCursor(widget.mouseCursor, popupMenuTheme.mouseCursor),
            child: ListTileTheme.merge(
              contentPadding: EdgeInsets.zero,
-@@ -795,9 +798,25 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -792,6 +795,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+       ),
+     );
+ 
++    // PiliPlus: the app's surface and motion in place of the menu's.
++    if (SurfaceBuilders.popupMenu case final MenuSurfaceBuilder builder) {
++      return builder(
++        context,
++        widget.route.shape ??
++            popupMenuTheme.shape ??
++            defaults.shape ??
++            const RoundedRectangleBorder(),
++        child,
++        widget.route.animation!,
++        widget.route.anchor,
++      );
++    }
++
      return AnimatedBuilder(
        animation: widget.route.animation!,
        builder: (BuildContext context, Widget? child) {
-+        final Widget revealed = Align(
-+          alignment: AlignmentDirectional.topEnd,
-+          widthFactor: width.evaluate(widget.route.animation!),
-+          heightFactor: height.evaluate(widget.route.animation!),
-+          child: child,
-+        );
-         return FadeTransition(
-           opacity: opacity.animate(widget.route.animation!),
--          child: Material(
-+          // PiliPlus: the app's surface in place of the menu's Material.
-+          child: switch (SurfaceBuilders.popupMenu) {
-+            final SurfaceBuilder builder => builder(
-+              context,
-+              widget.route.shape ??
-+                  popupMenuTheme.shape ??
-+                  defaults.shape ??
-+                  const RoundedRectangleBorder(),
-+              revealed,
-+            ),
-+            null => Material(
-             shape: widget.route.shape ?? popupMenuTheme.shape ?? defaults.shape,
-             color: widget.route.color ?? popupMenuTheme.color ?? defaults.color,
-             clipBehavior: widget.clipBehavior,
-@@ -809,13 +828,9 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
-                 widget.route.surfaceTintColor ??
-                 popupMenuTheme.surfaceTintColor ??
-                 defaults.surfaceTintColor,
--            child: Align(
--              alignment: AlignmentDirectional.topEnd,
--              widthFactor: width.evaluate(widget.route.animation!),
--              heightFactor: height.evaluate(widget.route.animation!),
--              child: child,
--            ),
-+            child: revealed,
-           ),
-+          },
-         );
-       },
-       child: child,
+@@ -975,6 +992,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+ 
+   final RelativeRect? position;
+   final PopupMenuPositionBuilder? positionBuilder;
++
++  /// PiliPlus: where the menu opens from, in the coordinates it is laid out in.
++  Rect? anchor;
+   final List<PopupMenuEntry<T>> items;
+   final List<GlobalKey> itemKeys;
+   final List<Size?> itemSizes;
+@@ -1063,9 +1083,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+       removeRight: true,
+       child: LayoutBuilder(
+         builder: (BuildContext context, BoxConstraints constraints) {
++          final RelativeRect position = positionBuilder?.call(context, constraints) ?? this.position!;
++          anchor = position.toRect(Offset.zero & constraints.biggest);
+           return CustomSingleChildLayout(
+             delegate: _PopupMenuRouteLayout(
+-              positionBuilder?.call(context, constraints) ?? position!,
++              position,
+               itemSizes,
+               selectedItemIndex,
+               Directionality.of(context),
 diff --git a/lib/src/surface_builders.dart b/lib/src/surface_builders.dart
 new file mode 100644
-index 0000000..6a5e286
+index 0000000..1d725e1
 --- /dev/null
 +++ b/lib/src/surface_builders.dart
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,34 @@
 +// PiliPlus: lets the app draw the surfaces of dialogs and popup menus itself,
 +// as liquid glass does, in place of their Material.
 +
@@ -136,10 +137,23 @@ index 0000000..6a5e286
 +/// such as one of `MaterialType.transparency`, for ink and text styles.
 +typedef SurfaceBuilder = Widget Function(BuildContext context, ShapeBorder shape, Widget child);
 +
++/// Builds a popup menu, surface and motion, around its laid out [child] in
++/// place of the Material that reveals it. [animation] is the route's, and
++/// [anchor] the rect the menu opens from, such as its button's, in the
++/// coordinates of the box the menu is laid out in.
++typedef MenuSurfaceBuilder =
++    Widget Function(
++      BuildContext context,
++      ShapeBorder shape,
++      Widget child,
++      Animation<double> animation,
++      Rect? anchor,
++    );
++
 +/// What the app draws itself. Each one left null keeps the component's own.
 +abstract final class SurfaceBuilders {
 +  static SurfaceBuilder? dialog;
-+  static SurfaceBuilder? popupMenu;
++  static MenuSurfaceBuilder? popupMenu;
 +
 +  /// Lays out an AlertDialog's actions in place of its OverflowBar.
 +  static Widget Function(BuildContext context, List<Widget> actions)? dialogActions;

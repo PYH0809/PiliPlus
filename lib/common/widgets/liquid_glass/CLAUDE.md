@@ -16,8 +16,8 @@ turns on every glass part. It only takes effect after a restart.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.
 - **Dialogs and popup menus** turn to glass without touching their call sites: `lib/scripts/material/surface_builders.patch`
-  gives material_ui's `Dialog`, popup menu, `AlertDialog` actions and `PopupMenuItem` ink hooks
-  (`SurfaceBuilders`), and `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's
+  gives material_ui's `Dialog`, popup menu (with the rect it opens from and its route animation), `AlertDialog`
+  actions and `PopupMenuItem` ink hooks (`SurfaceBuilders`), and `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's
   alerts and menus look. `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`.
   After changing the patch, check it still applies after each platform's patch set in `patch.ps1`.
 
@@ -35,6 +35,7 @@ turns on every glass part. It only takes effect after a restart.
 | `glass_panel.dart` | `GlassPanel`: glass with a rim and a wide shadow, clipping its child, as a menu or alert | Yes |
 | `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled | Yes |
 | `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, grow in, swell on press) and menus (24 dp, rows inset 8) | Yes |
+| `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card, and back into it as it closes | Yes |
 | `../liquid_glass_navigation_bar.dart` | The nav bar: a lens you can press, drag and fling | Yes |
 | `../header_overlay_inset.dart` | Tells content how much a header laid over it covers | Yes |
 

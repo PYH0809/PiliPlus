@@ -1,6 +1,7 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_alert_actions.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_panel.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
@@ -24,7 +25,7 @@ final _pressSpring = SpringDescription.withDampingRatio(
 );
 
 /// Draws every dialog and popup menu on liquid glass, as FlClash's alerts and
-/// menus, through the hooks `lib/scripts/material/surface_builders.patch` adds
+/// menus, a menu growing out of its button, through the hooks `lib/scripts/material/surface_builders.patch` adds
 /// to material_ui; [themed] sets their text and spacing to match. Nothing
 /// changes at the call sites.
 abstract final class GlassSurfaces {
@@ -47,18 +48,16 @@ abstract final class GlassSurfaces {
     };
     SurfaceBuilders.dialogActions = (context, actions) =>
         GlassAlertActions(actions: actions);
-    SurfaceBuilders.popupMenu = (context, shape, child) {
+    SurfaceBuilders.popupMenu = (context, shape, child, animation, anchor) {
       final theme = Theme.of(context);
-      final colorScheme = theme.colorScheme;
-      return GlassPanel(
-        style: LiquidGlassStyle.menu(colorScheme),
-        rim: LiquidGlassRim.menu(colorScheme),
-        shadows: menuShadows(colorScheme),
+      return GlassMenuMorph(
+        animation: animation,
+        anchor: anchor,
         radius: _menuRadius,
         child: Theme(
           data: _withoutRipples(theme).copyWith(
             dividerTheme: theme.dividerTheme.copyWith(
-              color: colorScheme.onSurface.withValues(alpha: 0.14),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.14),
               thickness: 1,
               space: _menuInset * 2 + 1,
             ),
