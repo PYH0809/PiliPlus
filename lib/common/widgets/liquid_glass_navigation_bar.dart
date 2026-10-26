@@ -147,10 +147,13 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
   bool _dragging = false;
   bool _dropping = false;
   VelocityTracker? _tracker;
+  int? _focusedIndex;
 
   int get _lastIndex => widget.destinations.length - 1;
 
-  double get _width => widget.destinations.length * _kItemWidth;
+  // As wide as the destinations ask, unless the screen is narrower; set as the
+  // bar lays out.
+  late double _width;
 
   double get _pitch => (_width - 2 * _kPadding) / widget.destinations.length;
 
@@ -245,6 +248,14 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
   }
 
   int _indexAt(double position) => position.round().clamp(0, _lastIndex);
+
+  void _highlightFocus(int index, bool highlight) {
+    if (highlight) {
+      setState(() => _focusedIndex = index);
+    } else if (_focusedIndex == index) {
+      setState(() => _focusedIndex = null);
+    }
+  }
 
   void _handlePointerDown(PointerDownEvent event) {
     if (_pointer != null || event.buttons & kPrimaryButton == 0) {
@@ -376,7 +387,6 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
   @override
   Widget build(BuildContext context) {
     final padding = MediaQuery.viewPaddingOf(context);
-    final size = Size(_width, _kHeight);
     return Padding(
       padding: EdgeInsets.fromLTRB(
         padding.left,
@@ -384,33 +394,43 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
         padding.right,
         widget.bottomPadding + padding.bottom,
       ),
-      child: SizedBox.fromSize(
-        size: size,
-        // Raw pointers rather than recognizers: a drag has nothing to win the
-        // arena from, and a tap waiting on one would lift the lens late.
-        child: Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: _handlePointerDown,
-          onPointerMove: _handlePointerMove,
-          onPointerUp: _handlePointerEnd,
-          onPointerCancel: _handlePointerEnd,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: AnimatedBuilder(
-              animation: _barMotion,
-              builder: (context, child) {
-                final transform = _pressTransform(size);
-                return transform == null
-                    ? child!
-                    : Transform(transform: transform, child: child);
-              },
-              child: AnimatedBuilder(
-                animation: _motion,
-                builder: (context, _) => _buildBar(context),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          _width = math.min(
+            widget.destinations.length * _kItemWidth,
+            constraints.maxWidth,
+          );
+          final size = Size(_width, _kHeight);
+          return SizedBox.fromSize(
+            size: size,
+            // Raw pointers rather than recognizers: a drag has nothing to win
+            // the arena from, and a tap waiting on one would lift the lens
+            // late.
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: _handlePointerDown,
+              onPointerMove: _handlePointerMove,
+              onPointerUp: _handlePointerEnd,
+              onPointerCancel: _handlePointerEnd,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: AnimatedBuilder(
+                  animation: _barMotion,
+                  builder: (context, child) {
+                    final transform = _pressTransform(size);
+                    return transform == null
+                        ? child!
+                        : Transform(transform: transform, child: child);
+                  },
+                  child: AnimatedBuilder(
+                    animation: _motion,
+                    builder: (context, _) => _buildBar(context),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -464,22 +484,47 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
                         labelStyle: labelStyle,
                       ),
                     )
-                  : Semantics(
-                      container: true,
-                      button: true,
-                      selected: index == widget.selectedIndex,
-                      label: destination.label,
-                      excludeSemantics: true,
-                      onTap: () => widget.onDestinationSelected(index),
-                      child: _DestinationContent(
-                        icon: index == highlighted
-                            ? destination.selectedIcon
-                            : destination.icon,
+                  : FocusableActionDetector(
+                      actions: {
+                        ActivateIntent: CallbackAction<ActivateIntent>(
+                          onInvoke: (_) {
+                            widget.onDestinationSelected(index);
+                            return null;
+                          },
+                        ),
+                      },
+                      onShowFocusHighlight: (highlight) =>
+                          _highlightFocus(index, highlight),
+                      child: Semantics(
+                        container: true,
+                        button: true,
+                        selected: index == widget.selectedIndex,
                         label: destination.label,
-                        color: index == highlighted
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                        labelStyle: labelStyle,
+                        excludeSemantics: true,
+                        onTap: () => widget.onDestinationSelected(index),
+                        child: DecoratedBox(
+                          position: DecorationPosition.foreground,
+                          decoration: index == _focusedIndex
+                              ? ShapeDecoration(
+                                  shape: StadiumBorder(
+                                    side: BorderSide(
+                                      color: colorScheme.primary,
+                                      width: 2,
+                                    ),
+                                  ),
+                                )
+                              : const BoxDecoration(),
+                          child: _DestinationContent(
+                            icon: index == highlighted
+                                ? destination.selectedIcon
+                                : destination.icon,
+                            label: destination.label,
+                            color: index == highlighted
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                            labelStyle: labelStyle,
+                          ),
+                        ),
                       ),
                     ),
             ),
@@ -529,13 +574,14 @@ class _LiquidGlassNavigationBarState extends State<LiquidGlassNavigationBar>
               ),
             ),
           ),
+        // Kept when nothing is lensed, so that a lens lifting leaves the
+        // destinations, and the focus they hold, where they are.
         Positioned.fill(
-          child: lensed
-              ? ClipPath(
-                  clipper: _LensClipper(lens, hole: true),
-                  child: destinations(inside: false),
-                )
-              : destinations(inside: false),
+          child: ClipPath(
+            clipper: lensed ? _LensClipper(lens, hole: true) : null,
+            clipBehavior: lensed ? Clip.antiAlias : Clip.none,
+            child: destinations(inside: false),
+          ),
         ),
         // What the lens holds of the destinations: a magnified copy in the
         // primary color, drawn offscreen so that its own pane warps only it.

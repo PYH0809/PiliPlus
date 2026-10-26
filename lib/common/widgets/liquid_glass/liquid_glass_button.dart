@@ -28,7 +28,8 @@ final _glowOutSpring = SpringDescription.withDurationAndBounce(
 
 /// A pressable pane of liquid glass behind [child]: a pill unless
 /// [borderRadius] rounds it otherwise. A press swells it and lights it from
-/// the finger, and a tap calls [onTap].
+/// the finger, and a tap calls [onTap], as do Enter and Space once it has
+/// the keyboard's focus.
 class LiquidGlassButton extends StatefulWidget {
   const LiquidGlassButton({
     super.key,
@@ -59,6 +60,7 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
   final _touchGlow = ValueNotifier(LiquidGlassGlow.none);
   Offset _glowAt = Offset.zero;
   int? _pointer;
+  bool _focused = false;
 
   @override
   void initState() {
@@ -124,6 +126,17 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
     _springTo(_swell, 0, _pressSpring);
   }
 
+  ShapeBorder _focusRing(ColorScheme colorScheme) {
+    final side = BorderSide(color: colorScheme.primary, width: 2);
+    return switch (widget.borderRadius) {
+      final borderRadius? => RoundedSuperellipseBorder(
+        borderRadius: borderRadius,
+        side: side,
+      ),
+      null => StadiumBorder(side: side),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
@@ -153,24 +166,42 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
                   child: child,
                 );
               },
-              child: ValueListenableBuilder(
-                valueListenable: _touchGlow,
-                builder: (context, glow, child) => LiquidGlass(
-                  style: widget.styleOf(colorScheme),
-                  borderRadius: widget.borderRadius,
-                  shadows: widget.shadows,
-                  glow: glow,
-                  child: child,
+              child: DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: _focused
+                    ? ShapeDecoration(shape: _focusRing(colorScheme))
+                    : const BoxDecoration(),
+                child: ValueListenableBuilder(
+                  valueListenable: _touchGlow,
+                  builder: (context, glow, child) => LiquidGlass(
+                    style: widget.styleOf(colorScheme),
+                    borderRadius: widget.borderRadius,
+                    shadows: widget.shadows,
+                    glow: glow,
+                    child: child,
+                  ),
+                  child: widget.child,
                 ),
-                child: widget.child,
               ),
             );
           },
         ),
       ),
     );
-    if (widget.onTap != null) {
-      button = MouseRegion(cursor: SystemMouseCursors.click, child: button);
+    if (widget.onTap case final onTap?) {
+      button = FocusableActionDetector(
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              onTap();
+              return null;
+            },
+          ),
+        },
+        mouseCursor: SystemMouseCursors.click,
+        onShowFocusHighlight: (focused) => setState(() => _focused = focused),
+        child: button,
+      );
     }
     if (widget.tooltip case final tooltip?) {
       button = Tooltip(message: tooltip, child: button);

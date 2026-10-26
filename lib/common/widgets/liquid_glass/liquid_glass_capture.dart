@@ -1104,6 +1104,14 @@ class _Replay {
           ..save()
           ..clipRect(clipRect, doAntiAlias: clipBehavior != Clip.hardEdge);
         clip = clipRect;
+      // PiliPlus: rounded covers clip with ClipRRect, which composites
+      // whenever what it holds does.
+      case ClipRRectLayer(:final clipRRect?, :final clipBehavior)
+          when clipBehavior != Clip.none:
+        canvas
+          ..save()
+          ..clipRRect(clipRRect, doAntiAlias: clipBehavior != Clip.hardEdge);
+        clip = clipRRect;
       case ClipRSuperellipseLayer(
             :final clipRSuperellipse?,
             :final clipBehavior,
@@ -1123,8 +1131,7 @@ class _Replay {
           ..clipPath(clipPath, doAntiAlias: clipBehavior != Clip.hardEdge);
         clip = clipPath;
       default:
-        // Lib clips to no rounded rect, so one a package draws clips by its
-        // bounds here.
+        // Any other clip a package draws clips by its bounds here.
         final bounds = layer.describeClipBounds();
         if (bounds == null) {
           return false;
