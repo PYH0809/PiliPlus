@@ -34,14 +34,29 @@ class GlassAlertActions extends StatelessWidget {
         _ => false,
       };
 
-  static bool _isCancel(Widget action, ColorScheme colorScheme) =>
+  static bool _isCancel(Widget action) => switch (action) {
+    ButtonStyleButton(child: Text(:final data)) when data == '取消' => true,
+    _ => false,
+  };
+
+  static bool _isMuted(Widget action, ColorScheme colorScheme) =>
       switch (action) {
-        ButtonStyleButton(child: Text(:final data)) when data == '取消' => true,
         ButtonStyleButton(child: Text(:final style?))
             when style.color == colorScheme.outline =>
           true,
         _ => false,
       };
+
+  // 取消, or else, beside other actions, the one its caller muted, as 关闭
+  // beside 申诉. A sole muted action, as an info dialog's 确定, is no cancel
+  // but the alert's one action.
+  static int _cancelIn(List<Widget> actions, ColorScheme colorScheme) {
+    final cancel = actions.indexWhere(_isCancel);
+    if (cancel >= 0 || actions.length < 2) {
+      return cancel;
+    }
+    return actions.indexWhere((action) => _isMuted(action, colorScheme));
+  }
 
   // On a capsule the outline color reads as disabled: a muted cancel action
   // takes the capsule's own color.
@@ -76,9 +91,7 @@ class GlassAlertActions extends StatelessWidget {
     final colorScheme = ColorScheme.of(context);
     // The cancel action ends a stack, or starts a pair, wherever the caller
     // put it.
-    final cancel = actions.indexWhere(
-      (action) => _isCancel(action, colorScheme),
-    );
+    final cancel = _cancelIn(actions, colorScheme);
     final ordered = cancel <= 0
         ? actions
         : [
