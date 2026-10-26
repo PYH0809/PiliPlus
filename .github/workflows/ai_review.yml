@@ -23,7 +23,7 @@ on:
                 required: true
                 type: number
             model:
-                description: "OpenRouter 模型，如 deepseek/deepseek-v4.1-flash；留空用默认"
+                description: "OpenRouter 模型，留空用默认；建议用 OpenAI 的，如 openai/gpt-6.1-sol，别家模型在 Codex 里很慢"
                 required: false
                 type: string
                 default: ""
