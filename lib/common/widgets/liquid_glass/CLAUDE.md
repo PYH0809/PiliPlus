@@ -15,11 +15,12 @@ turns on every glass part. It only takes effect after a restart.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.
-- **Dialogs and popup menus** turn to glass without touching their call sites: `lib/scripts/material/surface_builders.patch`
-  gives material_ui's `Dialog`, popup menu (with the rect it opens from and its route animation), `AlertDialog`
-  actions and `PopupMenuItem` ink hooks (`SurfaceBuilders`), and `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's
-  alerts and menus look. `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`.
-  After changing the patch, check it still applies after each platform's patch set in `patch.ps1`.
+- **Dialogs and popup menus** turn to glass without touching their call sites.
+  `lib/scripts/material/surface_builders.patch` gives material_ui's `Dialog`, popup menu (with the rect it opens from
+  and its route animation), `AlertDialog` actions and `PopupMenuItem` ink hooks (`SurfaceBuilders`), and
+  `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's alerts and menus look.
+  `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`. After changing the patch,
+  check it still applies after each platform's patch set in `patch.ps1`.
 
 ## Files
 

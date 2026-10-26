@@ -25,9 +25,10 @@ final _pressSpring = SpringDescription.withDampingRatio(
 );
 
 /// Draws every dialog and popup menu on liquid glass, as FlClash's alerts and
-/// menus, a menu growing out of its button, through the hooks `lib/scripts/material/surface_builders.patch` adds
-/// to material_ui; [themed] sets their text and spacing to match. Nothing
-/// changes at the call sites.
+/// menus, a menu growing out of its button, through the hooks that
+/// `lib/scripts/material/surface_builders.patch` adds to material_ui;
+/// [themed] sets their text and spacing to match. Nothing changes at the call
+/// sites.
 abstract final class GlassSurfaces {
   static void install() {
     SurfaceBuilders.dialog = (context, shape, child) {
@@ -158,6 +159,8 @@ class _AlertMotionState extends State<_AlertMotion>
     }
   }
 
+  // material_ui's DialogRoute only fades, so this is the alert's one scale:
+  // in from 1.2 times its size as the route opens, none as it closes.
   double get _entry {
     final route = _route;
     if (route == null ||
