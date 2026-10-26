@@ -1,15 +1,20 @@
 import 'dart:async';
 
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 class BackwardSeekIndicator extends StatefulWidget {
   final ValueChanged<Duration> onSubmitted;
   final Duration duration;
 
+  /// How far the note has eased in on glass, or null off glass.
+  final double? glassT;
+
   const BackwardSeekIndicator({
     super.key,
     required this.onSubmitted,
     required this.duration,
+    this.glassT,
   });
 
   @override
@@ -48,6 +53,50 @@ class BackwardSeekIndicatorState extends State<BackwardSeekIndicator> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.glassT case final t?) {
+      // The whole side still takes the taps; the note is a capsule of glass.
+      return Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          onTap: increment,
+          child: Center(
+            child: VideoGlass(
+              radius: 24,
+              t: t,
+              child: Opacity(
+                opacity: t,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.fast_rewind,
+                        size: 24.0,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(height: 6.0),
+                      Text(
+                        '快退${duration.inSeconds}秒',
+                        style: const TextStyle(
+                          fontSize: 12.0,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Material(
       type: MaterialType.transparency,
       child: InkWell(

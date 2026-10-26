@@ -49,13 +49,13 @@ abstract final class GlassSurfaces {
       final colorScheme = theme.colorScheme;
       return _AlertMotion(
         child: GlassPanel(
-          style: _alertStyle(colorScheme),
+          style: alertStyle(colorScheme),
           rim: LiquidGlassRim.alert(colorScheme),
           shadows: menuShadows(colorScheme),
           radius: _alertRadius,
           child: _OnGlass(
             child: Theme(
-              data: _withoutRipples(theme),
+              data: withoutRipples(theme),
               child: Material(type: MaterialType.transparency, child: child),
             ),
           ),
@@ -72,7 +72,7 @@ abstract final class GlassSurfaces {
         radius: _menuRadius,
         child: _OnGlass(
           child: Theme(
-            data: _withoutRipples(theme).copyWith(
+            data: withoutRipples(theme).copyWith(
               dividerTheme: theme.dividerTheme.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.14),
                 thickness: 1,
@@ -112,7 +112,7 @@ abstract final class GlassSurfaces {
           _ => 0,
         },
         child: Theme(
-          data: _withoutRipples(theme),
+          data: withoutRipples(theme),
           child: Material(type: MaterialType.transparency, child: child),
         ),
       );
@@ -151,9 +151,10 @@ abstract final class GlassSurfaces {
     );
   }
 
-  // Thicker than FlClash's, as an iOS alert is: over busy covers its text
-  // reads on a soft wash of their colors rather than the covers themselves.
-  static LiquidGlassStyle _alertStyle(ColorScheme colorScheme) {
+  /// An alert's glass, thicker than FlClash's, as an iOS alert is: over busy
+  /// covers its text reads on a soft wash of their colors rather than the
+  /// covers themselves.
+  static LiquidGlassStyle alertStyle(ColorScheme colorScheme) {
     final menu = LiquidGlassStyle.menu(colorScheme);
     final dark = colorScheme.brightness == Brightness.dark;
     return LiquidGlassStyle(
@@ -166,8 +167,9 @@ abstract final class GlassSurfaces {
     );
   }
 
-  // On glass a pressed row stands on a platter, without a ripple.
-  static ThemeData _withoutRipples(ThemeData theme) => theme.copyWith(
+  /// [theme] for controls on glass: a pressed row stands on a platter,
+  /// without a ripple.
+  static ThemeData withoutRipples(ThemeData theme) => theme.copyWith(
     splashFactory: NoSplash.splashFactory,
     highlightColor: theme.colorScheme.brightness == Brightness.dark
         ? const Color(0x40CCCCCC)

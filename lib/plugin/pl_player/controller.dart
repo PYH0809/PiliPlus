@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -1782,6 +1783,10 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       await showDialog(
         context: Get.context!,
         requestFocus: true,
+        // A fade would hide the glass's filter till it ends.
+        animationStyle: GlassSurfaces.installed
+            ? AnimationStyle.noAnimation
+            : null,
         builder: (context) {
           Future<void> save() async {
             if (_screenshotState > 1) return;
@@ -1823,10 +1828,10 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
                     constraints: BoxConstraints(
                       maxWidth: min(MediaQuery.widthOf(context) / 3, 350),
                     ),
-                    // On glass, the shot sits in a frame of glass.
+                    // On glass, the shot sits in a frame of the video's
+                    // glass.
                     child: GlassSurfaces.installed
-                        ? GlassSurfaces.panel(
-                            context,
+                        ? VideoGlass(
                             radius: 16,
                             child: Padding(
                               padding: const EdgeInsets.all(6),

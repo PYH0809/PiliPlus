@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/dynamic/dynamics_type.dart';
@@ -55,8 +56,13 @@ class _DynamicsTabPageState extends State<DynamicsTabPage>
         physics: const AlwaysScrollableScrollPhysics(),
         controller: controller.scrollController,
         slivers: [
+          HeaderOverlayInset.sliver(context),
           SliverPadding(
-            padding: const EdgeInsets.only(bottom: 100),
+            // The cards have no gap above them: leave one under the header.
+            padding: EdgeInsets.only(
+              top: HeaderOverlayInset.of(context) > 0 ? 6 : 0,
+              bottom: 100,
+            ),
             sliver: buildPage(
               Obx(() => _buildBody(controller.loadingState.value)),
             ),

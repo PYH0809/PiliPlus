@@ -213,12 +213,8 @@ class _MusicDetailPageState extends CommonDynPageState<MusicDetailPage> {
     }
 
     final primary = theme.colorScheme.primary;
-    final outline = theme.colorScheme.outline;
-    final style = TextButton.styleFrom(
-      tapTargetSize: .padded,
-      padding: const EdgeInsets.symmetric(horizontal: 15),
-      foregroundColor: outline,
-    );
+    final outline = actionBarIdleColor;
+    final style = actionButtonStyle;
 
     Widget textIconButton({
       required IconData icon,
@@ -251,25 +247,11 @@ class _MusicDetailPageState extends CommonDynPageState<MusicDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Padding(
-            padding: const EdgeInsets.only(
-              right: kFloatingActionButtonMargin,
-              bottom: kFloatingActionButtonMargin,
-            ),
+            padding: replyButtonMargin,
             child: replyButton,
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              border: Border(
-                top: BorderSide(
-                  color: theme.colorScheme.outline.withValues(
-                    alpha: 0.08,
-                  ),
-                ),
-              ),
-            ),
-            padding: EdgeInsets.only(bottom: padding.bottom),
-            child: Row(
+          actionBarSurface(
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 // TODO

@@ -10,8 +10,15 @@ turns on every glass part. It only takes effect after a restart.
   that capture. `lib/main.dart` wraps the whole app in `LiquidGlassScope` + `LiquidGlassHost` in its `builder`, so
   glass works on any route or dialog. Don't add another host.
 - Refraction needs Impeller's shader filters (`ImageFilter.isShaderFilterSupported`). Without them, as in release
-  Android builds and on macOS, panes fall back to frosted blur. Check how a change looks both ways; the Android dev
-  flavor has Impeller on.
+  Android builds and on macOS, panes fall back to a thickened tint with a rim, not a blur. Check how a change looks
+  both ways; the Android dev flavor has Impeller on.
+- **Over the video** the host sees nothing: the video is a texture, not a picture it can replay. `VideoGlass` is a
+  backdrop filter instead: an engine blur, shared by the panes of a `BackdropGroup`, and nested in it the glass
+  shader, which bends and tints the blur (`liquidGlassProgram`, `liquidGlassLook`). Without shader filters it
+  frosts. It is dark in either theme, as the player's icons are white; `VideoGlass.controlsTheme` gives the
+  controls on it a dark theme, so their menus read dark too. A translucent `Opacity` above a backdrop filter breaks
+  it, so it eases in through its `t`, never a fade; `VideoGlassHidden` turns it off while the controls are out of
+  sight.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.
@@ -51,6 +58,7 @@ turns on every glass part. It only takes effect after a restart.
 | `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled, 取消 at the bottom | Yes |
 | `glass_switch.dart` | `GlassSwitch`, iOS 26's switch (a 63×28 track, a white capsule thumb) with FlClash's motion: a press lifts the thumb into a lens over the track. A `Switch`'s own `thumbIcon` (a lock) stays on the thumb; the theme's tick doesn't | Yes |
 | `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, thicker glass, grow in, swell on press), menus (24 dp, rows inset 8), the selection toolbar and switches; `panel`, `pill`, `onGlass` for call sites | Yes |
+| `video_glass.dart` | `VideoGlass`: a backdrop filter pane over the video, which the host cannot replay; the player's and live room's controls, notes and full-screen panels | Yes |
 | `glass_droplet.dart` | The return into a button as a drop of glass, shared by menus and pages: where the platter and droplet stand at a time, their shadows | Yes |
 | `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass | Yes |
 | `glass_page_morph.dart` | `GlassMorphButton`: a page growing out of its button and returning into it, on the route's own time | Yes |
@@ -86,5 +94,8 @@ Glass only refracts under Impeller, so render tests run with `flutter test --ena
 - Wrap the tree in `LiquidGlassScope(enabled: true)` + `LiquidGlassHost(enabled: true)`.
 
 Code that calls `feedBack()` needs `enableFeedback = false` in the test.
+
+`VideoGlass` is a backdrop filter, which `toImage()` renders headless without the host:
+`test/common/widgets/liquid_glass/video_glass_render_test.dart` passes both with and without `--enable-impeller`.
 
 Put throwaway render tests in a scratch folder rather than `test/`.

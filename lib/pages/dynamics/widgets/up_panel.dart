@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/assets.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/models/common/dynamic/up_panel_position.dart';
 import 'package:PiliPlus/models/dynamics/up.dart';
@@ -43,6 +44,7 @@ class _UpPanelState extends State<UpPanel> {
       physics: const AlwaysScrollableScrollPhysics(),
       controller: controller.scrollController,
       slivers: [
+        if (!isTop) HeaderOverlayInset.sliver(context),
         SliverToBoxAdapter(
           child: InkWell(
             onTap: () => setState(() {

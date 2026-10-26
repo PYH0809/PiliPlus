@@ -365,12 +365,8 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
     }
 
     late final primary = theme.colorScheme.primary;
-    late final outline = theme.colorScheme.outline;
-    late final btnStyle = TextButton.styleFrom(
-      tapTargetSize: .padded,
-      padding: const .symmetric(horizontal: 15),
-      foregroundColor: outline,
-    );
+    late final outline = actionBarIdleColor;
+    late final btnStyle = actionButtonStyle;
 
     return Padding(
       padding: .only(left: padding.left, right: padding.right),
@@ -378,11 +374,9 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
         final stats = controller.stats.value;
 
         final fab = Padding(
-          padding: .only(
-            right: kFloatingActionButtonMargin,
+          padding: replyButtonMargin.copyWith(
             bottom:
-                kFloatingActionButtonMargin +
-                (stats != null ? 0 : padding.bottom),
+                replyButtonMargin.bottom + (stats != null ? 0 : padding.bottom),
           ),
           child: replyButton,
         );
@@ -421,17 +415,8 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
           crossAxisAlignment: .end,
           children: [
             fab,
-            Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: theme.colorScheme.outline.withValues(alpha: 0.08),
-                  ),
-                ),
-              ),
-              padding: .only(bottom: padding.bottom),
-              child: Row(
+            actionBarSurface(
+              Row(
                 children: [
                   Expanded(
                     child: Builder(

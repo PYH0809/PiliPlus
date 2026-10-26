@@ -3,6 +3,9 @@ import 'dart:math';
 import 'package:PiliPlus/common/widgets/fractionally_sized_box.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/gallery_viewer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero_dialog_route.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/grpc/im.dart';
 import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -469,29 +472,46 @@ abstract final class PageUtils {
     }
   }
 
+  /// Slides [child] in over the player: up from the bottom in portrait, in
+  /// from the right otherwise, in [theme] if given. [overVideo] when the
+  /// player fills the screen: then, with liquid glass on, the panel slid in
+  /// from the right floats on thick glass over the video.
   static Future<void>? showVideoBottomSheet(
     BuildContext context, {
     required Widget child,
     ValueGetter<EdgeInsets>? padding,
     double maxWidth = 500,
+    ThemeData? theme,
+    bool overVideo = false,
   }) {
     if (!context.mounted) {
       return null;
     }
+    final glass = overVideo && GlassSurfaces.installed;
     return Get.key.currentState!.push(
       PublishRoute(
+        barrierColor: glass && !context.isPortrait
+            ? (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
+                  const Color(0x80000000)
+            : const Color(0x80000000),
         pageBuilder: (context, animation, secondaryAnimation) {
           final isPortrait = context.isPortrait;
+          Widget content = Padding(
+            padding: isPortrait ? padding?.call() ?? .zero : .zero,
+            child: child,
+          );
+          if (glass && !isPortrait) {
+            content = _onVideoGlass(theme ?? Theme.of(context), content);
+          } else if (theme != null) {
+            content = Theme(data: theme, child: content);
+          }
           return SafeArea(
             child: CustomFractionallySizedBox(
               maxWidth: maxWidth,
               widthFactor: isPortrait ? 1.0 : 0.5,
               heightFactor: isPortrait ? 0.7 : 1.0,
               alignment: isPortrait ? .bottomCenter : .centerRight,
-              child: Padding(
-                padding: isPortrait ? padding?.call() ?? .zero : .zero,
-                child: child,
-              ),
+              child: content,
             ),
           );
         },
@@ -511,6 +531,31 @@ abstract final class PageUtils {
           );
         },
         settings: RouteSettings(arguments: Get.arguments),
+      ),
+    );
+  }
+
+  // An alert's glass, which reads the video under it, with the panel's own
+  // surfaces cleared to let it show.
+  static Widget _onVideoGlass(ThemeData theme, Widget child) {
+    const radius = 24.0;
+    final colorScheme = theme.colorScheme;
+    return Padding(
+      padding: const .all(8),
+      child: VideoGlass(
+        radius: radius,
+        style: GlassSurfaces.alertStyle(colorScheme),
+        rim: LiquidGlassRim.alert(colorScheme),
+        child: ClipRSuperellipse(
+          borderRadius: const .all(.circular(radius)),
+          child: Theme(
+            data: theme.copyWith(
+              colorScheme: colorScheme.copyWith(surface: Colors.transparent),
+              canvasColor: Colors.transparent,
+            ),
+            child: child,
+          ),
+        ),
       ),
     );
   }
