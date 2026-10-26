@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -121,7 +122,7 @@ class _SpaceSettingPageState extends State<SpaceSettingPage> {
           ),
           trailing: Transform.scale(
             alignment: Alignment.centerRight,
-            scale: 0.8,
+            scale: GlassSurfaces.switchScale,
             child: Switch(
               value: item.boolVal,
               onChanged: onChanged,

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/grpc/bilibili/app/im/v1.pb.dart'
     show SelectItem, Setting, SettingSwitch;
 import 'package:material_ui/material_ui.dart';
@@ -51,7 +52,7 @@ class ImSettingsItem extends StatelessWidget {
             : null,
         trailing: Transform.scale(
           alignment: Alignment.centerRight,
-          scale: 0.8,
+          scale: GlassSurfaces.switchScale,
           child: Switch(
             value: item.switch_1.switchOn,
             onChanged: (value) => onChanged(),

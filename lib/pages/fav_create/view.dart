@@ -2,6 +2,7 @@ import 'dart:io' show File;
 
 import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_insets_safe_area.dart';
@@ -382,7 +383,7 @@ class _CreateFavPageState extends State<CreateFavPage> {
                 ),
                 trailing: Transform.scale(
                   alignment: Alignment.centerRight,
-                  scale: 0.8,
+                  scale: GlassSurfaces.switchScale,
                   child: Switch(
                     value: _isPublic,
                     onChanged: (value) => onTap(),

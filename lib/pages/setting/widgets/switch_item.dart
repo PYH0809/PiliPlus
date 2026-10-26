@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -92,7 +93,7 @@ class _SetSwitchItemState extends State<SetSwitchItem> {
     );
 
     final switchBtn = Transform.scale(
-      scale: 0.8,
+      scale: GlassSurfaces.switchScale,
       alignment: .centerRight,
       child: Switch(
         value: val,

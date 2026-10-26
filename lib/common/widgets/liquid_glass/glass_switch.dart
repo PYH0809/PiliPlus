@@ -7,10 +7,10 @@ import 'dart:math' as math;
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// The M3 switch's track and thumb, drawn here so no ripple or overlay rings
-/// it, and filled solid while off rather than outlined. A press lifts the
-/// thumb out past the track, white as iOS's solid thumb is; on liquid glass
-/// the lifted thumb turns into a clear lens over the track, as iOS's does.
+/// iOS 26's switch: a long track, grey while off and the tint while on, and
+/// a white capsule of a thumb, drawn here so no ripple or overlay rings it.
+/// A press lifts the thumb out past the track; on liquid glass the lifted
+/// thumb turns into a clear lens over the track, as iOS's does.
 class GlassSwitch extends StatefulWidget {
   const GlassSwitch({
     super.key,
@@ -26,8 +26,8 @@ class GlassSwitch extends StatefulWidget {
   /// more than on and off, such as one locked on.
   final WidgetStateProperty<Icon?>? thumbIcon;
 
-  static const trackWidth = 52.0;
-  static const trackHeight = 32.0;
+  static const trackWidth = 63.0;
+  static const trackHeight = 28.0;
 
   @override
   State<GlassSwitch> createState() => _GlassSwitchState();
@@ -35,12 +35,17 @@ class GlassSwitch extends StatefulWidget {
 
 class _GlassSwitchState extends State<GlassSwitch>
     with TickerProviderStateMixin {
-  // M3's layout: 4 dp either side of the track, as tall as a tap target.
+  // 4 dp either side of the track, as tall as a tap target. The thumb sits
+  // 2 dp inside the track and travels what is left of it.
   static const _inset = 4.0;
-  static const _thumb = 24.0;
-  static const _midThumb = Size(34, 22);
-  static const _heldThumb = 40.0;
+  static const _gap = 2.0;
+  static const _thumbWidth = 37.0;
+  static const _thumb = Size(_thumbWidth, 24);
+  static const _midThumb = Size(44, 22);
+  static const _heldThumb = Size(56, 36);
   static const _heldStretch = Offset(10, -2);
+  static const _travel = GlassSwitch.trackWidth - _thumbWidth - _gap * 2;
+  static const _offTrack = Color(0xFF787880);
   static const _toggleDuration = Duration(milliseconds: 300);
   static const _pressDuration = Duration(milliseconds: 150);
   static const _tapLift = Duration(milliseconds: 200);
@@ -134,8 +139,7 @@ class _GlassSwitchState extends State<GlassSwitch>
 
   void _handleDrag(double dx) {
     final rtl = Directionality.of(context) == TextDirection.rtl;
-    _toggle.value +=
-        (rtl ? -dx : dx) / (GlassSwitch.trackWidth - GlassSwitch.trackHeight);
+    _toggle.value += (rtl ? -dx : dx) / _travel;
   }
 
   void _handleRelease() {
@@ -171,12 +175,11 @@ class _GlassSwitchState extends State<GlassSwitch>
     final on = _toggle.value;
     final stretch = math.sin(math.pi * on.clamp(0.0, 1.0));
     final size = Size.lerp(
-      Size.lerp(const Size.square(_thumb), _midThumb, stretch),
-      const Size.square(_heldThumb) + _heldStretch * stretch,
+      Size.lerp(_thumb, _midThumb, stretch),
+      _heldThumb + _heldStretch * stretch,
       _press.value,
     )!;
-    final along =
-        track.height / 2 + (track.width - track.height) * _position.value;
+    final along = _gap + _thumbWidth / 2 + _travel * _position.value;
     return Rect.fromCenter(
       center: Offset(
         rtl ? track.right - along : track.left + along,
@@ -185,6 +188,14 @@ class _GlassSwitchState extends State<GlassSwitch>
       width: size.width,
       height: size.height,
     );
+  }
+
+  static Color _deepened(Color color) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl
+        .withSaturation(math.min(hsl.saturation, 0.7))
+        .withLightness(0.5)
+        .toColor();
   }
 
   Widget _buildParts(BuildContext context, Size size) {
@@ -198,52 +209,37 @@ class _GlassSwitchState extends State<GlassSwitch>
       width: GlassSwitch.trackWidth,
       height: GlassSwitch.trackHeight,
     );
-    final trackColor = enabled
-        ? Color.lerp(
-            colorScheme.surfaceContainerHighest,
-            colorScheme.primary,
-            on,
-          )
-        : Color.lerp(
-            colorScheme.surfaceContainerHighest.withValues(alpha: 0.12),
-            colorScheme.onSurface.withValues(alpha: 0.12),
-            on,
-          );
-    final thumbColor = enabled
-        ? Color.lerp(colorScheme.outline, colorScheme.onPrimary, on)!
-        : Color.lerp(
-            colorScheme.onSurface.withValues(alpha: 0.38),
-            colorScheme.surface,
-            on,
-          )!;
+    // iOS's fill while off, the tint while on. A dark theme's tint is too
+    // pale for the white thumb, so it takes iOS's deeper dark tint.
+    final dark = colorScheme.brightness == Brightness.dark;
+    final tint = dark ? _deepened(colorScheme.primary) : colorScheme.primary;
+    final trackColor = Color.lerp(
+      _offTrack.withValues(alpha: dark ? 0.32 : 0.16),
+      tint,
+      on,
+    );
+    const thumbColor = Colors.white;
     final shadows = [
-      if (lift > 0)
-        BoxShadow(
-          color: colorScheme.shadow.withValues(alpha: 0.2 * lift),
-          offset: const Offset(0, 2),
-          blurRadius: 6,
-        ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.12 + 0.08 * lift),
+        offset: const Offset(0, 3),
+        blurRadius: 8 + 4 * lift,
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.04 * (1 - lift)),
+        offset: const Offset(0, 1),
+        blurRadius: 1,
+      ),
     ];
     final lens = LiquidGlassScope.of(context) && lift > 0;
     final thumbFill = lens
-        ? thumbColor.withValues(alpha: thumbColor.a * (1 - lift))
-        : Color.lerp(thumbColor, Colors.white, lift)!;
+        ? thumbColor.withValues(alpha: 1 - lift)
+        : thumbColor;
     final icon = widget.thumbIcon?.resolve({
       if (widget.value) WidgetState.selected,
       if (!enabled) WidgetState.disabled,
     });
-    // M3's icon colors for the thumb's.
-    final iconColor = enabled
-        ? Color.lerp(
-            colorScheme.surfaceContainerHighest,
-            colorScheme.onPrimaryContainer,
-            on,
-          )
-        : Color.lerp(
-            colorScheme.surfaceContainerHighest.withValues(alpha: 0.38),
-            colorScheme.onSurface.withValues(alpha: 0.38),
-            on,
-          );
+    final iconColor = Color.lerp(colorScheme.outline, tint, on);
     final thumb = DecoratedBox(
       decoration: ShapeDecoration(
         color: thumbFill,
@@ -259,7 +255,7 @@ class _GlassSwitchState extends State<GlassSwitch>
               ),
             ),
     );
-    return Stack(
+    final parts = Stack(
       clipBehavior: Clip.none,
       children: [
         Positioned.fromRect(
@@ -298,6 +294,8 @@ class _GlassSwitchState extends State<GlassSwitch>
           ),
       ],
     );
+    // iOS fades a disabled switch as a whole.
+    return enabled ? parts : Opacity(opacity: 0.5, child: parts);
   }
 
   @override

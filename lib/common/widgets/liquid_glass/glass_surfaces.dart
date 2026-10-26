@@ -38,6 +38,10 @@ abstract final class GlassSurfaces {
   static bool get installed => _installed;
   static bool _installed = false;
 
+  /// How far call sites shrink their Switch: Material's to 0.8, as the app
+  /// always has; the glass one not at all, as it is iOS's size already.
+  static double get switchScale => _installed ? 1 : 0.8;
+
   static void install() {
     _installed = true;
     SurfaceBuilders.dialog = (context, shape, child) {

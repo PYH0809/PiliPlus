@@ -16,13 +16,20 @@ class CustomToast extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     if (_glass) {
-      // A pill of glass, as the nav bar; it frosts rather than bends, as
-      // toasts show above the glass host. Its opacity setting thins the glass
-      // as it does the bubble.
+      // A capsule of glass at iOS's size, as the nav bar; it frosts rather
+      // than bends, as toasts show above the glass host. Its opacity setting
+      // thins the glass as it does the bubble.
       return Padding(
-        padding: .only(bottom: MediaQuery.viewPaddingOf(context).bottom + 30),
+        padding: .fromLTRB(
+          24,
+          0,
+          24,
+          MediaQuery.viewPaddingOf(context).bottom + 30,
+        ),
         child: LiquidGlass(
           style: LiquidGlassStyle.pill(colorScheme).scale(toastOpacity),
+          // A pill on one line; rounded as one on more.
+          borderRadius: const .all(.circular(25)),
           shadows: [
             for (final shadow in floatingGlassShadows(colorScheme))
               shadow.copyWith(
@@ -32,10 +39,16 @@ class CustomToast extends StatelessWidget {
               ),
           ],
           child: Padding(
-            padding: const .symmetric(horizontal: 17, vertical: 10),
+            padding: const .symmetric(horizontal: 22, vertical: 15),
             child: Text(
               msg,
-              style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
+              textAlign: .center,
+              style: TextStyle(
+                fontSize: 15,
+                height: 20 / 15,
+                fontWeight: .w500,
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
         ),

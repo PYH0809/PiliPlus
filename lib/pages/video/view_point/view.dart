@@ -1,6 +1,7 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/pages/common/slide/common_slide_page.dart';
@@ -52,7 +53,7 @@ class _ViewPointsPageState extends State<ViewPointsPage>
             Obx(
               () => Transform.scale(
                 alignment: Alignment.centerLeft,
-                scale: 0.8,
+                scale: GlassSurfaces.switchScale,
                 child: Switch(
                   value: videoDetailController.showVP.value,
                   onChanged: videoDetailController.showVP.call,
