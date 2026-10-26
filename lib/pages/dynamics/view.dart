@@ -5,6 +5,7 @@ import 'package:PiliPlus/models/common/dynamic/up_panel_position.dart';
 import 'package:PiliPlus/models/dynamics/up.dart';
 import 'package:PiliPlus/pages/common/common_page.dart';
 import 'package:PiliPlus/pages/dynamics/controller.dart';
+import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/up_panel.dart';
 import 'package:PiliPlus/pages/dynamics_create/view.dart';
 import 'package:PiliPlus/pages/dynamics_tab/view.dart';
@@ -26,10 +27,22 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   UpPanelPosition get upPanelPosition => _dynamicsController.upPanelPosition;
   late final MainController _mainController = Get.find<MainController>();
 
+  // The tabs in liquid glass, laid over the feed, which scrolls under them.
+  late final bool _glass = _mainController.liquidGlass;
+
   @override
   bool get wantKeepAlive => true;
 
   Widget _createDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
+      _glass
+      ? GlassCircle(
+          icon: Icons.add,
+          tooltip: '发布动态',
+          onTap: () => CreateDynPanel.onCreateDyn(context),
+        )
+      : _filledDynamicBtn(colorScheme, isRight: isRight);
+
+  Widget _filledDynamicBtn(ColorScheme colorScheme, {bool isRight = true}) =>
       Container(
         width: 34,
         height: 34,
@@ -50,6 +63,17 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
           ),
         ),
       );
+
+  /// The drawer's button in glass, under the [Scaffold] that opens it.
+  Widget _glassDrawerBtn({bool end = false}) => Builder(
+    builder: (context) => GlassCircle(
+      icon: Icons.menu,
+      tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+      onTap: end
+          ? Scaffold.of(context).openEndDrawer
+          : Scaffold.of(context).openDrawer,
+    ),
+  );
 
   Widget upPanelPart(ColorScheme colorScheme) {
     final isTop = upPanelPosition == .top;
@@ -168,15 +192,27 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
       case .leftDrawer:
         if (showUpPanel) {
           drawer = upPanelPart(colorScheme);
-          leading = const DrawerButton();
+          leading = _glass ? _glassDrawerBtn() : const DrawerButton();
         }
         actions = _createDynamicBtn(colorScheme);
       case .rightDrawer:
         if (showUpPanel) {
           endDrawer = upPanelPart(colorScheme);
-          actions = const EndDrawerButton();
+          actions = _glass
+              ? _glassDrawerBtn(end: true)
+              : const EndDrawerButton();
         }
         leading = _createDynamicBtn(colorScheme, isRight: false);
+    }
+
+    if (_glass) {
+      return _buildGlassPage(
+        child,
+        leading: leading,
+        trailing: actions,
+        drawer: drawer,
+        endDrawer: endDrawer,
+      );
     }
 
     return Scaffold(
@@ -205,11 +241,7 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
                 tabs: DynamicsTabType.values
                     .map((e) => Tab(text: e.label))
                     .toList(),
-                onTap: (index) {
-                  if (!_dynamicsController.tabController.indexIsChanging) {
-                    _dynamicsController.animateToTop();
-                  }
-                },
+                onTap: _onTabTap,
               ),
             ),
             ?actions,
@@ -219,6 +251,43 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
       drawer: drawer,
       endDrawer: endDrawer,
       body: onBuild(child),
+    );
+  }
+
+  void _onTabTap(int index) {
+    if (!_dynamicsController.tabController.indexIsChanging) {
+      _dynamicsController.animateToTop();
+    }
+  }
+
+  Widget _buildGlassPage(
+    Widget child, {
+    Widget? leading,
+    Widget? trailing,
+    Widget? drawer,
+    Widget? endDrawer,
+  }) {
+    // The panel of UPs on top scrolls sideways and so cannot start below the
+    // header: it and the feed are laid out below it instead.
+    final isTop = upPanelPosition == .top;
+    return Scaffold(
+      primary: false,
+      resizeToAvoidBottomInset: false,
+      backgroundColor: Colors.transparent,
+      drawer: drawer,
+      endDrawer: endDrawer,
+      body: DynamicsGlassBody(
+        below: isTop,
+        content: onBuild(child),
+        header: DynamicsGlassHeader(
+          controller: _dynamicsController.tabController,
+          labels: DynamicsTabType.values.map((e) => e.label).toList(),
+          onTap: _onTabTap,
+          leading: leading,
+          trailing: trailing,
+          fade: isTop ? 0 : 16,
+        ),
+      ),
     );
   }
 }

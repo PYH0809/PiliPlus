@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:PiliPlus/common/skeleton/video_reply.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
@@ -13,6 +15,7 @@ import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/pages/article/widgets/sliver_list.dart';
+import 'package:PiliPlus/pages/common/dyn/action_bar.dart';
 import 'package:PiliPlus/pages/common/dyn/common_dyn_controller.dart';
 import 'package:PiliPlus/pages/common/fab_mixin.dart';
 import 'package:PiliPlus/pages/video/reply/vote/reply_vote_item.dart';
@@ -21,6 +24,7 @@ import 'package:PiliPlus/pages/video/reply_reply/view.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
+import 'package:PiliPlus/utils/grid.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
@@ -154,11 +158,8 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
                 );
               },
             ),
-            TextButton.icon(
-              style: Style.buttonStyle,
-              onPressed: controller.queryBySort,
-              icon: Icon(Icons.sort, size: 16, color: secondary),
-              label: Obx(
+            sortButton(
+              Obx(
                 () => Text(
                   controller.sortType.value.descShort,
                   style: TextStyle(fontSize: 13, color: secondary),
@@ -204,7 +205,9 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
                 controller.onLoadMore();
                 return Container(
                   alignment: Alignment.center,
-                  margin: EdgeInsets.only(bottom: padding.bottom),
+                  margin: EdgeInsets.only(
+                    bottom: padding.bottom + bottomBarOverlap,
+                  ),
                   height: 125,
                   child: Text(
                     controller.isEnd ? '没有更多了' : '加载中...',
@@ -401,9 +404,8 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
     child: replyButton,
   );
 
-  Widget get replyButton => FloatingActionButton(
-    heroTag: null,
-    onPressed: () {
+  Widget get replyButton {
+    void onReply() {
       try {
         feedBack();
         controller.onReply(
@@ -413,8 +415,75 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
           mentionItem: controller.mentionItem,
         );
       } catch (_) {}
-    },
-    tooltip: '评论',
-    child: const Icon(Icons.reply),
+    }
+
+    if (GlassSurfaces.installed) {
+      return GlassReplyButton(onTap: onReply);
+    }
+    return FloatingActionButton(
+      heroTag: null,
+      onPressed: onReply,
+      tooltip: '评论',
+      child: const Icon(Icons.reply),
+    );
+  }
+
+  /// Whether the action bar floats on glass over the content.
+  bool get glassActionBar =>
+      GlassSurfaces.installed && controller.showDynActionBar;
+
+  /// How much further the action bar on glass reaches over the end of the
+  /// content than the one on the surface.
+  double get bottomBarOverlap => glassActionBar ? 16 : 0;
+
+  // On glass, the bar keeps clear of the content's margins in portrait, and
+  // stays by the replies in landscape.
+  double get _actionBarSideInset =>
+      isPortrait ? max(maxWidth / 2 - Grid.smallCardWidth, 0) : 0;
+
+  /// Where [replyButton] sits above the action bar.
+  EdgeInsets get replyButtonMargin => glassActionBar
+      ? .only(
+          right: DynActionBar.margin + _actionBarSideInset,
+          bottom: DynActionBar.gap,
+        )
+      : const .only(
+          right: kFloatingActionButtonMargin,
+          bottom: kFloatingActionButtonMargin,
+        );
+
+  /// The color of the action bar's buttons at rest.
+  Color get actionBarIdleColor => glassActionBar
+      ? theme.colorScheme.onSurfaceVariant
+      : theme.colorScheme.outline;
+
+  ButtonStyle get actionButtonStyle => glassActionBar
+      ? glassActionButtonStyle(theme.colorScheme)
+      : TextButton.styleFrom(
+          tapTargetSize: .padded,
+          padding: const .symmetric(horizontal: 15),
+          foregroundColor: theme.colorScheme.outline,
+        );
+
+  /// The action bar holding [row]: on the surface, or floating on glass.
+  Widget actionBarSurface(Widget row) => DynActionBar(
+    glass: glassActionBar,
+    bottom: padding.bottom,
+    sideInset: _actionBarSideInset,
+    maxWidth: isPortrait ? null : Grid.smallCardWidth * 2,
+    child: row,
   );
+
+  /// The button that changes the replies' sort order, showing [label].
+  Widget sortButton(Widget label) {
+    if (GlassSurfaces.installed) {
+      return GlassSortButton(label: label, onTap: controller.queryBySort);
+    }
+    return TextButton.icon(
+      style: Style.buttonStyle,
+      onPressed: controller.queryBySort,
+      icon: Icon(Icons.sort, size: 16, color: theme.colorScheme.secondary),
+      label: label,
+    );
+  }
 }
