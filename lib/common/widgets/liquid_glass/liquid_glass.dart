@@ -1,7 +1,7 @@
 // Ported from FlClash (https://github.com/chen08209/FlClash),
 // lib/ui/liquid_glass.dart and lib/ui/liquid_glass_capture.dart, GPL-3.0.
-// Only the imports changed: FlClash's color, context and shape helpers that
-// these use are in glass_support.dart.
+// Only the imports changed, besides the changes marked `PiliPlus:`. FlClash's
+// color, context and shape helpers that these use are in glass_support.dart.
 
 // Kept as upstream wrote it, to stay easy to sync.
 // ignore_for_file: prefer_initializing_formals, cascade_invocations

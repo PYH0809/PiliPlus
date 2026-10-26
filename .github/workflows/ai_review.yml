@@ -134,7 +134,7 @@ jobs:
                          - 安全问题（注入、密钥泄露、不安全的输入处理）；
                          - 资源和异步问题（泄漏、竞态、未 dispose 的 controller / ticker / 订阅、
                            异步之后未检查 mounted 就用 context）；
-                         - 明显违反本仓库约定的写法（见 `analysis_options.yaml`）：例如用相对路径
+                         - 明显违反本仓库约定的写法（见 `CLAUDE.md` 的 Hard constraints 和 `analysis_options.yaml`）：例如用相对路径
                            而不是 `package:PiliPlus/...` 导入、Widget 里该用 `material_ui` 却用了
                            `package:flutter/material.dart`。
                          纯样式问题不提，除非它会造成真实缺陷。
