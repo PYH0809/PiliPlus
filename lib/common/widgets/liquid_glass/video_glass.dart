@@ -365,8 +365,11 @@ class _RenderVideoGlass extends RenderProxyBox {
       ..filter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma)
       ..backdropKey = group;
     context.pushLayer(frost, (context, offset) {
+      // Never in the group: it reads the frost's layer, not the screen, and
+      // the frost may have left the group's key on this layer.
       final bend = (_backdrop.layer ??= BackdropFilterLayer())
-        ..filter = _bendFilter(corners, sigma);
+        ..filter = _bendFilter(corners, sigma)
+        ..backdropKey = null;
       context.pushLayer(bend, (_, _) {}, offset);
     }, offset);
   }
