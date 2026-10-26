@@ -629,6 +629,8 @@ class VideoDetailController extends GetxController
       return Semantics(
         button: true,
         child: GestureDetector(
+          // The whole capsule takes the tap, padding and all.
+          behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: VideoGlass.capsule(
             child: Padding(

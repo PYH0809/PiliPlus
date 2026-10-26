@@ -131,6 +131,10 @@ void main() {
     final theme = VideoGlass.controlsTheme(light);
     expect(theme.colorScheme.brightness, Brightness.dark);
     expect(theme.splashFactory, NoSplash.splashFactory);
+    // A menu item without a color of its own reads light on the glass.
+    expect(theme.textTheme.bodyMedium?.color, theme.colorScheme.onSurface);
+    expect(theme.textTheme.labelLarge?.color, theme.colorScheme.onSurface);
+    expect(theme.iconTheme.color, theme.colorScheme.onSurfaceVariant);
   });
 
   group('AppBarAni on glass', () {
