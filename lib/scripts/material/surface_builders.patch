@@ -57,7 +57,7 @@ index eb3580d..d924e5a 100644
            spacing: spacing,
            overflowAlignment: actionsOverflowAlignment ?? OverflowBarAlignment.end,
 diff --git a/lib/src/popup_menu.dart b/lib/src/popup_menu.dart
-index 0022a99..dcea7c5 100644
+index 0022a99..62e483b 100644
 --- a/lib/src/popup_menu.dart
 +++ b/lib/src/popup_menu.dart
 @@ -26,6 +26,7 @@ import 'list_tile.dart';
@@ -68,7 +68,30 @@ index 0022a99..dcea7c5 100644
  import 'popup_menu_theme.dart';
  import 'text_theme.dart';
  import 'theme.dart';
-@@ -466,6 +467,8 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+@@ -443,7 +444,21 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+         constraints: BoxConstraints(minHeight: widget.height),
+         child: Padding(
+           padding: padding,
+-          child: Align(alignment: AlignmentDirectional.centerStart, child: buildChild()),
++          child: switch (SurfaceBuilders.popupMenuCheck) {
++            // PiliPlus: the app's mark at the end of the item the menu opens on.
++            final Widget check?
++                when context.getInheritedWidgetOfExactType<_PopupMenuInitialItem>() != null =>
++              Row(
++                children: <Widget>[
++                  Expanded(
++                    child: Align(alignment: AlignmentDirectional.centerStart, child: buildChild()),
++                  ),
++                  const SizedBox(width: 8),
++                  check,
++                ],
++              ),
++            _ => Align(alignment: AlignmentDirectional.centerStart, child: buildChild()),
++          },
+         ),
+       ),
+     );
+@@ -466,6 +481,8 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
          child: InkWell(
            onTap: widget.enabled ? handleTap : null,
            canRequestFocus: widget.enabled,
@@ -77,7 +100,34 @@ index 0022a99..dcea7c5 100644
            mouseCursor: _EffectiveMouseCursor(widget.mouseCursor, popupMenuTheme.mouseCursor),
            child: ListTileTheme.merge(
              contentPadding: EdgeInsets.zero,
-@@ -792,6 +795,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -677,6 +694,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
+   }
+ }
+ 
++// PiliPlus: tells the item a menu opens on that it is the one.
++class _PopupMenuInitialItem extends InheritedWidget {
++  const _PopupMenuInitialItem({required super.child});
++
++  @override
++  bool updateShouldNotify(_PopupMenuInitialItem oldWidget) => false;
++}
++
+ class _PopupMenu<T> extends StatefulWidget {
+   const _PopupMenu({
+     required this.itemKeys,
+@@ -756,7 +781,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+       Widget item = widget.route.items[i];
+       if (widget.route.initialValue != null &&
+           widget.route.items[i].represents(widget.route.initialValue)) {
+-        item = ColoredBox(color: Theme.of(context).highlightColor, child: item);
++        // PiliPlus: the app marks the item itself, in place of the highlight.
++        item = SurfaceBuilders.popupMenuCheck != null
++            ? _PopupMenuInitialItem(child: item)
++            : ColoredBox(color: Theme.of(context).highlightColor, child: item);
+       }
+       children.add(
+         _MenuItem(
+@@ -792,6 +820,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
        ),
      );
  
@@ -98,7 +148,7 @@ index 0022a99..dcea7c5 100644
      return AnimatedBuilder(
        animation: widget.route.animation!,
        builder: (BuildContext context, Widget? child) {
-@@ -975,6 +992,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -975,6 +1017,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
  
    final RelativeRect? position;
    final PopupMenuPositionBuilder? positionBuilder;
@@ -108,7 +158,7 @@ index 0022a99..dcea7c5 100644
    final List<PopupMenuEntry<T>> items;
    final List<GlobalKey> itemKeys;
    final List<Size?> itemSizes;
-@@ -1063,9 +1083,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -1063,9 +1108,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
        removeRight: true,
        child: LayoutBuilder(
          builder: (BuildContext context, BoxConstraints constraints) {
@@ -123,10 +173,10 @@ index 0022a99..dcea7c5 100644
                Directionality.of(context),
 diff --git a/lib/src/surface_builders.dart b/lib/src/surface_builders.dart
 new file mode 100644
-index 0000000..1d725e1
+index 0000000..6f770cc
 --- /dev/null
 +++ b/lib/src/surface_builders.dart
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,38 @@
 +// PiliPlus: lets the app draw the surfaces of dialogs and popup menus itself,
 +// as liquid glass does, in place of their Material.
 +
@@ -160,4 +210,8 @@ index 0000000..1d725e1
 +
 +  /// The shape of a PopupMenuItem's ink.
 +  static ShapeBorder? popupMenuItemShape;
++
++  /// Marks the item a popup menu opens on, its current value, at the item's
++  /// end in place of a highlight.
++  static Widget? popupMenuCheck;
 +}

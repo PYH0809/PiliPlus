@@ -17,10 +17,13 @@ turns on every glass part. It only takes effect after a restart.
   light around the edge, which `GlassPanel` draws.
 - **Dialogs and popup menus** turn to glass without touching their call sites.
   `lib/scripts/material/surface_builders.patch` gives material_ui's `Dialog`, popup menu (with the rect it opens from
-  and its route animation), `AlertDialog` actions and `PopupMenuItem` ink hooks (`SurfaceBuilders`), and
-  `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's alerts and menus look.
-  `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`. After changing the patch,
-  check it still applies after each platform's patch set in `patch.ps1`.
+  and its route animation), `AlertDialog` actions, `PopupMenuItem` ink and the mark on a menu's current value hooks
+  (`SurfaceBuilders`), and `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's
+  alerts and menus look. `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`. After
+  changing the patch, check it still applies after each platform's patch set in `patch.ps1`.
+- **Choice rows** (`PopupListTile`, behind every `PopupModel` setting) turn into FlClash's pull-downs with the switch
+  on: the value sits at the row's end with an up-down chevron, and the menu opens out of it, its current value
+  checked.
 
 ## Files
 
@@ -47,7 +50,8 @@ turns on every glass part. It only takes effect after a restart.
 - **Glass is for controls floating over content**, as FlClash and iOS use it: bars, buttons, menus, alerts, toasts.
   Bottom sheets and pages are content and stay opaque, and glass never sits on glass.
 - **On glass, no ripples.** A pressed row stands on a platter (`highlightColor`), text is `onSurface` or
-  `onSurfaceVariant`, and corners are concentric: an inner radius is the outer one less the inset.
+  `onSurfaceVariant`, and corners are concentric: an inner radius is the outer one less the inset. A platter only
+  ever means a press: a menu's current value takes a check at the row's end.
 - **Content under an overlaid header** starts with `HeaderOverlayInset.sliver(context)`, or uses
   `HeaderOverlayInset.below(...)` when it pins headers of its own. `RefreshIndicator` reads the inset, so the pull
   indicator comes out from under the header.

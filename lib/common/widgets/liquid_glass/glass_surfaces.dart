@@ -70,6 +70,8 @@ abstract final class GlassSurfaces {
     SurfaceBuilders.popupMenuItemShape = const RoundedSuperellipseBorder(
       borderRadius: BorderRadius.all(Radius.circular(_menuRowRadius)),
     );
+    // A platter is a press; the current value takes a check, as FlClash's.
+    SurfaceBuilders.popupMenuCheck = const Icon(Icons.check_rounded, size: 18);
   }
 
   // On glass a pressed row stands on a platter, without a ripple.

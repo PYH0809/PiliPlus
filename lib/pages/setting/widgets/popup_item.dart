@@ -1,6 +1,7 @@
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
 import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:material_ui/material_ui.dart' hide ListTile;
 
 typedef PopupMenuItemSelected<T> = void Function(
@@ -48,7 +49,25 @@ class PopupListTile<T> extends StatefulWidget {
 }
 
 class _PopupListTileState<T> extends State<PopupListTile<T>> {
+  // With liquid glass, as FlClash's option rows: the value sits at the row's
+  // end, and the menu opens out of it.
+  static final bool _pullDown = Pref.liquidGlass;
+
   final _key = PlatformUtils.isDesktop ? null : GlobalKey();
+  late final _valueKey = GlobalKey();
+
+  void _showPullDown(T value) {
+    final valueBox = _valueKey.currentContext!.findRenderObject()! as RenderBox;
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    _showMenu(
+      RelativeRect.fromRect(
+        valueBox.localToGlobal(.zero, ancestor: overlay) & valueBox.size,
+        Offset.zero & overlay.size,
+      ),
+      value,
+    );
+  }
 
   void _showButtonMenu(TapUpDetails details, T value) {
     final thisOffset = details.globalPosition - details.localPosition;
@@ -61,9 +80,13 @@ class _PopupListTileState<T> extends State<PopupListTile<T>> {
       final titleOffset = titleBox.localToGlobal(.zero, ancestor: thisBox);
       dx = thisOffset.dx + titleOffset.dx;
     }
+    _showMenu(RelativeRect.fromLTRB(dx, thisOffset.dy + 5, dx, 0), value);
+  }
+
+  void _showMenu(RelativeRect position, T value) {
     showMenu<T>(
       context: context,
-      position: RelativeRect.fromLTRB(dx, thisOffset.dy + 5, dx, 0),
+      position: position,
       items: widget.itemBuilder(context),
       initialValue: value,
       requestFocus: false,
@@ -87,6 +110,37 @@ class _PopupListTileState<T> extends State<PopupListTile<T>> {
     Widget title = KeyedSubtree(key: _key, child: widget.title);
     Widget? subtitle;
     Widget? trailing;
+    if (_pullDown) {
+      final color = widget.enabled
+          ? theme.colorScheme.onSurfaceVariant
+          : theme.disabledColor;
+      return ListTile(
+        dense: widget.dense,
+        safeArea: widget.safeArea,
+        enabled: widget.enabled,
+        onTap: () => _showPullDown(value),
+        leading: widget.leading,
+        title: widget.title,
+        titleTextStyle: widget.titleStyle ?? theme.textTheme.titleMedium,
+        trailing: Row(
+          key: _valueKey,
+          mainAxisSize: .min,
+          spacing: 4,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                descStr,
+                maxLines: 1,
+                overflow: .ellipsis,
+                style: theme.textTheme.bodyMedium!.copyWith(color: color),
+              ),
+            ),
+            Icon(Icons.unfold_more_rounded, size: 18, color: color),
+          ],
+        ),
+      );
+    }
     final desc = Text(
       descStr,
       style: (widget.descStyle ?? theme.textTheme.labelMedium!).copyWith(
