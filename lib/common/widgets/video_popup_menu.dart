@@ -1,4 +1,6 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/menu_entries.dart';
 import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/home/rcmd/result.dart';
@@ -119,27 +121,74 @@ class VideoPopupMenu extends StatelessWidget {
                           );
                           return;
                         }
+                        Future<void> submit(Reason? r, Reason? f) async {
+                          SmartDialog.showLoading(msg: '正在提交');
+                          final res = await VideoHttp.feedDislike(
+                            reasonId: r?.id,
+                            feedbackId: f?.id,
+                            id: item.param!,
+                            goto: item.goto!,
+                          );
+                          SmartDialog.dismiss();
+                          if (res.isSuccess) {
+                            SmartDialog.showToast(r?.toast ?? f!.toast!);
+                            onRemove?.call();
+                          } else {
+                            res.toast();
+                          }
+                        }
+
+                        Future<void> undo() async {
+                          SmartDialog.showLoading(msg: '正在提交');
+                          final res = await VideoHttp.feedDislikeCancel(
+                            id: item.param!,
+                            goto: item.goto!,
+                          );
+                          SmartDialog.dismiss();
+                          SmartDialog.showToast(
+                            res.isSuccess ? "成功" : res.toString(),
+                          );
+                        }
+
+                        // On glass, the reasons are rows of a menu out of
+                        // the same button, as FlClash's.
+                        if (GlassSurfaces.installed) {
+                          showMenuFrom<void>(context, [
+                            if (tp.dislikeReasons case final reasons?) ...[
+                              const MenuSectionHeader('我不想看'),
+                              for (final r in reasons)
+                                menuRow(
+                                  r.name ?? '未知',
+                                  icon: reasonIcon(r.name ?? ''),
+                                  onTap: () => submit(r, null),
+                                ),
+                            ],
+                            if (tp.feedbacks case final feedbacks?) ...[
+                              if (tp.dislikeReasons != null)
+                                const PopupMenuDivider(),
+                              const MenuSectionHeader('反馈'),
+                              for (final f in feedbacks)
+                                menuRow(
+                                  f.name ?? '未知',
+                                  onTap: () => submit(null, f),
+                                ),
+                            ],
+                            const PopupMenuDivider(),
+                            menuRow(
+                              '撤销不感兴趣',
+                              icon: Icons.undo_rounded,
+                              onTap: undo,
+                            ),
+                          ]);
+                          return;
+                        }
+
                         Widget actionButton(Reason? r, Reason? f) {
                           return SearchText(
                             text: r?.name ?? f?.name ?? '未知',
-                            onTap: (_) async {
+                            onTap: (_) {
                               Get.back();
-                              SmartDialog.showLoading(msg: '正在提交');
-                              final res = await VideoHttp.feedDislike(
-                                reasonId: r?.id,
-                                feedbackId: f?.id,
-                                id: item.param!,
-                                goto: item.goto!,
-                              );
-                              SmartDialog.dismiss();
-                              if (res.isSuccess) {
-                                SmartDialog.showToast(
-                                  r?.toast ?? f!.toast!,
-                                );
-                                onRemove?.call();
-                              } else {
-                                res.toast();
-                              }
+                              submit(r, f);
                             },
                           );
                         }
@@ -177,18 +226,7 @@ class VideoPopupMenu extends StatelessWidget {
                                 Center(
                                   child: FilledButton.tonal(
                                     onPressed: () async {
-                                      SmartDialog.showLoading(
-                                        msg: '正在提交',
-                                      );
-                                      final res =
-                                          await VideoHttp.feedDislikeCancel(
-                                            id: item.param!,
-                                            goto: item.goto!,
-                                          );
-                                      SmartDialog.dismiss();
-                                      SmartDialog.showToast(
-                                        res.isSuccess ? "成功" : res.toString(),
-                                      );
+                                      await undo();
                                       Get.back();
                                     },
                                     style: FilledButton.styleFrom(
@@ -202,6 +240,50 @@ class VideoPopupMenu extends StatelessWidget {
                           },
                         );
                       } else {
+                        Future<void> dislike() async {
+                          SmartDialog.showLoading(msg: '正在提交');
+                          final res = await VideoHttp.dislikeVideo(
+                            bvid: videoItem.bvid!,
+                            type: true,
+                          );
+                          SmartDialog.dismiss();
+                          if (res.isSuccess) {
+                            SmartDialog.showToast('点踩成功');
+                            onRemove?.call();
+                          } else {
+                            res.toast();
+                          }
+                        }
+
+                        Future<void> undo() async {
+                          SmartDialog.showLoading(msg: '正在提交');
+                          final res = await VideoHttp.dislikeVideo(
+                            bvid: videoItem.bvid!,
+                            type: false,
+                          );
+                          SmartDialog.dismiss();
+                          SmartDialog.showToast(
+                            res.isSuccess ? '取消踩' : res.toString(),
+                          );
+                        }
+
+                        if (GlassSurfaces.installed) {
+                          showMenuFrom<void>(context, [
+                            const MenuSectionHeader('web端暂不支持精细选择'),
+                            menuRow(
+                              '点踩',
+                              icon: Icons.thumb_down_outlined,
+                              onTap: dislike,
+                            ),
+                            menuRow(
+                              '撤销点踩',
+                              icon: Icons.undo_rounded,
+                              onTap: undo,
+                            ),
+                          ]);
+                          return;
+                        }
+
                         showDialog(
                           context: context,
                           builder: (context) => SimpleDialog(
@@ -215,20 +297,9 @@ class VideoPopupMenu extends StatelessWidget {
                                 alignment: .center,
                                 children: [
                                   FilledButton.tonal(
-                                    onPressed: () async {
+                                    onPressed: () {
                                       Get.back();
-                                      SmartDialog.showLoading(msg: '正在提交');
-                                      final res = await VideoHttp.dislikeVideo(
-                                        bvid: videoItem.bvid!,
-                                        type: true,
-                                      );
-                                      SmartDialog.dismiss();
-                                      if (res.isSuccess) {
-                                        SmartDialog.showToast('点踩成功');
-                                        onRemove?.call();
-                                      } else {
-                                        res.toast();
-                                      }
+                                      dislike();
                                     },
                                     style: FilledButton.styleFrom(
                                       visualDensity: .compact,
@@ -236,17 +307,9 @@ class VideoPopupMenu extends StatelessWidget {
                                     child: const Text("点踩"),
                                   ),
                                   FilledButton.tonal(
-                                    onPressed: () async {
+                                    onPressed: () {
                                       Get.back();
-                                      SmartDialog.showLoading(msg: '正在提交');
-                                      final res = await VideoHttp.dislikeVideo(
-                                        bvid: videoItem.bvid!,
-                                        type: false,
-                                      );
-                                      SmartDialog.dismiss();
-                                      SmartDialog.showToast(
-                                        res.isSuccess ? '取消踩' : res.toString(),
-                                      );
+                                      undo();
                                     },
                                     style: FilledButton.styleFrom(
                                       visualDensity: .compact,

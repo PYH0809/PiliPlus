@@ -30,7 +30,13 @@ final _pressSpring = SpringDescription.withDampingRatio(
 /// [themed] sets their text and spacing to match. Nothing changes at the call
 /// sites.
 abstract final class GlassSurfaces {
+  /// Whether [install] ran: dialogs and menus are glass, and call sites may
+  /// lay theirs out as FlClash's.
+  static bool get installed => _installed;
+  static bool _installed = false;
+
   static void install() {
+    _installed = true;
     SurfaceBuilders.dialog = (context, shape, child) {
       final theme = Theme.of(context);
       final colorScheme = theme.colorScheme;
