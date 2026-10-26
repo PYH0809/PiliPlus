@@ -24,7 +24,7 @@ jobs:
             pull-requests: write
         env:
             HAS_KEY: ${{ secrets.OPENROUTER_API_KEY != '' }}
-            MODEL: ${{ vars.AI_REVIEW_MODEL || 'openai/gpt-6.1-sol' }}
+            MODEL: ${{ vars.AI_REVIEW_MODEL || 'openai/gpt-6-luna' }}
             PR: ${{ github.event.pull_request.number }}
         steps:
             - name: Skip without an OpenRouter key
@@ -33,7 +33,7 @@ jobs:
 
             - name: 代码迁出
               if: env.HAS_KEY == 'true'
-              uses: actions/checkout@v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   ref: ${{ github.event.pull_request.head.sha }}
                   fetch-depth: 1
@@ -75,12 +75,12 @@ jobs:
             - name: Review
               id: codex
               if: env.HAS_KEY == 'true'
-              uses: openai/codex-action@v1
+              uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1.13
               with:
                   openai-api-key: ${{ secrets.OPENROUTER_API_KEY }}
                   responses-api-endpoint: https://openrouter.ai/api/v1/responses
                   model: ${{ env.MODEL }}
-                  effort: medium
+                  effort: high
                   permission-profile: ":read-only"
                   output-schema: |
                       {
@@ -163,7 +163,7 @@ jobs:
 
             - name: Post the review
               if: env.HAS_KEY == 'true'
-              uses: actions/github-script@v8
+              uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
               env:
                   FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
