@@ -12,6 +12,7 @@ import 'package:PiliPlus/common/widgets/disabled_icon.dart';
 import 'package:PiliPlus/common/widgets/gesture/immediate_tap_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/gesture/mouse_interactive_viewer.dart';
 import 'package:PiliPlus/common/widgets/gesture/player_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_support.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/loading_widget.dart';
@@ -947,7 +948,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
     if (_glass) {
       return TweenAnimationBuilder<double>(
         tween: Tween(end: visible ? 1 : 0),
-        duration: const Duration(milliseconds: 150),
+        duration: context.motionDuration(const Duration(milliseconds: 150)),
         curve: Curves.easeInOut,
         builder: (context, t, child) => VideoGlass(
           radius: radius,
@@ -2000,9 +2001,14 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                           Expanded(
                             child: TweenAnimationBuilder<double>(
                               tween: Tween<double>(begin: 0.0, end: 1.0),
-                              duration: const Duration(milliseconds: 500),
                               // On glass the pane eases in, as fading the
-                              // filter itself would break it.
+                              // filter itself would break it, and jumps in
+                              // when animations are off.
+                              duration: _glass
+                                  ? context.motionDuration(
+                                      const Duration(milliseconds: 500),
+                                    )
+                                  : const Duration(milliseconds: 500),
                               builder: (context, value, child) => _glass
                                   ? BackwardSeekIndicator(
                                       glassT: value,
@@ -2035,9 +2041,14 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                           Expanded(
                             child: TweenAnimationBuilder<double>(
                               tween: Tween<double>(begin: 0.0, end: 1.0),
-                              duration: const Duration(milliseconds: 500),
                               // On glass the pane eases in, as fading the
-                              // filter itself would break it.
+                              // filter itself would break it, and jumps in
+                              // when animations are off.
+                              duration: _glass
+                                  ? context.motionDuration(
+                                      const Duration(milliseconds: 500),
+                                    )
+                                  : const Duration(milliseconds: 500),
                               builder: (context, value, child) => _glass
                                   ? ForwardSeekIndicator(
                                       glassT: value,
