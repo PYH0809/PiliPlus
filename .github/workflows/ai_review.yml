@@ -39,7 +39,7 @@ jobs:
             (github.event.pull_request.draft == false &&
             github.event.pull_request.user.login == github.repository_owner)
         runs-on: ubuntu-latest
-        timeout-minutes: 30
+        timeout-minutes: 45
         permissions:
             contents: read
             pull-requests: write
@@ -79,7 +79,12 @@ jobs:
               run: |
                   mkdir -p .ai-review
                   gh pr view "$PR" --repo "$REPO" --json number,title,body,author,baseRefName,headRefName > .ai-review/pr.json
-                  gh pr diff "$PR" --repo "$REPO" > .ai-review/diff.patch
+                  # Ported and generated files are not reviewed, so the model
+                  # doesn't read them either: they are half of a big diff.
+                  gh pr diff "$PR" --repo "$REPO" | awk '
+                    /^diff --git / { skip = ($0 ~ / b\/(lib\/common\/widgets\/liquid_glass\/liquid_glass(_capture)?\.dart|shaders\/liquid_glass\.frag|lib\/grpc\/bilibili\/.*|.*\.g\.dart)$/) }
+                    !skip
+                  ' > .ai-review/diff.patch
                   gh api graphql --paginate -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$PR" -f query='
                     query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
                       repository(owner: $owner, name: $name) {
@@ -168,12 +173,12 @@ jobs:
                            而不是 `package:PiliPlus/...` 导入、Widget 里该用 `material_ui` 却用了
                            `package:flutter/material.dart`。
                          纯样式问题不提，除非它会造成真实缺陷。
-                      4. 不审这些从别处原样移植或生成的代码，除非 PR 改的正是它们与项目接合的部分：
+                      4. 不审这些从别处原样移植或生成的代码，也不必去读它们：
                          `lib/common/widgets/liquid_glass/liquid_glass.dart`、
                          `lib/common/widgets/liquid_glass/liquid_glass_capture.dart`、
                          `shaders/liquid_glass.frag`（移植自 FlClash）、
-                         `lib/common/widgets/flutter/**`（改编自 Flutter SDK）、
-                         `lib/grpc/**` 和 `*.g.dart`（生成代码）。
+                         `lib/grpc/**` 和 `*.g.dart`（生成代码）。它们的改动已从 `diff.patch` 里去掉。
+                         `lib/common/widgets/flutter/**` 改编自 Flutter SDK，只审 PR 改到的地方。
 
                       ## 返回什么
 
