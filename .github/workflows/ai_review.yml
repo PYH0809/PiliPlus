@@ -7,9 +7,12 @@ name: AI Review
 # OPENROUTER_API_KEY and skips without it. The repository variable
 # AI_REVIEW_MODEL picks another OpenRouter model.
 #
-# Run it by hand from the Actions tab to review a pull request again, on the
-# model given there. A run on another model does not cancel the review of a
-# push, nor the other way round.
+# It reviews on its own only the pull requests the repository owner opens, so
+# no one else's PR, or flood of them, spends the key. Anyone else's is reviewed
+# when someone with write access runs it by hand from the Actions tab, giving
+# the PR number and, if they like, a model; fork PRs get no secrets anyway. A
+# run on another model neither cancels the review of a push nor is cancelled
+# by it.
 on:
     pull_request:
         types: [opened, ready_for_review, synchronize, reopened]
@@ -31,7 +34,10 @@ concurrency:
 
 jobs:
     review:
-        if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
+        if: >-
+            github.event_name == 'workflow_dispatch' ||
+            (github.event.pull_request.draft == false &&
+            github.event.pull_request.user.login == github.repository_owner)
         runs-on: ubuntu-latest
         timeout-minutes: 30
         permissions:
