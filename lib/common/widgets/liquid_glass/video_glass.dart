@@ -338,11 +338,14 @@ class _RenderVideoGlass extends RenderProxyBox {
     Offset offset,
     BorderRadius corners,
   ) {
+    // A pane easing in filters unlike the rest of its group, so it joins
+    // the group only once it is whole.
+    final group = _t == 1 ? _backdropKey : null;
     if (!_bends) {
       _frost.layer = null;
       final layer = (_backdrop.layer ??= BackdropFilterLayer())
         ..filter = _frostFilter()
-        ..backdropKey = _backdropKey;
+        ..backdropKey = group;
       context.pushLayer(
         layer,
         (context, offset) =>
@@ -360,7 +363,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     final sigma = _style.blur * _t;
     final frost = (_frost.layer ??= BackdropFilterLayer())
       ..filter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma)
-      ..backdropKey = _backdropKey;
+      ..backdropKey = group;
     context.pushLayer(frost, (context, offset) {
       final bend = (_backdrop.layer ??= BackdropFilterLayer())
         ..filter = _bendFilter(corners, sigma);

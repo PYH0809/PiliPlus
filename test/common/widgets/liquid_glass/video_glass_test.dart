@@ -89,6 +89,26 @@ void main() {
     expect(keys, {group.backdropKey});
   });
 
+  testWidgets('a pane easing in keeps out of its group', (tester) async {
+    final group = BackdropGroup(
+      child: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          VideoGlass.capsule(child: SizedBox(width: 120, height: 36)),
+          SizedBox(height: 8),
+          VideoGlass(
+            radius: 20,
+            t: 0.5,
+            child: SizedBox(width: 200, height: 60),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(_app(group));
+    final keys = [for (final (layer, _) in _filters(tester)) layer.backdropKey];
+    expect(keys, [group.backdropKey, null]);
+  });
+
   testWidgets('clips the filter to the pane, but not the child', (
     tester,
   ) async {
