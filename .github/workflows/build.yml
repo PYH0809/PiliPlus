@@ -121,6 +121,23 @@ jobs:
                   done
               shell: bash
 
+            # Fails the build on an APK a phone would refuse, and logs each one's
+            # hash and certificate digests (not its name) to compare a download to.
+            # --min-sdk-version 21 checks the v1 (JAR) signature too: apksigner
+            # skips it from 24 up, but vendor installers still read it.
+            - name: Verify signature
+              run: |
+                  tools=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)
+                  for file in PiliPlus_android_*.apk; do
+                    echo "::group::$file"
+                    sha256sum "$file"
+                    "$tools/zipalign" -c 4 "$file"
+                    echo "zipalign: ok"
+                    "$tools/apksigner" verify --verbose --print-certs --min-sdk-version 21 "$file" | grep -v "DN:"
+                    echo "::endgroup::"
+                  done
+              shell: bash
+
             - name: Release
               if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
               uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
