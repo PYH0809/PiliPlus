@@ -3,7 +3,8 @@ import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Tabs on one pill of liquid glass. The current tab stands on a platter that
-/// slides with [controller] as the pages do.
+/// slides with [controller] as the pages do, unless [showPlatter] is false, as
+/// for a single tab, which then reads in [ColorScheme.onSurface].
 class LiquidGlassTabBar extends StatelessWidget {
   const LiquidGlassTabBar({
     super.key,
@@ -13,6 +14,7 @@ class LiquidGlassTabBar extends StatelessWidget {
     this.height = 40,
     this.labelStyle,
     this.labelPadding = const EdgeInsets.symmetric(horizontal: 14),
+    this.showPlatter = true,
   });
 
   final TabController controller;
@@ -23,6 +25,8 @@ class LiquidGlassTabBar extends StatelessWidget {
   /// The labels' text style, the theme's when null.
   final TextStyle? labelStyle;
   final EdgeInsetsGeometry labelPadding;
+
+  final bool showPlatter;
 
   @override
   Widget build(BuildContext context) {
@@ -50,12 +54,16 @@ class LiquidGlassTabBar extends StatelessWidget {
               tabAlignment: TabAlignment.center,
               dividerColor: Colors.transparent,
               dividerHeight: 0,
-              indicator: ShapeDecoration(
-                color: glassPlatterColor(colorScheme),
-                shape: const StadiumBorder(),
-              ),
+              indicator: showPlatter
+                  ? ShapeDecoration(
+                      color: glassPlatterColor(colorScheme),
+                      shape: const StadiumBorder(),
+                    )
+                  : const BoxDecoration(),
               indicatorSize: TabBarIndicatorSize.tab,
-              labelColor: colorScheme.primary,
+              labelColor: showPlatter
+                  ? colorScheme.primary
+                  : colorScheme.onSurface,
               unselectedLabelColor: colorScheme.onSurfaceVariant,
               labelStyle: labelStyle,
               labelPadding: labelPadding,
