@@ -4,6 +4,9 @@ import 'package:PiliPlus/common/widgets/avatars.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
 import 'package:PiliPlus/common/widgets/dialog/report.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_alert_actions.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
@@ -115,8 +118,8 @@ class _VotePanelState extends State<VotePanel> {
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Obx(
-            () => OutlinedButton(
-              onPressed: groupValue.isNotEmpty
+            () => _voteButton(
+              groupValue.isNotEmpty
                   ? () async {
                       final res = await widget.onVote(
                         groupValue.toSet(),
@@ -134,7 +137,6 @@ class _VotePanelState extends State<VotePanel> {
                       }
                     }
                   : null,
-              child: const Center(child: Text('投票')),
             ),
           ),
         ),
@@ -289,6 +291,19 @@ class _VotePanelState extends State<VotePanel> {
     return child;
   }
 
+  // On glass, the alert's filled capsule; otherwise the outlined button.
+  Widget _voteButton(VoidCallback? onPressed) {
+    if (GlassSurfaces.installed) {
+      return GlassAlertActions(
+        actions: [TextButton(onPressed: onPressed, child: const Text('投票'))],
+      );
+    }
+    return OutlinedButton(
+      onPressed: onPressed,
+      child: const Center(child: Text('投票')),
+    );
+  }
+
   Widget get _checkBoxes => Row(
     spacing: 16,
     children: [
@@ -316,8 +331,13 @@ class _VotePanelState extends State<VotePanel> {
           .map((e) => SourceModel(url: e.imgUrl!))
           .toList(),
     );
+    // On glass, a tile filled as glass controls are rather than a card.
+    final glass = GlassSurfaces.installed;
+    final radius = Radius.circular(glass ? 12 : 6);
     return Card(
-      shape: const RoundedRectangleBorder(borderRadius: .all(.circular(6))),
+      elevation: glass ? 0 : null,
+      color: glass ? glassFillOf(colorScheme) : null,
+      shape: RoundedRectangleBorder(borderRadius: .all(radius)),
       child: Builder(
         builder: (context) {
           final opt = _voteInfo.options[index];
@@ -328,7 +348,7 @@ class _VotePanelState extends State<VotePanel> {
                 : () => _onSelected(context, !selected, opt.optIdx!),
             onLongPress: PlatformUtils.isMobile ? onLongPress : null,
             onSecondaryTap: PlatformUtils.isDesktop ? onLongPress : null,
-            borderRadius: const .all(.circular(6)),
+            borderRadius: .all(radius),
             child: Column(
               spacing: 5,
               crossAxisAlignment: .stretch,
@@ -343,7 +363,7 @@ class _VotePanelState extends State<VotePanel> {
                           src: opt.imgUrl,
                           width: constraints.maxWidth,
                           height: constraints.maxHeight,
-                          borderRadius: const .vertical(top: .circular(6)),
+                          borderRadius: .vertical(top: radius),
                         ),
                       ),
                     ),
@@ -480,6 +500,62 @@ class PercentageChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
+    final content = Row(
+      spacing: 8,
+      children: [
+        Expanded(
+          child: Row(
+            spacing: 4,
+            mainAxisSize: .min,
+            children: [
+              Flexible(
+                child: Text(label, maxLines: 1, overflow: .ellipsis),
+              ),
+              if (selected)
+                Icon(
+                  Icons.check_circle,
+                  size: 12,
+                  color: GlassSurfaces.installed
+                      ? colorScheme.primary
+                      : colorScheme.onPrimaryContainer,
+                ),
+            ],
+          ),
+        ),
+        if (percentage != null)
+          Text('${(percentage! * 100).toStringAsFixed(0)}%'),
+      ],
+    );
+    // On glass, filled as glass controls are, without an outline; the share
+    // fills in the primary color.
+    if (GlassSurfaces.installed) {
+      const radius = BorderRadius.all(Radius.circular(12));
+      return Tooltip(
+        message: label,
+        child: Material(
+          borderRadius: radius,
+          color: selected
+              ? colorScheme.primary.withValues(alpha: 0.14)
+              : glassFillOf(colorScheme),
+          child: InkWell(
+            onTap: onSelected,
+            borderRadius: radius,
+            child: Container(
+              padding: _padding,
+              decoration: VoteDecoration(
+                borderRadius: radius,
+                border: const Border.fromBorderSide(BorderSide.none),
+                percentage: percentage ?? 0,
+                color: colorScheme.primary.withValues(
+                  alpha: selected ? 0.22 : 0.12,
+                ),
+              ),
+              child: content,
+            ),
+          ),
+        ),
+      );
+    }
     return Tooltip(
       message: label,
       child: Material(
@@ -498,30 +574,7 @@ class PercentageChip extends StatelessWidget {
                   ? colorScheme.inversePrimary
                   : colorScheme.outlineVariant,
             ),
-            child: Row(
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: Row(
-                    spacing: 4,
-                    mainAxisSize: .min,
-                    children: [
-                      Flexible(
-                        child: Text(label, maxLines: 1, overflow: .ellipsis),
-                      ),
-                      if (selected)
-                        Icon(
-                          Icons.check_circle,
-                          size: 12,
-                          color: colorScheme.onPrimaryContainer,
-                        ),
-                    ],
-                  ),
-                ),
-                if (percentage != null)
-                  Text('${(percentage! * 100).toStringAsFixed(0)}%'),
-              ],
-            ),
+            child: content,
           ),
         ),
       ),

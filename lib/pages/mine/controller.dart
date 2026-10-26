@@ -1,4 +1,6 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_alert_actions.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/user.dart';
@@ -176,61 +178,75 @@ class MineController extends GetxController with AccountMixin {
         alignment: Alignment.bottomCenter,
         builder: (context) {
           final theme = Theme.of(context);
+          final glass = GlassSurfaces.installed;
           final style = TextStyle(
             color: theme.colorScheme.onSecondaryContainer,
           );
-          return ColoredBox(
-            color: theme.colorScheme.secondaryContainer,
-            child: Padding(
-              padding: EdgeInsets.only(
-                top: 15,
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.viewPaddingOf(context).bottom + 15,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      const Icon(MdiIcons.incognito, size: 20),
-                      const SizedBox(width: 10),
-                      Text('已进入无痕模式', style: theme.textTheme.titleMedium),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '搜索不携带身份信息\n'
-                    '不产生查询或播放记录\n'
-                    '点赞等其它操作不受影响\n'
-                    '播放进度信息跟随视频取流\n'
-                    '上次观看分p信息跟随主账号\n'
-                    '(前往隐私设置了解详情)',
-                    style: theme.textTheme.bodySmall,
-                  ),
+          void keep() {
+            SmartDialog.dismiss(result: true);
+            SmartDialog.showToast('已设为永久无痕模式');
+          }
+
+          void once() {
+            SmartDialog.dismiss();
+            SmartDialog.showToast('已设为临时无痕模式');
+          }
+
+          return _banner(
+            context,
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Icon(MdiIcons.incognito, size: 20),
+                    const SizedBox(width: 10),
+                    Text('已进入无痕模式', style: theme.textTheme.titleMedium),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '搜索不携带身份信息\n'
+                  '不产生查询或播放记录\n'
+                  '点赞等其它操作不受影响\n'
+                  '播放进度信息跟随视频取流\n'
+                  '上次观看分p信息跟随主账号\n'
+                  '(前往隐私设置了解详情)',
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (glass)
+                  Padding(
+                    padding: const .only(top: 16),
+                    child: GlassAlertActions(
+                      actions: [
+                        TextButton(
+                          onPressed: keep,
+                          child: const Text('保存为永久'),
+                        ),
+                        TextButton(
+                          onPressed: once,
+                          child: const Text('仅本次（默认）'),
+                        ),
+                      ],
+                    ),
+                  )
+                else
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       TextButton(
-                        onPressed: () {
-                          SmartDialog.dismiss(result: true);
-                          SmartDialog.showToast('已设为永久无痕模式');
-                        },
+                        onPressed: keep,
                         child: Text('保存为永久', style: style),
                       ),
                       const SizedBox(width: 10),
                       TextButton(
-                        onPressed: () {
-                          SmartDialog.dismiss();
-                          SmartDialog.showToast('已设为临时无痕模式');
-                        },
+                        onPressed: once,
                         child: Text('仅本次（默认）', style: style),
                       ),
                     ],
                   ),
-                ],
-              ),
+              ],
             ),
           );
         },
@@ -253,27 +269,42 @@ class MineController extends GetxController with AccountMixin {
         alignment: Alignment.bottomCenter,
         builder: (context) {
           final theme = Theme.of(context);
-          return ColoredBox(
-            color: theme.colorScheme.secondaryContainer,
-            child: Padding(
-              padding: EdgeInsets.only(
-                top: 15,
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.viewPaddingOf(context).bottom + 15,
-              ),
-              child: Row(
-                children: [
-                  const Icon(MdiIcons.incognitoOff, size: 20),
-                  const SizedBox(width: 10),
-                  Text('已退出无痕模式', style: theme.textTheme.titleMedium),
-                ],
-              ),
+          return _banner(
+            context,
+            Row(
+              children: [
+                const Icon(MdiIcons.incognitoOff, size: 20),
+                const SizedBox(width: 10),
+                Text('已退出无痕模式', style: theme.textTheme.titleMedium),
+              ],
             ),
           );
         },
       );
     }
+  }
+
+  // On glass, a card of glass floating over the bottom, as an iOS banner;
+  // otherwise the band across it that it was.
+  static Widget _banner(BuildContext context, Widget child) {
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+    if (GlassSurfaces.installed) {
+      return Padding(
+        padding: .fromLTRB(12, 0, 12, bottom + 12),
+        child: GlassSurfaces.panel(
+          context,
+          radius: 28,
+          child: Padding(padding: const .all(20), child: child),
+        ),
+      );
+    }
+    return ColoredBox(
+      color: ColorScheme.of(context).secondaryContainer,
+      child: Padding(
+        padding: .only(top: 15, left: 20, right: 20, bottom: bottom + 15),
+        child: child,
+      ),
+    );
   }
 
   void onChangeTheme() {

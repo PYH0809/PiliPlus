@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -97,7 +98,7 @@ class _WhisperLinkSettingPageState extends State<WhisperLinkSettingPage> {
       title: const Text('加入黑名单', style: TextStyle(fontSize: 14)),
       trailing: Transform.scale(
         alignment: Alignment.centerRight,
-        scale: 0.8,
+        scale: GlassSurfaces.switchScale,
         child: Switch(
           value: isBlocked,
           onChanged: (value) => _controller.setBlock(isBlocked),
@@ -198,7 +199,7 @@ class _WhisperLinkSettingPageState extends State<WhisperLinkSettingPage> {
                   ),
                   trailing: Transform.scale(
                     alignment: Alignment.centerRight,
-                    scale: 0.8,
+                    scale: GlassSurfaces.switchScale,
                     child: Switch(
                       value: response.pushSetting == 0,
                       onChanged: (value) =>
@@ -214,7 +215,7 @@ class _WhisperLinkSettingPageState extends State<WhisperLinkSettingPage> {
                   title: const Text('置顶聊天', style: TextStyle(fontSize: 14)),
                   trailing: Transform.scale(
                     alignment: Alignment.centerRight,
-                    scale: 0.8,
+                    scale: GlassSurfaces.switchScale,
                     child: Switch(
                       value: _controller.isPinned.value,
                       onChanged: (value) => _controller.setPin(),
@@ -244,7 +245,7 @@ class _WhisperLinkSettingPageState extends State<WhisperLinkSettingPage> {
                 title: const Text('消息免打扰', style: TextStyle(fontSize: 14)),
                 trailing: Transform.scale(
                   alignment: Alignment.centerRight,
-                  scale: 0.8,
+                  scale: GlassSurfaces.switchScale,
                   child: Switch(
                     value: response.first.setting == 1,
                     onChanged: (value) =>

@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/skeleton/video_reply.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -338,25 +339,28 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
           margin: const EdgeInsets.only(top: 56, right: 16),
           width: maxWidth / 4,
           height: 32,
-          child: Builder(
-            builder: (context) => Slider(
-              min: 1,
-              max: 100,
-              value: controller.ratio.first,
-              onChanged: (value) {
-                if (value >= 10 && value <= 90) {
-                  value = value.toPrecision(2);
-                  controller.ratio
-                    ..[0] = value
-                    ..[1] = 100 - value;
+          child: _ratioSurface(
+            context,
+            Builder(
+              builder: (context) => Slider(
+                min: 1,
+                max: 100,
+                value: controller.ratio.first,
+                onChanged: (value) {
+                  if (value >= 10 && value <= 90) {
+                    value = value.toPrecision(2);
+                    controller.ratio
+                      ..[0] = value
+                      ..[1] = 100 - value;
 
-                  (context as Element).markNeedsBuild();
-                  setState(() {});
-                }
-              },
-              onChangeEnd: (_) => GStorage.setting.put(
-                SettingBoxKey.dynamicDetailRatio,
-                controller.ratio,
+                    (context as Element).markNeedsBuild();
+                    setState(() {});
+                  }
+                },
+                onChangeEnd: (_) => GStorage.setting.put(
+                  SettingBoxKey.dynamicDetailRatio,
+                  controller.ratio,
+                ),
               ),
             ),
           ),
@@ -365,6 +369,24 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
     ),
     icon: const Icon(CustomIcons.splitscreen_rotate_90, size: 19),
   );
+
+  // On glass, the slider floats on a capsule of glass rather than bare.
+  Widget _ratioSurface(BuildContext context, Widget slider) {
+    if (!GlassSurfaces.installed) {
+      return slider;
+    }
+    return OverflowBox(
+      maxHeight: 44,
+      child: GlassSurfaces.panel(
+        context,
+        radius: 22,
+        child: Padding(
+          padding: const .symmetric(horizontal: 12),
+          child: SizedBox(height: 44, child: slider),
+        ),
+      ),
+    );
+  }
 
   FloatingActionButtonLocation get floatingActionButtonLocation =>
       controller.showDynActionBar

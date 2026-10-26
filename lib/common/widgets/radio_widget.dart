@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -62,6 +63,38 @@ class RadioWidgetState<T> extends State<RadioWidget<T>> with RadioClient<T> {
 
   @override
   Widget build(BuildContext context) {
+    // On glass, as an iOS list of choices: a row a choice, pressed on a
+    // platter, the chosen one checked at its end.
+    // The row reads as a radio button, as the Radio it replaces does.
+    if (GlassSurfaces.installed) {
+      return MergeSemantics(
+        child: Semantics(
+          checked: checked,
+          inMutuallyExclusiveGroup: true,
+          child: InkWell(
+            onTap: _handleTap,
+            focusNode: focusNode,
+            customBorder: const RoundedSuperellipseBorder(
+              borderRadius: .all(.circular(12)),
+            ),
+            child: Padding(
+              padding: const .symmetric(horizontal: 12, vertical: 11),
+              child: Row(
+                children: [
+                  Expanded(child: Text(widget.title)),
+                  if (checked)
+                    Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: ColorScheme.of(context).primary,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final child = Row(
       mainAxisSize: widget.mainAxisSize,
       children: [
@@ -101,6 +134,31 @@ class WrapRadioOptionsGroup<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // On glass, a section of rows under a footnote title, as an iOS list.
+    if (GlassSurfaces.installed) {
+      return Padding(
+        padding: const .symmetric(horizontal: 10),
+        child: Column(
+          crossAxisAlignment: .stretch,
+          children: [
+            if (groupTitle.isNotEmpty)
+              Padding(
+                padding: const .fromLTRB(12, 8, 12, 2),
+                child: Text(
+                  groupTitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 18 / 13,
+                    color: ColorScheme.of(context).onSurfaceVariant,
+                  ),
+                ),
+              ),
+            for (final entry in options.entries)
+              RadioWidget<T>(value: entry.key, title: entry.value),
+          ],
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

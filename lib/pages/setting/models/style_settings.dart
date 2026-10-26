@@ -7,6 +7,7 @@ import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/emote_tooltip.dart'
     show enableEmoteTooltip;
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/common/widgets/scale_app.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
@@ -879,7 +880,7 @@ NormalModel _useSSDModel() {
     onTap: onChanged,
     getTrailing: (theme) => Builder(
       builder: (context) => Transform.scale(
-        scale: 0.8,
+        scale: GlassSurfaces.switchScale,
         alignment: .centerRight,
         child: Switch(
           value: file.existsSync(),

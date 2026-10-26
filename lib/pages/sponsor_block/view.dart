@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/http/constants.dart';
@@ -228,7 +229,7 @@ class _SponsorBlockPageState extends State<SponsorBlockPage> {
         ),
         trailing: Transform.scale(
           alignment: Alignment.centerRight,
-          scale: 0.8,
+          scale: GlassSurfaces.switchScale,
           child: Switch(
             value: _blockToast,
             onChanged: (val) => update(),
@@ -263,7 +264,7 @@ class _SponsorBlockPageState extends State<SponsorBlockPage> {
         ),
         trailing: Transform.scale(
           alignment: Alignment.centerRight,
-          scale: 0.8,
+          scale: GlassSurfaces.switchScale,
           child: Switch(
             value: _blockTrack,
             onChanged: (val) => update(),

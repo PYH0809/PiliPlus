@@ -10,6 +10,36 @@ index 32e00a3..2db60f3 100644
  export 'src/switch.dart';
  export 'src/switch_list_tile.dart';
  export 'src/switch_theme.dart';
+diff --git a/lib/src/desktop_text_selection_toolbar.dart b/lib/src/desktop_text_selection_toolbar.dart
+index 321af0e..4c4597f 100644
+--- a/lib/src/desktop_text_selection_toolbar.dart
++++ b/lib/src/desktop_text_selection_toolbar.dart
+@@ -9,6 +9,7 @@ library;
+ import 'package:flutter/widgets.dart';
+ 
+ import 'material.dart';
++import 'surface_builders.dart';
+ import 'text_selection_toolbar.dart';
+ 
+ // These values were measured from a screenshot of TextEdit on macOS 10.15.7 on
+@@ -47,6 +48,17 @@ class DesktopTextSelectionToolbar extends StatelessWidget {
+ 
+   // Builds a desktop toolbar in the Material style.
+   static Widget _defaultToolbarBuilder(BuildContext context, Widget child) {
++    // PiliPlus: the app's surface in place of the toolbar's Material.
++    if (SurfaceBuilders.textSelectionToolbar case final SurfaceBuilder builder) {
++      return SizedBox(
++        width: _kToolbarWidth,
++        child: builder(
++          context,
++          const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(7.0))),
++          child,
++        ),
++      );
++    }
+     return SizedBox(
+       width: _kToolbarWidth,
+       child: Material(
 diff --git a/lib/src/dialog.dart b/lib/src/dialog.dart
 index eb3580d..d924e5a 100644
 --- a/lib/src/dialog.dart
@@ -57,7 +87,7 @@ index eb3580d..d924e5a 100644
            spacing: spacing,
            overflowAlignment: actionsOverflowAlignment ?? OverflowBarAlignment.end,
 diff --git a/lib/src/popup_menu.dart b/lib/src/popup_menu.dart
-index 0022a99..62e483b 100644
+index 0022a99..751c447 100644
 --- a/lib/src/popup_menu.dart
 +++ b/lib/src/popup_menu.dart
 @@ -26,6 +26,7 @@ import 'list_tile.dart';
@@ -91,7 +121,13 @@ index 0022a99..62e483b 100644
          ),
        ),
      );
-@@ -466,6 +481,8 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+@@ -461,11 +476,13 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+       );
+     }
+ 
+-    return MergeSemantics(
++    final Widget result = MergeSemantics(
+       child: buildSemantics(
          child: InkWell(
            onTap: widget.enabled ? handleTap : null,
            canRequestFocus: widget.enabled,
@@ -100,7 +136,18 @@ index 0022a99..62e483b 100644
            mouseCursor: _EffectiveMouseCursor(widget.mouseCursor, popupMenuTheme.mouseCursor),
            child: ListTileTheme.merge(
              contentPadding: EdgeInsets.zero,
-@@ -677,6 +694,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
+@@ -475,6 +492,10 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+         ),
+       ),
+     );
++    // PiliPlus: lets a press carried on into the menu find this item.
++    return SurfaceBuilders.popupMenuButton == null
++        ? result
++        : MetaData(metaData: this, behavior: HitTestBehavior.translucent, child: result);
+   }
+ 
+   /// Builds the semantic wrapper for the popup menu item.
+@@ -677,6 +698,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
    }
  }
  
@@ -115,7 +162,7 @@ index 0022a99..62e483b 100644
  class _PopupMenu<T> extends StatefulWidget {
    const _PopupMenu({
      required this.itemKeys,
-@@ -756,7 +781,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -756,7 +785,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
        Widget item = widget.route.items[i];
        if (widget.route.initialValue != null &&
            widget.route.items[i].represents(widget.route.initialValue)) {
@@ -127,7 +174,7 @@ index 0022a99..62e483b 100644
        }
        children.add(
          _MenuItem(
-@@ -792,6 +820,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -792,6 +824,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
        ),
      );
  
@@ -148,7 +195,7 @@ index 0022a99..62e483b 100644
      return AnimatedBuilder(
        animation: widget.route.animation!,
        builder: (BuildContext context, Widget? child) {
-@@ -975,6 +1017,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -975,6 +1021,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
  
    final RelativeRect? position;
    final PopupMenuPositionBuilder? positionBuilder;
@@ -158,7 +205,19 @@ index 0022a99..62e483b 100644
    final List<PopupMenuEntry<T>> items;
    final List<GlobalKey> itemKeys;
    final List<Size?> itemSizes;
-@@ -1063,9 +1108,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -1017,6 +1066,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+   @override
+   Duration get transitionDuration => popUpAnimationStyle?.duration ?? _kMenuDuration;
+ 
++  // PiliPlus: as long as the app's own close needs.
++  @override
++  Duration get reverseTransitionDuration =>
++      SurfaceBuilders.popupMenuReverseDuration ?? super.reverseTransitionDuration;
++
+   @override
+   bool get barrierDismissible => true;
+ 
+@@ -1063,9 +1117,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
        removeRight: true,
        child: LayoutBuilder(
          builder: (BuildContext context, BoxConstraints constraints) {
@@ -171,12 +230,53 @@ index 0022a99..62e483b 100644
                itemSizes,
                selectedItemIndex,
                Directionality.of(context),
+@@ -1819,15 +1875,17 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+       // that assistive technologies describe the popup menu button the same way
+       // regardless of whether it is built from [child] or from [icon], in which
+       // case the semantics come from the [IconButton].
+-      return Semantics(
+-        button: true,
+-        enabled: widget.enabled,
+-        expanded: _isMenuExpanded,
+-        child: result,
++      return _pressable(
++        Semantics(
++          button: true,
++          enabled: widget.enabled,
++          expanded: _isMenuExpanded,
++          child: result,
++        ),
+       );
+     }
+ 
+-    return Semantics(
++    return _pressable(Semantics(
+       child: IconButton(
+         key: StandardComponentType.moreButton.key,
+         icon: Semantics(expanded: _isMenuExpanded, child: widget.icon ?? Icon(Icons.adaptive.more)),
+@@ -1840,8 +1898,15 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+         enableFeedback: enableFeedback,
+         style: widget.style,
+       ),
+-    );
++    ));
+   }
++
++  // PiliPlus: the app's press on the button, which may open the menu itself.
++  Widget _pressable(Widget button) => switch (SurfaceBuilders.popupMenuButton) {
++    final PopupMenuButtonBuilder builder when widget.enabled =>
++      builder(context, showButtonMenu, button),
++    _ => button,
++  };
+ }
+ 
+ // This WidgetStateProperty is passed along to the menu item's InkWell which
 diff --git a/lib/src/surface_builders.dart b/lib/src/surface_builders.dart
 new file mode 100644
-index 0000000..6f770cc
+index 0000000..bff9d94
 --- /dev/null
 +++ b/lib/src/surface_builders.dart
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,69 @@
 +// PiliPlus: lets the app draw the surfaces of dialogs and popup menus itself,
 +// as liquid glass does, in place of their Material.
 +
@@ -200,6 +300,22 @@ index 0000000..6f770cc
 +      Rect? anchor,
 +    );
 +
++/// Builds a switch for [value], in place of Material's track and thumb.
++/// [onChanged] is null when the switch is disabled. [thumbIcon] is the one the
++/// Switch itself was given, not its theme's.
++typedef SwitchBuilder =
++    Widget Function(
++      BuildContext context,
++      bool value,
++      ValueChanged<bool>? onChanged,
++      WidgetStateProperty<Icon?>? thumbIcon,
++    );
++
++/// Builds a PopupMenuButton around its [button], given what [open]s its
++/// menu, so that a press can open it rather than a tap.
++typedef PopupMenuButtonBuilder =
++    Widget Function(BuildContext context, VoidCallback open, Widget button);
++
 +/// What the app draws itself. Each one left null keeps the component's own.
 +abstract final class SurfaceBuilders {
 +  static SurfaceBuilder? dialog;
@@ -214,4 +330,71 @@ index 0000000..6f770cc
 +  /// Marks the item a popup menu opens on, its current value, at the item's
 +  /// end in place of a highlight.
 +  static Widget? popupMenuCheck;
++
++  /// The surface of the text selection toolbar, Android's and the desktop one.
++  static SurfaceBuilder? textSelectionToolbar;
++
++  /// Every Switch, and so every SwitchListTile's.
++  static SwitchBuilder? switchBuilder;
++
++  /// Every PopupMenuButton's button. While set, each PopupMenuItem also
++  /// carries its state as the metadata of a MetaData, so that a press carried
++  /// on into the menu can find the item under it.
++  static PopupMenuButtonBuilder? popupMenuButton;
++
++  /// How long a popup menu takes to close, if the app's close needs longer
++  /// than the opening.
++  static Duration? popupMenuReverseDuration;
 +}
+diff --git a/lib/src/switch.dart b/lib/src/switch.dart
+index dd0fc48..d369502 100644
+--- a/lib/src/switch.dart
++++ b/lib/src/switch.dart
+@@ -23,6 +23,7 @@ import 'constants.dart';
+ import 'debug.dart';
+ import 'material_state.dart';
+ import 'shadows.dart';
++import 'surface_builders.dart';
+ import 'switch_theme.dart';
+ import 'theme.dart';
+ import 'theme_data.dart';
+@@ -591,6 +592,10 @@ class Switch extends StatelessWidget {
+ 
+   @override
+   Widget build(BuildContext context) {
++    // PiliPlus: the app's switch in place of Material's.
++    if (SurfaceBuilders.switchBuilder case final SwitchBuilder builder) {
++      return builder(context, value, onChanged, thumbIcon);
++    }
+     Color? effectiveActiveThumbColor;
+     Color? effectiveActiveTrackColor;
+     switch (_switchType) {
+diff --git a/lib/src/text_selection_toolbar.dart b/lib/src/text_selection_toolbar.dart
+index 4c296a5..c534178 100644
+--- a/lib/src/text_selection_toolbar.dart
++++ b/lib/src/text_selection_toolbar.dart
+@@ -19,6 +19,7 @@ import 'icon_button.dart';
+ import 'icons.dart';
+ import 'material.dart';
+ import 'material_localizations.dart';
++import 'surface_builders.dart';
+ import 'theme.dart';
+ 
+ const double _kToolbarHeight = 44.0;
+@@ -769,6 +770,16 @@ class _TextSelectionToolbarContainer extends StatelessWidget {
+ 
+   @override
+   Widget build(BuildContext context) {
++    // PiliPlus: the app's surface in place of the toolbar's Material.
++    if (SurfaceBuilders.textSelectionToolbar case final SurfaceBuilder builder) {
++      return builder(
++        context,
++        const RoundedRectangleBorder(
++          borderRadius: BorderRadius.all(Radius.circular(_kToolbarHeight / 2)),
++        ),
++        child,
++      );
++    }
+     final ThemeData theme = Theme.of(context);
+     return Material(
+       // This value was eyeballed to match the native text selection menu on

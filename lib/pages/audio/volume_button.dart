@@ -2,6 +2,7 @@ import 'dart:async' show Timer;
 import 'dart:math' as math;
 
 import 'package:PiliPlus/common/widgets/flutter/vertical_slider.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/pages/audio/controller.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/rendering.dart' show RenderProxyBox, BoxHitTestResult;
@@ -108,17 +109,9 @@ class _VolumeButtonState extends State<VolumeButton> {
       child: MouseRegion(
         onEnter: _stopTimer,
         onExit: _scheduleDismiss,
-        child: Container(
-          padding: const .fromLTRB(6, 8, 6, 2),
-          decoration: BoxDecoration(
-            color: ElevationOverlay.applySurfaceTint(
-              cardTheme.color ?? theme.surfaceContainerLow,
-              cardTheme.surfaceTintColor,
-              2,
-            ),
-            borderRadius: const .all(.circular(6)),
-          ),
-          child: SliderTheme(
+        child: _surface(
+          context,
+          SliderTheme(
             data: const SliderThemeData(
               trackHeight: 4,
               overlayColor: Colors.transparent,
@@ -155,6 +148,29 @@ class _VolumeButtonState extends State<VolumeButton> {
           ),
         ),
       ),
+    );
+  }
+
+  // On glass, a capsule of glass; otherwise the card it was.
+  Widget _surface(BuildContext context, Widget child) {
+    if (GlassSurfaces.installed) {
+      return GlassSurfaces.panel(
+        context,
+        radius: 20,
+        child: Padding(padding: const .fromLTRB(6, 10, 6, 4), child: child),
+      );
+    }
+    return Container(
+      padding: const .fromLTRB(6, 8, 6, 2),
+      decoration: BoxDecoration(
+        color: ElevationOverlay.applySurfaceTint(
+          cardTheme.color ?? theme.surfaceContainerLow,
+          cardTheme.surfaceTintColor,
+          2,
+        ),
+        borderRadius: const .all(.circular(6)),
+      ),
+      child: child,
     );
   }
 
