@@ -98,6 +98,6 @@ Module notes: `lib/common/widgets/liquid_glass/CLAUDE.md`.
 | Workflow | Runs on | Notes |
 | -------- | ------- | ----- |
 | `build.yml` | manual | Platforms are inputs; Android signs with the `SIGN_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` secrets |
-| `ai_review.yml` | PRs out of draft, each push | Codex reviews in Chinese through OpenRouter (`OPENROUTER_API_KEY`); the `AI_REVIEW_MODEL` variable picks the model. Never blocks merging |
+| `ai_review.yml` | PRs out of draft, each push; or by hand with a PR number and a model | Codex reviews in Chinese through OpenRouter (`OPENROUTER_API_KEY`); the `AI_REVIEW_MODEL` variable picks the model. Never blocks merging |
 
 Fork PRs get no secrets, so a review on one skips.

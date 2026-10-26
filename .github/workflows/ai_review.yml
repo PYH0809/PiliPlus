@@ -6,17 +6,32 @@ name: AI Review
 # own agent, through OpenRouter, so the job needs the repository secret
 # OPENROUTER_API_KEY and skips without it. The repository variable
 # AI_REVIEW_MODEL picks another OpenRouter model.
+#
+# Run it by hand from the Actions tab to review a pull request again, on the
+# model given there. A run on another model does not cancel the review of a
+# push, nor the other way round.
 on:
     pull_request:
         types: [opened, ready_for_review, synchronize, reopened]
+    workflow_dispatch:
+        inputs:
+            pr:
+                description: "PR 编号"
+                required: true
+                type: number
+            model:
+                description: "OpenRouter 模型，如 deepseek/deepseek-v4.1-flash；留空用默认"
+                required: false
+                type: string
+                default: ""
 
 concurrency:
-    group: ai-review-${{ github.event.pull_request.number }}
+    group: ai-review-${{ github.event.pull_request.number || inputs.pr }}-${{ inputs.model || 'default' }}
     cancel-in-progress: true
 
 jobs:
     review:
-        if: ${{ github.event.pull_request.draft == false }}
+        if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false }}
         runs-on: ubuntu-latest
         timeout-minutes: 30
         permissions:
@@ -24,18 +39,27 @@ jobs:
             pull-requests: write
         env:
             HAS_KEY: ${{ secrets.OPENROUTER_API_KEY != '' }}
-            MODEL: ${{ vars.AI_REVIEW_MODEL || 'openai/gpt-6-luna' }}
-            PR: ${{ github.event.pull_request.number }}
+            MODEL: ${{ inputs.model || vars.AI_REVIEW_MODEL || 'openai/gpt-6-luna' }}
+            PR: ${{ github.event.pull_request.number || inputs.pr }}
         steps:
             - name: Skip without an OpenRouter key
               if: env.HAS_KEY != 'true'
               run: echo "OPENROUTER_API_KEY is not set; skipping the review."
 
+            # A run by hand has no pull request event to read the head from.
+            - name: Find the head commit
+              id: head
+              if: env.HAS_KEY == 'true' && github.event_name == 'workflow_dispatch'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+              run: echo "sha=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)" >> "$GITHUB_OUTPUT"
+
             - name: 代码迁出
               if: env.HAS_KEY == 'true'
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                  ref: ${{ github.event.pull_request.head.sha }}
+                  ref: ${{ github.event.pull_request.head.sha || steps.head.outputs.sha }}
                   fetch-depth: 1
                   persist-credentials: false
 
@@ -108,7 +132,7 @@ jobs:
                         }
                       }
                   prompt: |
-                      你在审查 `${{ github.repository }}` 的 pull request #${{ github.event.pull_request.number }}。
+                      你在审查 `${{ github.repository }}` 的 pull request #${{ env.PR }}。
                       当前目录是 PR head 的检出：可以读任何文件、运行只读命令（git、grep、cat 等）弄清上下文，
                       但不能改文件，也不能联网。这次可能是首次审查，也可能是作者推了新提交后的复审：
                       始终审查 diff 的**当前**状态。
@@ -166,7 +190,7 @@ jobs:
               uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
               env:
                   FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
-                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha || steps.head.outputs.sha }}
               with:
                   script: |
                       const fs = require('fs');
