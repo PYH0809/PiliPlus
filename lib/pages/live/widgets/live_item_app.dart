@@ -1,6 +1,8 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/menu_entries.dart';
 import 'package:PiliPlus/http/live.dart';
 import 'package:PiliPlus/models_new/live/live_feed_index/card_data_list_item.dart';
 import 'package:PiliPlus/models_new/live/live_feed_index/feedback.dart';
@@ -74,13 +76,11 @@ class LiveCardVApp extends StatelessWidget {
             bottom: -2,
             width: 29,
             height: 29,
-            child: IconButton(
-              padding: .zero,
-              onPressed: () {
-                Widget actionButton(Reason r) => SearchText(
-                  text: r.name!,
-                  onTap: (_) async {
-                    Get.back();
+            child: Builder(
+              builder: (button) => IconButton(
+                padding: .zero,
+                onPressed: () {
+                  Future<void> submit(Reason r) async {
                     SmartDialog.showLoading(msg: '正在提交');
                     final res = await LiveHttp.liveFeedback(
                       item.roomid!,
@@ -93,60 +93,85 @@ class LiveCardVApp extends StatelessWidget {
                     } else {
                       res.toast();
                     }
-                  },
-                );
+                  }
 
-                final feedback = item.feedback!;
-                showDialog(
-                  context: context,
-                  builder: (context) {
-                    return SimpleDialog(
-                      contentPadding: const .fromLTRB(24, 16, 24, 19),
-                      children: [
-                        for (var i in feedback) ...[
-                          const SizedBox(height: 5),
-                          Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: i.title,
-                                  style: theme.textTheme.titleMedium,
-                                ),
-                                TextSpan(
-                                  text: '\n${i.subtitle}',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.outline,
+                  final feedback = item.feedback!;
+                  // On glass, the reasons are rows of a menu out of the
+                  // button, as FlClash's.
+                  if (GlassSurfaces.installed) {
+                    showMenuFrom<Reason>(button, [
+                      for (final (index, group) in feedback.indexed) ...[
+                        if (index > 0) const PopupMenuDivider(),
+                        if (group.title case final title?)
+                          MenuSectionHeader(title, subtitle: group.subtitle),
+                        for (final r in group.reasons ?? const <Reason>[])
+                          menuRow(r.name!, icon: reasonIcon(r.name!), value: r),
+                      ],
+                    ]).then((r) {
+                      if (r != null) submit(r);
+                    });
+                    return;
+                  }
+
+                  Widget actionButton(Reason r) => SearchText(
+                    text: r.name!,
+                    onTap: (_) {
+                      Get.back();
+                      submit(r);
+                    },
+                  );
+
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return SimpleDialog(
+                        contentPadding: const .fromLTRB(24, 16, 24, 19),
+                        children: [
+                          for (var i in feedback) ...[
+                            const SizedBox(height: 5),
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: i.title,
+                                    style: theme.textTheme.titleMedium,
                                   ),
-                                ),
-                              ],
+                                  TextSpan(
+                                    text: '\n${i.subtitle}',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.outline,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 5),
-                          Wrap(
-                            spacing: 8.0,
-                            runSpacing: 8.0,
-                            children: i.reasons!.map(actionButton).toList(),
+                            const SizedBox(height: 5),
+                            Wrap(
+                              spacing: 8.0,
+                              runSpacing: 8.0,
+                              children: i.reasons!.map(actionButton).toList(),
+                            ),
+                          ],
+                          const Divider(),
+                          Center(
+                            child: FilledButton.tonal(
+                              onPressed: Get.back,
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              child: const Text('取消'),
+                            ),
                           ),
                         ],
-                        const Divider(),
-                        Center(
-                          child: FilledButton.tonal(
-                            onPressed: Get.back,
-                            style: FilledButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            child: const Text('取消'),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-              icon: Icon(
-                Icons.more_vert_outlined,
-                size: 17,
-                color: theme.colorScheme.outline,
+                      );
+                    },
+                  );
+                },
+                icon: Icon(
+                  Icons.more_vert_outlined,
+                  size: 17,
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ),
           ),

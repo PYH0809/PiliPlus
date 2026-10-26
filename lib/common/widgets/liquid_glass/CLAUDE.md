@@ -13,7 +13,17 @@ turns on every glass part. It only takes effect after a restart.
   Android builds and on macOS, panes fall back to frosted blur. Check how a change looks both ways; the Android dev
   flavor has Impeller on.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
-  `scale(t)` fades a style in, and `lerp` blends two.
+  `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
+  light around the edge, which `GlassPanel` draws.
+- **Dialogs and popup menus** turn to glass without touching their call sites.
+  `lib/scripts/material/surface_builders.patch` gives material_ui's `Dialog`, popup menu (with the rect it opens from
+  and its route animation), `AlertDialog` actions, `PopupMenuItem` ink and the mark on a menu's current value hooks
+  (`SurfaceBuilders`), and `GlassSurfaces.install()` in `main()` fills them while the switch is on, as FlClash's
+  alerts and menus look. `GlassSurfaces.themed` sets their text, spacing and the lighter scrim in `ThemeUtils`. After
+  changing the patch, check it still applies after each platform's patch set in `patch.ps1`.
+- **Choice rows** (`PopupListTile`, behind every `PopupModel` setting) turn into FlClash's pull-downs with the switch
+  on: the value sits at the row's end with an up-down chevron, and the menu opens out of it, its current value
+  checked.
 
 ## Files
 
@@ -26,6 +36,10 @@ turns on every glass part. It only takes effect after a restart.
 | `liquid_glass_button.dart` | A pressable pane: swells and glows under the finger, keyboard focusable | Yes |
 | `liquid_glass_tab_bar.dart` | Tabs on a glass pill, with a platter that slides with the pages | Yes |
 | `liquid_glass_header.dart` | A header over a soft fade, for content that scrolls under it | Yes |
+| `glass_panel.dart` | `GlassPanel`: glass with a rim and a wide shadow, clipping its child, as a menu or alert | Yes |
+| `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled | Yes |
+| `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, grow in, swell on press) and menus (24 dp, rows inset 8) | Yes |
+| `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card, and back into it as it closes | Yes |
 | `../liquid_glass_navigation_bar.dart` | The nav bar: a lens you can press, drag and fling | Yes |
 | `../header_overlay_inset.dart` | Tells content how much a header laid over it covers | Yes |
 
@@ -33,6 +47,11 @@ turns on every glass part. It only takes effect after a restart.
 
 - **Gate every glass layout on the switch** (`MainController.liquidGlass`, read once). With it off, the page must be
   exactly as before.
+- **Glass is for controls floating over content**, as FlClash and iOS use it: bars, buttons, menus, alerts, toasts.
+  Bottom sheets and pages are content and stay opaque, and glass never sits on glass.
+- **On glass, no ripples.** A pressed row stands on a platter (`highlightColor`), text is `onSurface` or
+  `onSurfaceVariant`, and corners are concentric: an inner radius is the outer one less the inset. A platter only
+  ever means a press: a menu's current value takes a check at the row's end.
 - **Content under an overlaid header** starts with `HeaderOverlayInset.sliver(context)`, or uses
   `HeaderOverlayInset.below(...)` when it pins headers of its own. `RefreshIndicator` reads the inset, so the pull
   indicator comes out from under the header.

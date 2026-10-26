@@ -1,0 +1,217 @@
+diff --git a/lib/material_ui.dart b/lib/material_ui.dart
+index 32e00a3..2db60f3 100644
+--- a/lib/material_ui.dart
++++ b/lib/material_ui.dart
+@@ -178,6 +178,7 @@ export 'src/snack_bar_theme.dart';
+ export 'src/spell_check_suggestions_toolbar.dart';
+ export 'src/spell_check_suggestions_toolbar_layout_delegate.dart';
+ export 'src/stepper.dart';
++export 'src/surface_builders.dart';
+ export 'src/switch.dart';
+ export 'src/switch_list_tile.dart';
+ export 'src/switch_theme.dart';
+diff --git a/lib/src/dialog.dart b/lib/src/dialog.dart
+index eb3580d..d924e5a 100644
+--- a/lib/src/dialog.dart
++++ b/lib/src/dialog.dart
+@@ -22,6 +22,7 @@ import 'dialog_theme.dart';
+ import 'ink_well.dart';
+ import 'material.dart';
+ import 'material_localizations.dart';
++import 'surface_builders.dart';
+ import 'text_theme.dart';
+ import 'theme.dart';
+ 
+@@ -289,7 +290,14 @@ class Dialog extends StatelessWidget {
+         alignment: alignment ?? dialogTheme.alignment ?? defaults.alignment!,
+         child: ConstrainedBox(
+           constraints: boxConstraints,
+-          child: Material(
++          // PiliPlus: the app's surface in place of the dialog's Material.
++          child: switch (SurfaceBuilders.dialog) {
++            final SurfaceBuilder builder => builder(
++              context,
++              shape ?? dialogTheme.shape ?? defaults.shape!,
++              child ?? const SizedBox.shrink(),
++            ),
++            null => Material(
+             color: backgroundColor ?? dialogTheme.backgroundColor ?? defaults.backgroundColor,
+             elevation: elevation ?? dialogTheme.elevation ?? defaults.elevation!,
+             shadowColor: shadowColor ?? dialogTheme.shadowColor ?? defaults.shadowColor,
+@@ -300,6 +308,7 @@ class Dialog extends StatelessWidget {
+             clipBehavior: clipBehavior ?? dialogTheme.clipBehavior ?? defaults.clipBehavior!,
+             child: child,
+           ),
++          },
+         ),
+       );
+     }
+@@ -917,7 +926,8 @@ class AlertDialog extends StatelessWidget {
+             (theme.useMaterial3
+                 ? defaults.actionsPadding!
+                 : defaults.actionsPadding!.add(EdgeInsets.all(spacing))),
+-        child: OverflowBar(
++        // PiliPlus: the app's layout in place of the OverflowBar.
++        child: SurfaceBuilders.dialogActions?.call(context, actions!) ?? OverflowBar(
+           alignment: actionsAlignment ?? MainAxisAlignment.end,
+           spacing: spacing,
+           overflowAlignment: actionsOverflowAlignment ?? OverflowBarAlignment.end,
+diff --git a/lib/src/popup_menu.dart b/lib/src/popup_menu.dart
+index 0022a99..62e483b 100644
+--- a/lib/src/popup_menu.dart
++++ b/lib/src/popup_menu.dart
+@@ -26,6 +26,7 @@ import 'list_tile.dart';
+ import 'list_tile_theme.dart';
+ import 'material.dart';
+ import 'material_localizations.dart';
++import 'surface_builders.dart';
+ import 'popup_menu_theme.dart';
+ import 'text_theme.dart';
+ import 'theme.dart';
+@@ -443,7 +444,21 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+         constraints: BoxConstraints(minHeight: widget.height),
+         child: Padding(
+           padding: padding,
+-          child: Align(alignment: AlignmentDirectional.centerStart, child: buildChild()),
++          child: switch (SurfaceBuilders.popupMenuCheck) {
++            // PiliPlus: the app's mark at the end of the item the menu opens on.
++            final Widget check?
++                when context.getInheritedWidgetOfExactType<_PopupMenuInitialItem>() != null =>
++              Row(
++                children: <Widget>[
++                  Expanded(
++                    child: Align(alignment: AlignmentDirectional.centerStart, child: buildChild()),
++                  ),
++                  const SizedBox(width: 8),
++                  check,
++                ],
++              ),
++            _ => Align(alignment: AlignmentDirectional.centerStart, child: buildChild()),
++          },
+         ),
+       ),
+     );
+@@ -466,6 +481,8 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+         child: InkWell(
+           onTap: widget.enabled ? handleTap : null,
+           canRequestFocus: widget.enabled,
++          // PiliPlus: the app's shape for the ink.
++          customBorder: SurfaceBuilders.popupMenuItemShape,
+           mouseCursor: _EffectiveMouseCursor(widget.mouseCursor, popupMenuTheme.mouseCursor),
+           child: ListTileTheme.merge(
+             contentPadding: EdgeInsets.zero,
+@@ -677,6 +694,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
+   }
+ }
+ 
++// PiliPlus: tells the item a menu opens on that it is the one.
++class _PopupMenuInitialItem extends InheritedWidget {
++  const _PopupMenuInitialItem({required super.child});
++
++  @override
++  bool updateShouldNotify(_PopupMenuInitialItem oldWidget) => false;
++}
++
+ class _PopupMenu<T> extends StatefulWidget {
+   const _PopupMenu({
+     required this.itemKeys,
+@@ -756,7 +781,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+       Widget item = widget.route.items[i];
+       if (widget.route.initialValue != null &&
+           widget.route.items[i].represents(widget.route.initialValue)) {
+-        item = ColoredBox(color: Theme.of(context).highlightColor, child: item);
++        // PiliPlus: the app marks the item itself, in place of the highlight.
++        item = SurfaceBuilders.popupMenuCheck != null
++            ? _PopupMenuInitialItem(child: item)
++            : ColoredBox(color: Theme.of(context).highlightColor, child: item);
+       }
+       children.add(
+         _MenuItem(
+@@ -792,6 +820,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+       ),
+     );
+ 
++    // PiliPlus: the app's surface and motion in place of the menu's.
++    if (SurfaceBuilders.popupMenu case final MenuSurfaceBuilder builder) {
++      return builder(
++        context,
++        widget.route.shape ??
++            popupMenuTheme.shape ??
++            defaults.shape ??
++            const RoundedRectangleBorder(),
++        child,
++        widget.route.animation!,
++        widget.route.anchor,
++      );
++    }
++
+     return AnimatedBuilder(
+       animation: widget.route.animation!,
+       builder: (BuildContext context, Widget? child) {
+@@ -975,6 +1017,9 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+ 
+   final RelativeRect? position;
+   final PopupMenuPositionBuilder? positionBuilder;
++
++  /// PiliPlus: where the menu opens from, in the coordinates it is laid out in.
++  Rect? anchor;
+   final List<PopupMenuEntry<T>> items;
+   final List<GlobalKey> itemKeys;
+   final List<Size?> itemSizes;
+@@ -1063,9 +1108,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+       removeRight: true,
+       child: LayoutBuilder(
+         builder: (BuildContext context, BoxConstraints constraints) {
++          final RelativeRect position = positionBuilder?.call(context, constraints) ?? this.position!;
++          anchor = position.toRect(Offset.zero & constraints.biggest);
+           return CustomSingleChildLayout(
+             delegate: _PopupMenuRouteLayout(
+-              positionBuilder?.call(context, constraints) ?? position!,
++              position,
+               itemSizes,
+               selectedItemIndex,
+               Directionality.of(context),
+diff --git a/lib/src/surface_builders.dart b/lib/src/surface_builders.dart
+new file mode 100644
+index 0000000..6f770cc
+--- /dev/null
++++ b/lib/src/surface_builders.dart
+@@ -0,0 +1,38 @@
++// PiliPlus: lets the app draw the surfaces of dialogs and popup menus itself,
++// as liquid glass does, in place of their Material.
++
++import 'package:flutter/widgets.dart';
++
++/// Builds a surface of [shape] holding [child], in place of the Material a
++/// component would draw. The surface must give [child] a Material of its own,
++/// such as one of `MaterialType.transparency`, for ink and text styles.
++typedef SurfaceBuilder = Widget Function(BuildContext context, ShapeBorder shape, Widget child);
++
++/// Builds a popup menu, surface and motion, around its laid out [child] in
++/// place of the Material that reveals it. [animation] is the route's, and
++/// [anchor] the rect the menu opens from, such as its button's, in the
++/// coordinates of the box the menu is laid out in.
++typedef MenuSurfaceBuilder =
++    Widget Function(
++      BuildContext context,
++      ShapeBorder shape,
++      Widget child,
++      Animation<double> animation,
++      Rect? anchor,
++    );
++
++/// What the app draws itself. Each one left null keeps the component's own.
++abstract final class SurfaceBuilders {
++  static SurfaceBuilder? dialog;
++  static MenuSurfaceBuilder? popupMenu;
++
++  /// Lays out an AlertDialog's actions in place of its OverflowBar.
++  static Widget Function(BuildContext context, List<Widget> actions)? dialogActions;
++
++  /// The shape of a PopupMenuItem's ink.
++  static ShapeBorder? popupMenuItemShape;
++
++  /// Marks the item a popup menu opens on, its current value, at the item's
++  /// end in place of a highlight.
++  static Widget? popupMenuCheck;
++}

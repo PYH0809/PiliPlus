@@ -211,9 +211,12 @@ $RefreshIndicatorPatchMaterial = "lib/scripts/material/refresh_indicator.patch"
 
 $TabsPatchMaterial = "lib/scripts/material/tabs.patch"
 
+# let the app draw dialog and popup menu surfaces, as liquid glass
+$SurfaceBuildersPatchMaterial = "lib/scripts/material/surface_builders.patch"
+
 $patches_material = @($ModalBarrierPatchMaterial, $NavigationDrawerPatchMaterial, $PopupMenuPatchMaterial,
                     $FABPatchMaterial, $TextFieldPatchMaterial, $ScaffoldPatchMaterial, $RefreshIndicatorPatchMaterial,
-                    $TabsPatchMaterial)
+                    $TabsPatchMaterial, $SurfaceBuildersPatchMaterial)
 
 $PubCacheDir = "~/.pub-cache"
 
