@@ -241,7 +241,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   }
 
   void _adjustSubPaddingIfNeeded() {
-    const int minPadding = 70;
+    // On glass the bottom bar's pane is as tall as it lays out.
+    final barHeight = _glass
+        ? _bottomBarKey.currentContext?.size?.height
+        : null;
+    final int minPadding = math.max(70, barHeight?.ceil() ?? 0);
     if (plPlayerController.subtitlePaddingB < minPadding) {
       plPlayerController
         ..tmpSubtitlePaddingB = plPlayerController.subtitlePaddingB
@@ -915,6 +919,23 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
   PlPlayerController get plPlayerController => widget.plPlayerController;
 
+  /// The lock or screenshot button at a side of the video: on glass, a disc.
+  Widget _sideButton(Widget button) {
+    if (_glass) {
+      return VideoGlass(
+        radius: 22,
+        child: SizedBox.square(dimension: 44, child: button),
+      );
+    }
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Color(0x45000000),
+        borderRadius: BorderRadius.all(Radius.circular(8)),
+      ),
+      child: button,
+    );
+  }
+
   /// A note over the video that fades in and out: on glass the pane eases in
   /// as glass does, as fading the filter itself would break it.
   Widget _indicator({
@@ -959,6 +980,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   // restart.
   final _glass = GlassSurfaces.installed;
   final _backdropKey = BackdropKey();
+  final _bottomBarKey = GlobalKey();
 
   late ColorScheme colorScheme;
   late double maxWidth;
@@ -1093,16 +1115,18 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             animationType: .fade,
             maskColor: Colors.transparent,
             displayTime: const Duration(milliseconds: 1500),
-            animationTime: const Duration(milliseconds: 200),
-            // On glass, a pill of glass as a toast's.
-            builder: (context) => GlassSurfaces.installed
-                ? GlassSurfaces.pill(
-                    context,
+            // A fade would hide the glass's filter till it ends.
+            animationTime: _glass
+                ? Duration.zero
+                : const Duration(milliseconds: 200),
+            // On glass, a pill of the video's glass.
+            builder: (context) => _glass
+                ? const VideoGlass.capsule(
                     child: Padding(
-                      padding: const .symmetric(horizontal: 14, vertical: 7),
+                      padding: .symmetric(horizontal: 14, vertical: 7),
                       child: Text(
                         '松开手指，取消进退',
-                        style: TextStyle(color: colorScheme.onSurface),
+                        style: TextStyle(color: Colors.white),
                       ),
                     ),
                   )
@@ -1633,6 +1657,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                         : widget.headerControl,
                   ),
                   AppBarAni(
+                    key: _bottomBarKey,
                     isTop: false,
                     controller: _animationController,
                     isFullScreen: isFullScreen,
@@ -1680,18 +1705,29 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 95),
                     child: FilledButton.tonal(
-                      style: FilledButton.styleFrom(
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        backgroundColor: colorScheme.secondaryContainer
-                            .withValues(alpha: 0.8),
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.all(15),
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(
-                            Radius.circular(6),
-                          ),
-                        ),
-                      ),
+                      style: _glass
+                          ? VideoGlass.buttonStyle().merge(
+                              FilledButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 14,
+                                ),
+                              ),
+                            )
+                          : FilledButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              backgroundColor: colorScheme.secondaryContainer
+                                  .withValues(alpha: 0.8),
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.all(15),
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(6),
+                                ),
+                              ),
+                            ),
                       onPressed: () async {
                         showRestoreScaleBtn.value = false;
                         final animController = AnimationController(
@@ -1832,12 +1868,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                   child: Obx(
                     () => Offstage(
                       offstage: !plPlayerController.showControls.value,
-                      child: DecoratedBox(
-                        decoration: const BoxDecoration(
-                          color: Color(0x45000000),
-                          borderRadius: BorderRadius.all(Radius.circular(8)),
-                        ),
-                        child: Obx(() {
+                      child: _sideButton(
+                        Obx(() {
                           final controlsLock =
                               plPlayerController.controlsLock.value;
                           return ComBtn(
@@ -1876,12 +1908,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     translation: const Offset(-1, -0.4),
                     child: Offstage(
                       offstage: !plPlayerController.showControls.value,
-                      child: DecoratedBox(
-                        decoration: const BoxDecoration(
-                          color: Color(0x45000000),
-                          borderRadius: BorderRadius.all(Radius.circular(8)),
-                        ),
-                        child: ComBtn(
+                      child: _sideButton(
+                        ComBtn(
                           tooltip: '截图',
                           icon: const Icon(
                             Icons.photo_camera,
@@ -1973,19 +2001,33 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                             child: TweenAnimationBuilder<double>(
                               tween: Tween<double>(begin: 0.0, end: 1.0),
                               duration: const Duration(milliseconds: 500),
-                              builder: (context, value, child) => Opacity(
-                                opacity: value,
-                                child: child,
-                              ),
-                              child: BackwardSeekIndicator(
-                                duration:
-                                    plPlayerController.fastForBackwardDuration,
-                                onSubmitted: (Duration value) {
-                                  plPlayerController
-                                    ..mountSeekBackwardButton.value = false
-                                    ..onBackward(value);
-                                },
-                              ),
+                              // On glass the pane eases in, as fading the
+                              // filter itself would break it.
+                              builder: (context, value, child) => _glass
+                                  ? BackwardSeekIndicator(
+                                      glassT: value,
+                                      duration: plPlayerController
+                                          .fastForBackwardDuration,
+                                      onSubmitted: (Duration value) {
+                                        plPlayerController
+                                          ..mountSeekBackwardButton.value =
+                                              false
+                                          ..onBackward(value);
+                                      },
+                                    )
+                                  : Opacity(opacity: value, child: child),
+                              child: _glass
+                                  ? null
+                                  : BackwardSeekIndicator(
+                                      duration: plPlayerController
+                                          .fastForBackwardDuration,
+                                      onSubmitted: (Duration value) {
+                                        plPlayerController
+                                          ..mountSeekBackwardButton.value =
+                                              false
+                                          ..onBackward(value);
+                                      },
+                                    ),
                             ),
                           ),
                         const Spacer(flex: 2),
@@ -1994,19 +2036,31 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                             child: TweenAnimationBuilder<double>(
                               tween: Tween<double>(begin: 0.0, end: 1.0),
                               duration: const Duration(milliseconds: 500),
-                              builder: (context, value, child) => Opacity(
-                                opacity: value,
-                                child: child,
-                              ),
-                              child: ForwardSeekIndicator(
-                                duration:
-                                    plPlayerController.fastForBackwardDuration,
-                                onSubmitted: (Duration value) {
-                                  plPlayerController
-                                    ..mountSeekForwardButton.value = false
-                                    ..onForward(value);
-                                },
-                              ),
+                              // On glass the pane eases in, as fading the
+                              // filter itself would break it.
+                              builder: (context, value, child) => _glass
+                                  ? ForwardSeekIndicator(
+                                      glassT: value,
+                                      duration: plPlayerController
+                                          .fastForBackwardDuration,
+                                      onSubmitted: (Duration value) {
+                                        plPlayerController
+                                          ..mountSeekForwardButton.value = false
+                                          ..onForward(value);
+                                      },
+                                    )
+                                  : Opacity(opacity: value, child: child),
+                              child: _glass
+                                  ? null
+                                  : ForwardSeekIndicator(
+                                      duration: plPlayerController
+                                          .fastForBackwardDuration,
+                                      onSubmitted: (Duration value) {
+                                        plPlayerController
+                                          ..mountSeekForwardButton.value = false
+                                          ..onForward(value);
+                                      },
+                                    ),
                             ),
                           ),
                       ],

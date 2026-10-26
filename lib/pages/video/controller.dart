@@ -4,6 +4,8 @@ import 'dart:math' show min;
 import 'dart:ui';
 
 import 'package:PiliPlus/common/style.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
@@ -589,17 +591,12 @@ class VideoDetailController extends GetxController
                 onRemoveItem(listData.indexOf(item), item);
               }
             },
-            child: SearchText(
-              bgColor: theme.colorScheme.secondaryContainer.withValues(
-                alpha: 0.8,
-              ),
-              textColor: theme.colorScheme.onSecondaryContainer,
-              padding: const .symmetric(horizontal: 8, vertical: 4),
-              fontSize: 14,
+            child: _skipNote(
+              theme: theme,
               text: item is SegmentModel
                   ? '跳过: ${item.segmentType.shortTitle}'
                   : '上次看到第${(item as int) + 1}P，点击跳转',
-              onTap: (_) {
+              onTap: () {
                 if (item is int) {
                   try {
                     final part = ugcIntroCtr.videoDetail.value.pages![item];
@@ -619,6 +616,39 @@ class VideoDetailController extends GetxController
           ),
         ),
       ),
+    );
+  }
+
+  // On glass, a capsule of the video's glass with white text.
+  Widget _skipNote({
+    required ThemeData theme,
+    required String text,
+    required VoidCallback onTap,
+  }) {
+    if (GlassSurfaces.installed) {
+      return Semantics(
+        button: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: VideoGlass.capsule(
+            child: Padding(
+              padding: const .symmetric(horizontal: 12, vertical: 6),
+              child: Text(
+                text,
+                style: const TextStyle(fontSize: 14, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return SearchText(
+      bgColor: theme.colorScheme.secondaryContainer.withValues(alpha: 0.8),
+      textColor: theme.colorScheme.onSecondaryContainer,
+      padding: const .symmetric(horizontal: 8, vertical: 4),
+      fontSize: 14,
+      text: text,
+      onTap: (_) => onTap(),
     );
   }
 
