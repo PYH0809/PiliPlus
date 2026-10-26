@@ -1,7 +1,9 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:get/get.dart';
@@ -152,6 +154,42 @@ class GlassDetailTabRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// [tabBar], a [GlassDetailTabRow], laid over [pages], which scroll under it
+/// starting below it as they read [HeaderOverlayInset].
+class GlassTabsOverlay extends StatelessWidget {
+  const GlassTabsOverlay({
+    super.key,
+    required this.tabBar,
+    required this.pages,
+  });
+
+  final Widget tabBar;
+  final Widget pages;
+
+  @override
+  Widget build(BuildContext context) {
+    // Clipped so that the pills' shadows stay off the video beside or above.
+    return ClipRect(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: HeaderOverlayInset(
+              inset: GlassDetailTabRow.extent,
+              child: pages,
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LiquidGlassHeader(child: tabBar),
+          ),
+        ],
       ),
     );
   }

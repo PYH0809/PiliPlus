@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
@@ -601,25 +602,21 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
             },
             body: MiniScaffold(
               key: videoDetailController.childKey,
-              body: Column(
-                children: [
-                  buildTabBar(
-                    width: maxWidth,
-                    onTap: videoDetailController.animToTop,
-                  ),
-                  Expanded(
-                    child: tabBarView(
-                      hitTestBehavior: .translucent,
-                      controller: videoDetailController.tabCtr,
-                      children: [
-                        videoIntro(isHorizontal: false, needCtr: false),
-                        if (videoDetailController.showReply)
-                          videoReplyPanel(isNested: true),
-                        if (_shouldShowSeasonPanel) seasonPanel,
-                      ],
-                    ),
-                  ),
-                ],
+              body: _tabsAndPages(
+                buildTabBar(
+                  width: maxWidth,
+                  onTap: videoDetailController.animToTop,
+                ),
+                tabBarView(
+                  hitTestBehavior: .translucent,
+                  controller: videoDetailController.tabCtr,
+                  children: [
+                    videoIntro(isHorizontal: false, needCtr: false),
+                    if (videoDetailController.showReply)
+                      videoReplyPanel(isNested: true),
+                    if (_shouldShowSeasonPanel) seasonPanel,
+                  ],
+                ),
               ),
             ),
           ),
@@ -814,24 +811,20 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
             height: maxHeight - padding.top,
             child: MiniScaffold(
               key: videoDetailController.childKey,
-              body: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  buildTabBar(width: introWidth),
-                  Expanded(
-                    child: tabBarView(
-                      controller: videoDetailController.tabCtr,
-                      children: [
-                        videoIntro(
-                          width: introWidth,
-                          height: maxHeight,
-                        ),
-                        if (videoDetailController.showReply) videoReplyPanel(),
-                        if (_shouldShowSeasonPanel) seasonPanel,
-                      ],
+              body: _tabsAndPages(
+                buildTabBar(width: introWidth),
+                tabBarView(
+                  controller: videoDetailController.tabCtr,
+                  children: [
+                    videoIntro(
+                      width: introWidth,
+                      height: maxHeight,
                     ),
-                  ),
-                ],
+                    if (videoDetailController.showReply) videoReplyPanel(),
+                    if (_shouldShowSeasonPanel) seasonPanel,
+                  ],
+                ),
+                crossAxisAlignment: CrossAxisAlignment.start,
               ),
             ),
           ),
@@ -878,20 +871,16 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                   height: introHeight,
                   child: MiniScaffold(
                     key: videoDetailController.childKey,
-                    body: Column(
-                      children: [
-                        buildTabBar(width: introWidth, showIntro: false),
-                        Expanded(
-                          child: tabBarView(
-                            controller: videoDetailController.tabCtr,
-                            children: [
-                              if (videoDetailController.showReply)
-                                videoReplyPanel(),
-                              if (_shouldShowSeasonPanel) seasonPanel,
-                            ],
-                          ),
-                        ),
-                      ],
+                    body: _tabsAndPages(
+                      buildTabBar(width: introWidth, showIntro: false),
+                      tabBarView(
+                        controller: videoDetailController.tabCtr,
+                        children: [
+                          if (videoDetailController.showReply)
+                            videoReplyPanel(),
+                          if (_shouldShowSeasonPanel) seasonPanel,
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -960,42 +949,41 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
             height: maxHeight - padding.top,
             child: MiniScaffold(
               key: videoDetailController.childKey,
-              body: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  buildTabBar(
-                    width: maxWidth - width - padding.horizontal,
-                    introText: '相关视频',
-                    showIntro: videoDetailController.isFileSource
-                        ? true
-                        : showIntro,
-                  ),
-                  Expanded(
-                    child: tabBarView(
-                      controller: videoDetailController.tabCtr,
-                      children: [
-                        if (videoDetailController.isFileSource)
-                          localIntroPanel()
-                        else if (showIntro)
-                          KeepAliveWrapper(
-                            child: CustomScrollView(
-                              key: const PageStorageKey(CommonIntroController),
-                              controller:
-                                  videoDetailController.effectiveIntroScrollCtr,
-                              slivers: [
-                                RelatedVideoPanel(
-                                  key: videoRelatedKey,
-                                  heroTag: heroTag,
-                                ),
-                              ],
-                            ),
+              body: _tabsAndPages(
+                buildTabBar(
+                  width: maxWidth - width - padding.horizontal,
+                  introText: '相关视频',
+                  showIntro: videoDetailController.isFileSource
+                      ? true
+                      : showIntro,
+                ),
+                tabBarView(
+                  controller: videoDetailController.tabCtr,
+                  children: [
+                    if (videoDetailController.isFileSource)
+                      localIntroPanel()
+                    else if (showIntro)
+                      KeepAliveWrapper(
+                        child: _underTabs(
+                          (context) => CustomScrollView(
+                            key: const PageStorageKey(CommonIntroController),
+                            controller:
+                                videoDetailController.effectiveIntroScrollCtr,
+                            slivers: [
+                              if (_glass) HeaderOverlayInset.sliver(context),
+                              RelatedVideoPanel(
+                                key: videoRelatedKey,
+                                heroTag: heroTag,
+                              ),
+                            ],
                           ),
-                        if (videoDetailController.showReply) videoReplyPanel(),
-                        if (_shouldShowSeasonPanel) seasonPanel,
-                      ],
-                    ),
-                  ),
-                ],
+                        ),
+                      ),
+                    if (videoDetailController.showReply) videoReplyPanel(),
+                    if (_shouldShowSeasonPanel) seasonPanel,
+                  ],
+                ),
+                crossAxisAlignment: CrossAxisAlignment.start,
               ),
             ),
           ),
@@ -1312,6 +1300,38 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         ? Theme(data: theme, child: child)
         : child;
   }
+
+  /// [tabBar] above [pages]; in glass, laid over them, the pages scrolling
+  /// under it from below it. [tabBar] comes first so that it is built first,
+  /// as it may replace the [TabController] that [pages] take.
+  Widget _tabsAndPages(
+    Widget tabBar,
+    Widget pages, {
+    CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
+  }) {
+    if (!_glass) {
+      return Column(
+        crossAxisAlignment: crossAxisAlignment,
+        children: [
+          tabBar,
+          Expanded(child: pages),
+        ],
+      );
+    }
+    return GlassTabsOverlay(tabBar: tabBar, pages: pages);
+  }
+
+  /// Builds a tab's scroll view where it can read how far glass tabs over it
+  /// reach, as [this.context] lies above them.
+  Widget _underTabs(WidgetBuilder builder) =>
+      _glass ? Builder(builder: builder) : builder(context);
+
+  /// Lays a tab's [child], which pins headers of its own, out below glass tabs.
+  Widget _belowTabs(Widget child) => _glass
+      ? Builder(
+          builder: (context) => HeaderOverlayInset.below(context, child: child),
+        )
+      : child;
 
   void _onTabTap(
     List<String> tabs,
@@ -1653,21 +1673,24 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   Widget localIntroPanel({
     bool needCtr = true,
   }) {
-    return CustomScrollView(
-      controller: needCtr
-          ? videoDetailController.effectiveIntroScrollCtr
-          : null,
-      physics: !needCtr ? platformAlwaysClampingPhysics : null,
-      key: const PageStorageKey(CommonIntroController),
-      slivers: [
-        SliverPadding(
-          padding: EdgeInsets.only(top: 7, bottom: padding.bottom + 100),
-          sliver: LocalIntroPanel(
-            key: videoRelatedKey,
-            heroTag: heroTag,
+    return _underTabs(
+      (context) => CustomScrollView(
+        controller: needCtr
+            ? videoDetailController.effectiveIntroScrollCtr
+            : null,
+        physics: !needCtr ? platformAlwaysClampingPhysics : null,
+        key: const PageStorageKey(CommonIntroController),
+        slivers: [
+          if (_glass) HeaderOverlayInset.sliver(context),
+          SliverPadding(
+            padding: EdgeInsets.only(top: 7, bottom: padding.bottom + 100),
+            sliver: LocalIntroPanel(
+              key: videoRelatedKey,
+              heroTag: heroTag,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1682,62 +1705,65 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
       return localIntroPanel(needCtr: needCtr);
     }
 
-    Widget child = CustomScrollView(
-      key: const PageStorageKey(CommonIntroController),
-      controller: needCtr
-          ? videoDetailController.effectiveIntroScrollCtr
-          : null,
-      physics: !needCtr ? platformAlwaysClampingPhysics : null,
-      slivers: [
-        if (videoDetailController.isUgc) ...[
-          UgcIntroPanel(
-            key: videoIntroKey,
-            heroTag: heroTag,
-            showAiBottomSheet: showAiBottomSheet,
-            showEpisodes: showEpisodes,
-            onShowMemberPage: onShowMemberPage,
-            isPortrait: isPortrait,
-            isHorizontal: isHorizontal ?? width! / height! >= kScreenRatio,
-          ),
-          if (needRelated && videoDetailController.showRelatedVideo) ...[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  top: Style.safeSpace,
-                ),
-                child: Divider(
-                  height: 1,
-                  indent: 12,
-                  endIndent: 12,
-                  color: colorScheme.outline.withValues(alpha: .08),
+    Widget child = _underTabs(
+      (context) => CustomScrollView(
+        key: const PageStorageKey(CommonIntroController),
+        controller: needCtr
+            ? videoDetailController.effectiveIntroScrollCtr
+            : null,
+        physics: !needCtr ? platformAlwaysClampingPhysics : null,
+        slivers: [
+          if (_glass) HeaderOverlayInset.sliver(context),
+          if (videoDetailController.isUgc) ...[
+            UgcIntroPanel(
+              key: videoIntroKey,
+              heroTag: heroTag,
+              showAiBottomSheet: showAiBottomSheet,
+              showEpisodes: showEpisodes,
+              onShowMemberPage: onShowMemberPage,
+              isPortrait: isPortrait,
+              isHorizontal: isHorizontal ?? width! / height! >= kScreenRatio,
+            ),
+            if (needRelated && videoDetailController.showRelatedVideo) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    top: Style.safeSpace,
+                  ),
+                  child: Divider(
+                    height: 1,
+                    indent: 12,
+                    endIndent: 12,
+                    color: colorScheme.outline.withValues(alpha: .08),
+                  ),
                 ),
               ),
+              RelatedVideoPanel(key: videoRelatedKey, heroTag: heroTag),
+            ],
+          ] else
+            PgcIntroPage(
+              key: videoIntroKey,
+              heroTag: heroTag,
+              showEpisodes: showEpisodes,
+              showIntroDetail: showIntroDetail,
+              maxWidth: width ?? maxWidth,
+              isPortrait: isPortrait,
             ),
-            RelatedVideoPanel(key: videoRelatedKey, heroTag: heroTag),
-          ],
-        ] else
-          PgcIntroPage(
-            key: videoIntroKey,
-            heroTag: heroTag,
-            showEpisodes: showEpisodes,
-            showIntroDetail: showIntroDetail,
-            maxWidth: width ?? maxWidth,
-            isPortrait: isPortrait,
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height:
+                  (!videoDetailController.isPlayAll
+                      ? Style.safeSpace
+                      : _glass
+                      ? 54.0 + 24.0
+                      : isPortrait
+                      ? Style.safeSpace
+                      : 80) +
+                  padding.bottom,
+            ),
           ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height:
-                (!videoDetailController.isPlayAll
-                    ? Style.safeSpace
-                    : _glass
-                    ? 54.0 + 24.0
-                    : isPortrait
-                    ? Style.safeSpace
-                    : 80) +
-                padding.bottom,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
 
     if (videoDetailController.isPlayAll) {
@@ -1879,95 +1905,97 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         ],
       );
     }
-    return KeepAliveWrapper(child: child);
+    return KeepAliveWrapper(child: _belowTabs(child));
   }
 
   Widget get ugcSeasonPanel {
     final videoDetail = ugcIntroController.videoDetail.rawValue;
     return KeepAliveWrapper(
-      child: Column(
-        children: [
-          if (videoDetail.hasParts)
-            if (videoDetail.ugcSeason != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: PagesPanel(
-                  heroTag: heroTag,
-                  ugcIntroController: ugcIntroController,
-                  bvid: ugcIntroController.bvid,
-                  showEpisodes: showEpisodes,
+      child: _belowTabs(
+        Column(
+          children: [
+            if (videoDetail.hasParts)
+              if (videoDetail.ugcSeason != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: PagesPanel(
+                    heroTag: heroTag,
+                    ugcIntroController: ugcIntroController,
+                    bvid: ugcIntroController.bvid,
+                    showEpisodes: showEpisodes,
+                  ),
+                )
+              else
+                Expanded(
+                  child: Obx(
+                    () => EpisodePanel(
+                      heroTag: heroTag,
+                      enableSlide: false,
+                      ugcIntroController: ugcIntroController,
+                      type: .part,
+                      list: [videoDetail.pages!],
+                      cover: videoDetailController.cover.value,
+                      bvid: videoDetailController.bvid,
+                      aid: videoDetailController.aid,
+                      cid: videoDetailController.cid.value,
+                      isReversed: videoDetail.isPageReversed,
+                      onChangeEpisode: ugcIntroController.onChangeEpisode,
+                      showTitle: false,
+                      isSupportReverse: true,
+                      onReverse: () => onReversePlay(isSeason: false),
+                    ),
+                  ),
                 ),
-              )
-            else
+            if (videoDetail.ugcSeason != null) ...[
+              if (videoDetail.hasParts) ...[
+                const SizedBox(height: 8),
+                Divider(
+                  height: 1,
+                  color: colorScheme.outline.withValues(alpha: 0.1),
+                ),
+              ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Obx(
+                  () => ugc.SeasonPanel(
+                    key: ValueKey(introController.videoDetail.value),
+                    heroTag: heroTag,
+                    canTap: false,
+                    showEpisodes: showEpisodes,
+                    ugcIntroController: ugcIntroController,
+                  ),
+                ),
+              ),
               Expanded(
                 child: Obx(
                   () => EpisodePanel(
                     heroTag: heroTag,
                     enableSlide: false,
                     ugcIntroController: ugcIntroController,
-                    type: .part,
-                    list: [videoDetail.pages!],
+                    type: .season,
+                    initialTabIndex: videoDetailController.seasonIndex.value,
                     cover: videoDetailController.cover.value,
+                    seasonId: videoDetail.ugcSeason!.id,
+                    list: videoDetail.ugcSeason!.sections!,
                     bvid: videoDetailController.bvid,
                     aid: videoDetailController.aid,
-                    cid: videoDetailController.cid.value,
-                    isReversed: videoDetail.isPageReversed,
+                    cid: videoDetailController.seasonCid ?? 0,
+                    isReversed: ugcIntroController
+                        .videoDetail
+                        .value
+                        .ugcSeason!
+                        .sections![videoDetailController.seasonIndex.value]
+                        .isReversed,
                     onChangeEpisode: ugcIntroController.onChangeEpisode,
                     showTitle: false,
                     isSupportReverse: true,
-                    onReverse: () => onReversePlay(isSeason: false),
+                    onReverse: () => onReversePlay(isSeason: true),
                   ),
                 ),
               ),
-          if (videoDetail.ugcSeason != null) ...[
-            if (videoDetail.hasParts) ...[
-              const SizedBox(height: 8),
-              Divider(
-                height: 1,
-                color: colorScheme.outline.withValues(alpha: 0.1),
-              ),
             ],
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Obx(
-                () => ugc.SeasonPanel(
-                  key: ValueKey(introController.videoDetail.value),
-                  heroTag: heroTag,
-                  canTap: false,
-                  showEpisodes: showEpisodes,
-                  ugcIntroController: ugcIntroController,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Obx(
-                () => EpisodePanel(
-                  heroTag: heroTag,
-                  enableSlide: false,
-                  ugcIntroController: ugcIntroController,
-                  type: .season,
-                  initialTabIndex: videoDetailController.seasonIndex.value,
-                  cover: videoDetailController.cover.value,
-                  seasonId: videoDetail.ugcSeason!.id,
-                  list: videoDetail.ugcSeason!.sections!,
-                  bvid: videoDetailController.bvid,
-                  aid: videoDetailController.aid,
-                  cid: videoDetailController.seasonCid ?? 0,
-                  isReversed: ugcIntroController
-                      .videoDetail
-                      .value
-                      .ugcSeason!
-                      .sections![videoDetailController.seasonIndex.value]
-                      .isReversed,
-                  onChangeEpisode: ugcIntroController.onChangeEpisode,
-                  showTitle: false,
-                  isSupportReverse: true,
-                  onReverse: () => onReversePlay(isSeason: true),
-                ),
-              ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }

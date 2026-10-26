@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
@@ -129,6 +130,123 @@ void main() {
     });
   });
 
+  group('GlassTabsOverlay', () {
+    Widget list(Key key) => Builder(
+      builder: (context) => CustomScrollView(
+        slivers: [
+          HeaderOverlayInset.sliver(context),
+          SliverToBoxAdapter(child: SizedBox(key: key, height: 100)),
+        ],
+      ),
+    );
+
+    testWidgets('lists start below the tabs, and panels beside at 0', (
+      tester,
+    ) async {
+      final controller = TabController(length: 2, vsync: const TestVSync());
+      addTearDown(controller.dispose);
+      const under = Key('under');
+      const beside = Key('beside');
+      await tester.pumpWidget(
+        _app(
+          SizedBox(
+            height: 600,
+            child: Row(
+              children: [
+                Expanded(child: list(beside)),
+                Expanded(
+                  child: GlassTabsOverlay(
+                    tabBar: GlassDetailTabRow(
+                      controller: controller,
+                      tabs: const ['简介', '评论'],
+                      onSendDanmaku: () {},
+                      showDanmaku: true.obs,
+                      onToggleDanmaku: () {},
+                    ),
+                    pages: TabBarView(
+                      controller: controller,
+                      children: [list(under), const SizedBox()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          width: 800,
+        ),
+      );
+      expect(tester.getTopLeft(find.byKey(under)).dy, 50);
+      expect(tester.getTopLeft(find.byKey(beside)).dy, 0);
+    });
+
+    testWidgets('touches between the pills reach the list', (tester) async {
+      final controller = TabController(length: 1, vsync: const TestVSync());
+      addTearDown(controller.dispose);
+      var tapped = 0;
+      await tester.pumpWidget(
+        _app(
+          SizedBox(
+            height: 600,
+            child: GlassTabsOverlay(
+              tabBar: GlassDetailTabRow(
+                controller: controller,
+                tabs: const ['简介'],
+                onSendDanmaku: () {},
+                showDanmaku: true.obs,
+                onToggleDanmaku: () {},
+              ),
+              pages: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => tapped++,
+              ),
+            ),
+          ),
+        ),
+      );
+      final pillEnd = tester.getTopRight(find.byType(TabBar)).dx;
+      final sendStart = tester.getTopLeft(find.text('发弹幕')).dx;
+      expect(sendStart - pillEnd, greaterThan(40));
+      // Beside the tab pill, above it, and in the fade below the row.
+      await tester.tapAt(Offset((pillEnd + sendStart) / 2, 26));
+      await tester.tapAt(const Offset(200, 3));
+      await tester.tapAt(const Offset(200, 56));
+      expect(tapped, 3);
+    });
+
+    testWidgets('takes a new controller as the tabs grow', (tester) async {
+      await tester.pumpWidget(
+        _app(const SizedBox(height: 600, child: _Tabs())),
+      );
+      expect(find.text('评论'), findsOneWidget);
+      expect(find.text('播放列表'), findsNothing);
+
+      tester.state<_TabsState>(find.byType(_Tabs)).grow();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('播放列表'), findsOneWidget);
+
+      await tester.tap(find.text('播放列表'));
+      await tester.pumpAndSettle();
+      expect(find.text('page 2'), findsOneWidget);
+    });
+
+    // As the window turns, the old tab bar rebuilds for the new MediaQuery
+    // in the same frame as its controller is replaced.
+    testWidgets('takes a new controller as the tabs grow while turning', (
+      tester,
+    ) async {
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _app(const SizedBox(height: 600, child: _Tabs())),
+      );
+      tester.state<_TabsState>(find.byType(_Tabs)).grow();
+      tester.view.physicalSize = const Size(2400, 1080);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('播放列表'), findsOneWidget);
+    });
+  });
+
   testWidgets('GlassReplySortRow sorts on a tap', (tester) async {
     var sorted = 0;
     await tester.pumpWidget(
@@ -162,4 +280,58 @@ void main() {
     await tester.tap(find.byTooltip('发表评论'));
     expect(replied, 1);
   });
+}
+
+/// Replaces its controller while building the tab row, as the video page's
+/// buildTabBar does, before building the pages that take it.
+class _Tabs extends StatefulWidget {
+  const _Tabs();
+
+  @override
+  State<_Tabs> createState() => _TabsState();
+}
+
+class _TabsState extends State<_Tabs> with TickerProviderStateMixin {
+  var tabs = ['简介', '评论'];
+  late var controller = TabController(length: tabs.length, vsync: this);
+
+  void grow() => setState(() => tabs = [...tabs, '播放列表']);
+
+  Widget buildTabBar() {
+    if (controller.length != tabs.length) {
+      controller.dispose();
+      controller = TabController(
+        vsync: this,
+        length: tabs.length,
+        initialIndex: controller.index.clamp(0, tabs.length - 1),
+      );
+    }
+    return GlassDetailTabRow(
+      controller: controller,
+      tabs: tabs,
+      onSendDanmaku: () {},
+      showDanmaku: true.obs,
+      onToggleDanmaku: () {},
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tabBar = buildTabBar();
+    return GlassTabsOverlay(
+      tabBar: tabBar,
+      pages: TabBarView(
+        controller: controller,
+        children: [
+          for (var i = 0; i < tabs.length; i++) Center(child: Text('page $i')),
+        ],
+      ),
+    );
+  }
 }

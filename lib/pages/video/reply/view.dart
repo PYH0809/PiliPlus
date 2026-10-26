@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/skeleton/video_reply.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -85,12 +86,12 @@ class _VideoReplyPanelState extends State<VideoReplyPanel>
             physics: const AlwaysScrollableScrollPhysics(),
             key: const PageStorageKey(_VideoReplyPanelState),
             slivers: [
-              if (_glass)
-                SliverFloatingHeaderWidget(
-                  backgroundColor: colorScheme.surface,
-                  child: _glassSortRow(),
-                )
-              else
+              // On glass the row starts below the tabs laid over the list and
+              // scrolls away, as floating back it would slide under them.
+              if (_glass) ...[
+                HeaderOverlayInset.sliver(context),
+                SliverToBoxAdapter(child: _glassSortRow()),
+              ] else
                 SliverFloatingHeaderWidget(
                   backgroundColor: colorScheme.surface,
                   child: Padding(
