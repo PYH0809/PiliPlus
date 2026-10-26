@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/draggable_sheet/dyn.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/marquee.dart';
 import 'package:PiliPlus/pages/live_room/controller.dart';
 import 'package:PiliPlus/pages/setting/models/play_settings.dart'
@@ -108,193 +110,228 @@ class _LiveHeaderControlState extends State<LiveHeaderControl>
         ],
       );
     }
+    final glass = GlassSurfaces.installed;
+    // On glass the buttons sit in capsules, as the video's header has them.
+    if (glass) {
+      child = Padding(padding: const .symmetric(horizontal: 10), child: child);
+    }
     child = Expanded(child: child);
 
-    const btnHeight = 30.0;
+    final btnWidth = glass ? (isFullScreen ? 44.0 : 36.0) : 34.0;
+    final btnHeight = glass ? (isFullScreen ? 40.0 : 32.0) : 30.0;
+    Widget capsule(Widget row) => glass ? VideoGlass.capsule(child: row) : row;
 
-    return Padding(
-      padding: const .symmetric(horizontal: 14, vertical: 13),
+    final header = Padding(
+      padding: glass
+          ? .symmetric(horizontal: isFullScreen ? 16 : 8, vertical: 8)
+          : const .symmetric(horizontal: 14, vertical: 13),
       child: Row(
         children: [
           if (isFullScreen || plPlayerController.isDesktopPip)
-            ComBtn(
-              height: btnHeight,
-              tooltip: '返回',
-              icon: const Icon(FontAwesomeIcons.arrowLeft, size: 15),
-              onTap: () {
-                if (plPlayerController.isDesktopPip) {
-                  plPlayerController.exitDesktopPip();
-                } else {
-                  plPlayerController.triggerFullScreen(status: false);
-                }
-              },
+            capsule(
+              ComBtn(
+                width: btnWidth,
+                height: btnHeight,
+                tooltip: '返回',
+                icon: const Icon(FontAwesomeIcons.arrowLeft, size: 15),
+                onTap: () {
+                  if (plPlayerController.isDesktopPip) {
+                    plPlayerController.exitDesktopPip();
+                  } else {
+                    plPlayerController.triggerFullScreen(status: false);
+                  }
+                },
+              ),
             ),
           child,
           ...?timeBatteryWidgets,
           const SizedBox(width: 10),
-          if (PlatformUtils.isDesktop && !plPlayerController.isDesktopPip)
-            Obx(() {
-              final isAlwaysOnTop = plPlayerController.isAlwaysOnTop.value;
-              return ComBtn(
-                height: btnHeight,
-                tooltip: '${isAlwaysOnTop ? '取消' : ''}置顶',
-                icon: isAlwaysOnTop
-                    ? const Icon(
-                        size: 18,
-                        Icons.push_pin,
-                        color: Colors.white,
-                      )
-                    : const Icon(
-                        size: 18,
-                        Icons.push_pin_outlined,
-                        color: Colors.white,
-                      ),
-                onTap: () => plPlayerController.setAlwaysOnTop(!isAlwaysOnTop),
-              );
-            }),
-          if (isFullScreen || PlatformUtils.isDesktop)
-            ComBtn(
-              height: btnHeight,
-              tooltip: '发弹幕',
-              icon: const Icon(
-                size: 18,
-                Icons.comment_outlined,
-                color: Colors.white,
-              ),
-              onTap: widget.onSendDanmaku,
-            ),
-          if ((Platform.isAndroid && PiliAndroidHelper.isPipAvailable) ||
-              (Platform.isIOS && IOSPipHelper.isAvailable) ||
-              (PlatformUtils.isDesktop && !isFullScreen))
-            ComBtn(
-              height: btnHeight,
-              tooltip: '画中画',
-              onTap: () {
-                if (PlatformUtils.isDesktop) {
-                  plPlayerController.toggleDesktopPip();
-                } else {
-                  plPlayerController.enterPip();
-                }
-              },
-              icon: const Icon(
-                size: 18,
-                Icons.picture_in_picture_outlined,
-                color: Colors.white,
-              ),
-            ),
-          Obx(
-            () => ComBtn(
-              height: btnHeight,
-              tooltip: '仅播放音频',
-              onTap: () {
-                plPlayerController.onlyPlayAudio.toggle();
-                widget.onPlayAudio();
-              },
-              icon: plPlayerController.onlyPlayAudio.value
-                  ? const Icon(
+          capsule(
+            Row(
+              mainAxisSize: .min,
+              children: [
+                if (PlatformUtils.isDesktop && !plPlayerController.isDesktopPip)
+                  Obx(() {
+                    final isAlwaysOnTop =
+                        plPlayerController.isAlwaysOnTop.value;
+                    return ComBtn(
+                      width: btnWidth,
+                      height: btnHeight,
+                      tooltip: '${isAlwaysOnTop ? '取消' : ''}置顶',
+                      icon: isAlwaysOnTop
+                          ? const Icon(
+                              size: 18,
+                              Icons.push_pin,
+                              color: Colors.white,
+                            )
+                          : const Icon(
+                              size: 18,
+                              Icons.push_pin_outlined,
+                              color: Colors.white,
+                            ),
+                      onTap: () =>
+                          plPlayerController.setAlwaysOnTop(!isAlwaysOnTop),
+                    );
+                  }),
+                if (isFullScreen || PlatformUtils.isDesktop)
+                  ComBtn(
+                    width: btnWidth,
+                    height: btnHeight,
+                    tooltip: '发弹幕',
+                    icon: const Icon(
                       size: 18,
-                      MdiIcons.musicCircle,
-                      color: Colors.white,
-                    )
-                  : const Icon(
-                      size: 18,
-                      MdiIcons.musicCircleOutline,
+                      Icons.comment_outlined,
                       color: Colors.white,
                     ),
-            ),
-          ),
-          if (PlatformUtils.isMobile)
-            Obx(() {
-              final continuePlayInBackground =
-                  plPlayerController.continuePlayInBackground.value;
-              return ComBtn(
-                height: btnHeight,
-                tooltip: '${continuePlayInBackground ? '关闭' : ''}后台播放',
-                onTap: plPlayerController.setContinuePlayInBackground,
-                icon: continuePlayInBackground
-                    ? const Icon(
-                        size: 18,
-                        Icons.play_circle,
-                        color: Colors.white,
-                      )
-                    : const Icon(
-                        size: 18,
-                        Icons.play_circle_outline,
-                        color: Colors.white,
-                      ),
-              );
-            }),
-          ComBtn(
-            height: btnHeight,
-            tooltip: '定时关闭',
-            onTap: () => shutdownTimerService.showScheduleExitDialog(
-              context,
-              isFullScreen: isFullScreen,
-              isLive: true,
-            ),
-            icon: const Icon(
-              size: 18,
-              Icons.schedule,
-              color: Colors.white,
-            ),
-          ),
-          if (plPlayerController.videoPlayerController case final player?)
-            SizedBox.square(
-              dimension: 30,
-              child: PopupMenuButton(
-                iconSize: 18,
-                padding: .zero,
-                iconColor: Colors.white,
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    height: 35,
-                    onTap: _showLiveStreamDialog,
-                    child: const Row(
-                      spacing: 8,
-                      children: [
-                        Icon(Icons.alt_route, size: 17),
-                        Text('切换路线', style: TextStyle(fontSize: 14)),
-                      ],
+                    onTap: widget.onSendDanmaku,
+                  ),
+                if ((Platform.isAndroid && PiliAndroidHelper.isPipAvailable) ||
+                    (Platform.isIOS && IOSPipHelper.isAvailable) ||
+                    (PlatformUtils.isDesktop && !isFullScreen))
+                  ComBtn(
+                    width: btnWidth,
+                    height: btnHeight,
+                    tooltip: '画中画',
+                    onTap: () {
+                      if (PlatformUtils.isDesktop) {
+                        plPlayerController.toggleDesktopPip();
+                      } else {
+                        plPlayerController.enterPip();
+                      }
+                    },
+                    icon: const Icon(
+                      size: 18,
+                      Icons.picture_in_picture_outlined,
+                      color: Colors.white,
                     ),
                   ),
-                  PopupMenuItem(
-                    height: 35,
-                    child: const Row(
-                      spacing: 8,
-                      children: [
-                        Icon(Icons.info_outline, size: 17),
-                        Text('播放信息', style: TextStyle(fontSize: 14)),
-                      ],
-                    ),
-                    onTap: () => HeaderControlState.showPlayerInfo(
-                      context,
-                      player: player,
-                    ),
-                  ),
-                  if (PlatformUtils.isMobile)
-                    PopupMenuItem(
-                      height: 35,
-                      child: Row(
-                        spacing: 8,
-                        children: [
-                          const Icon(Icons.volume_up, size: 17),
-                          Text(
-                            '播放器音量: ${player.getProperty('volume').subLength(3)}%',
-                            style: const TextStyle(fontSize: 14),
+                Obx(
+                  () => ComBtn(
+                    width: btnWidth,
+                    height: btnHeight,
+                    tooltip: '仅播放音频',
+                    onTap: () {
+                      plPlayerController.onlyPlayAudio.toggle();
+                      widget.onPlayAudio();
+                    },
+                    icon: plPlayerController.onlyPlayAudio.value
+                        ? const Icon(
+                            size: 18,
+                            MdiIcons.musicCircle,
+                            color: Colors.white,
+                          )
+                        : const Icon(
+                            size: 18,
+                            MdiIcons.musicCircleOutline,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                      onTap: () => showPlayerVolumeDialog(
-                        context,
-                        () {},
-                        onChanged: player.setVolume,
-                      ),
+                  ),
+                ),
+                if (PlatformUtils.isMobile)
+                  Obx(() {
+                    final continuePlayInBackground =
+                        plPlayerController.continuePlayInBackground.value;
+                    return ComBtn(
+                      width: btnWidth,
+                      height: btnHeight,
+                      tooltip: '${continuePlayInBackground ? '关闭' : ''}后台播放',
+                      onTap: plPlayerController.setContinuePlayInBackground,
+                      icon: continuePlayInBackground
+                          ? const Icon(
+                              size: 18,
+                              Icons.play_circle,
+                              color: Colors.white,
+                            )
+                          : const Icon(
+                              size: 18,
+                              Icons.play_circle_outline,
+                              color: Colors.white,
+                            ),
+                    );
+                  }),
+                ComBtn(
+                  width: btnWidth,
+                  height: btnHeight,
+                  tooltip: '定时关闭',
+                  onTap: () => shutdownTimerService.showScheduleExitDialog(
+                    context,
+                    isFullScreen: isFullScreen,
+                    isLive: true,
+                  ),
+                  icon: const Icon(
+                    size: 18,
+                    Icons.schedule,
+                    color: Colors.white,
+                  ),
+                ),
+                if (plPlayerController.videoPlayerController case final player?)
+                  SizedBox(
+                    width: glass ? btnWidth : 30,
+                    height: glass ? btnHeight : 30,
+                    child: PopupMenuButton(
+                      iconSize: 18,
+                      padding: .zero,
+                      iconColor: Colors.white,
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          height: 35,
+                          onTap: _showLiveStreamDialog,
+                          child: const Row(
+                            spacing: 8,
+                            children: [
+                              Icon(Icons.alt_route, size: 17),
+                              Text('切换路线', style: TextStyle(fontSize: 14)),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          height: 35,
+                          child: const Row(
+                            spacing: 8,
+                            children: [
+                              Icon(Icons.info_outline, size: 17),
+                              Text('播放信息', style: TextStyle(fontSize: 14)),
+                            ],
+                          ),
+                          onTap: () => HeaderControlState.showPlayerInfo(
+                            context,
+                            player: player,
+                          ),
+                        ),
+                        if (PlatformUtils.isMobile)
+                          PopupMenuItem(
+                            height: 35,
+                            child: Row(
+                              spacing: 8,
+                              children: [
+                                const Icon(Icons.volume_up, size: 17),
+                                Text(
+                                  '播放器音量: ${player.getProperty('volume').subLength(3)}%',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ],
+                            ),
+                            onTap: () => showPlayerVolumeDialog(
+                              context,
+                              () {},
+                              onChanged: player.setVolume,
+                            ),
+                          ),
+                      ],
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
+    );
+    if (!glass) {
+      return header;
+    }
+    return Theme(
+      data: VideoGlass.controlsTheme(Theme.of(context)),
+      child: header,
     );
   }
 

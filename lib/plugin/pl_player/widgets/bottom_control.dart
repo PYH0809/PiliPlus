@@ -143,24 +143,6 @@ class BottomControl extends StatelessWidget {
     );
   }
 
-  static final _darkSchemes = <Color, ColorScheme>{};
-
-  static ThemeData _dark(ThemeData theme) {
-    final colorScheme = theme.colorScheme;
-    if (colorScheme.brightness == Brightness.dark) {
-      return theme;
-    }
-    return theme.copyWith(
-      colorScheme: _darkSchemes.putIfAbsent(
-        colorScheme.primary,
-        () => ColorScheme.fromSeed(
-          seedColor: colorScheme.primary,
-          brightness: Brightness.dark,
-        ),
-      ),
-    );
-  }
-
   // One rounded pane: the times flank the progress bar, the buttons below.
   Widget _onGlass(BuildContext context, Widget progress) {
     const timeStyle = TextStyle(
@@ -185,9 +167,8 @@ class BottomControl extends StatelessWidget {
           : const EdgeInsets.fromLTRB(8, 0, 8, 6),
       child: VideoGlass(
         radius: isFullScreen ? 26 : 20,
-        // Dark, as the glass is in either theme: its menus read so too.
         child: Theme(
-          data: GlassSurfaces.withoutRipples(_dark(Theme.of(context))),
+          data: VideoGlass.controlsTheme(Theme.of(context)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 8, 6, 2),
             child: Column(

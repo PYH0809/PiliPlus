@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -88,6 +89,27 @@ class VideoGlass extends StatelessWidget {
           : child,
     ),
   );
+
+  static final _darkSchemes = <Color, ColorScheme>{};
+
+  /// [theme] for the controls on this glass: dark, as the glass is in either
+  /// theme, so that their menus read so too, and without ripples.
+  static ThemeData controlsTheme(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+    return GlassSurfaces.withoutRipples(
+      colorScheme.brightness == Brightness.dark
+          ? theme
+          : theme.copyWith(
+              colorScheme: _darkSchemes.putIfAbsent(
+                colorScheme.primary,
+                () => ColorScheme.fromSeed(
+                  seedColor: colorScheme.primary,
+                  brightness: Brightness.dark,
+                ),
+              ),
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
