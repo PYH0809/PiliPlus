@@ -33,6 +33,10 @@ android {
         targetSdk = 37
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Impeller stays off in release builds. Dev builds turn it on so the
+        // liquid glass nav bar can refract; without Impeller it only frosts.
+        manifestPlaceholders["enableImpeller"] =
+            project.hasProperty("dev").toString()
     }
 
     packagingOptions.jniLibs.useLegacyPackaging = true

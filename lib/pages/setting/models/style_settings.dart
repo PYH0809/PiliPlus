@@ -139,6 +139,14 @@ List<SettingsModel> get styleSettings => [
     defaultVal: false,
     needReboot: true,
   ),
+  const SwitchModel(
+    title: '液态玻璃',
+    subtitle: '实验性：底栏和首页顶栏改用液态玻璃，未启用 Impeller 时只有磨砂效果',
+    leading: Icon(Icons.blur_on),
+    setKey: SettingBoxKey.liquidGlass,
+    defaultVal: true,
+    needReboot: true,
+  ),
   SwitchModel(
     title: '显示粉丝勋章',
     leading: const Icon(MdiIcons.medalOutline),

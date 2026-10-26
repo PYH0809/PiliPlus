@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/button/more_btn.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
@@ -52,6 +53,14 @@ class _LivePageState extends State<LivePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    // Its area bar and tags pin, so it starts below a header laid over it.
+    return HeaderOverlayInset.below(
+      context,
+      child: _buildPage(),
+    );
+  }
+
+  Widget _buildPage() {
     return Container(
       clipBehavior: Clip.hardEdge,
       margin: const EdgeInsets.symmetric(horizontal: Style.safeSpace),

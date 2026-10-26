@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -27,7 +27,7 @@ jobs:
         shell: bash
 
       - name: Setup flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
           flutter-version-file: pubspec.yaml
@@ -215,7 +215,7 @@ jobs:
 
       - name: Release
         if: ${{ github.event.inputs.tag != '' }}
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ github.event.inputs.tag }}
           name: ${{ github.event.inputs.tag }}
@@ -226,28 +226,28 @@ jobs:
             PiliPlus_linux_*.AppImage
 
       - name: Upload linux targz package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: false
           name: Linux_targz_amd64_packege
           path: PiliPlus_linux_*.tar.gz
 
       - name: Upload linux deb package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: false
           name: Linux_deb_amd64_package
           path: PiliPlus_linux_*.deb
 
       - name: Upload linux rpm package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: false
           name: Linux_rpm_amd64_package
           path: PiliPlus_linux_*.rpm
 
       - name: Upload linux AppImage package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           archive: false
           name: Linux_AppImage_amd64_package

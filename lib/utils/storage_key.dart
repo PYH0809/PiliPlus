@@ -154,6 +154,7 @@ abstract final class SettingBoxKey {
       showDynDispute = 'showDynDispute',
       touchSlopH = 'touchSlopH',
       floatingNavBar = 'floatingNavBar',
+      liquidGlass = 'liquidGlass',
       removeSafeArea = 'removeSafeArea',
       angleDegrees = 'angleDegrees',
       liveStream = 'liveStream',

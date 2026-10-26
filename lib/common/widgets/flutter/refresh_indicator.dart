@@ -6,6 +6,7 @@
 
 import 'dart:async' show Completer;
 
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/refresh_layout.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
@@ -517,6 +518,7 @@ class RefreshIndicatorState extends State<RefreshIndicator>
         _status == RefreshIndicatorStatus.done;
 
     child = RefreshLayout(
+      edgeOffset: HeaderOverlayInset.of(context),
       body: child,
       scale: _scaleFactor,
       position: _positionFactor,

@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/flutter/vertical_tabs.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/models/common/rank_type.dart';
 import 'package:PiliPlus/pages/rank/controller.dart';
 import 'package:PiliPlus/pages/rank/zone/view.dart';
@@ -23,6 +24,13 @@ class _RankPageState extends State<RankPage>
   Widget build(BuildContext context) {
     super.build(context);
     final theme = Theme.of(context);
+    return HeaderOverlayInset.below(
+      context,
+      child: _buildPage(theme),
+    );
+  }
+
+  Widget _buildPage(ThemeData theme) {
     return Row(
       children: [
         _buildTab(theme),
