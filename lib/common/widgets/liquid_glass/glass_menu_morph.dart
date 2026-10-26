@@ -96,6 +96,8 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
     with SingleTickerProviderStateMixin {
   late final _open = GlassSpring(this, 0);
   bool _started = false;
+  // Where the route stood when it began to close.
+  double? _closedFrom;
   PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>? _pressed;
   Rect? _pressedRect;
 
@@ -103,6 +105,22 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
   void initState() {
     super.initState();
     GlassMenuMorph._active = this;
+    widget.animation.addStatusListener(_handleStatus);
+  }
+
+  @override
+  void didUpdateWidget(GlassMenuMorph oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animation != widget.animation) {
+      oldWidget.animation.removeStatusListener(_handleStatus);
+      widget.animation.addStatusListener(_handleStatus);
+    }
+  }
+
+  void _handleStatus(AnimationStatus status) {
+    if (status == AnimationStatus.reverse) {
+      _closedFrom ??= _linear(widget.animation);
+    }
   }
 
   @override
@@ -123,6 +141,7 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
     if (identical(GlassMenuMorph._active, this)) {
       GlassMenuMorph._active = null;
     }
+    widget.animation.removeStatusListener(_handleStatus);
     _open.dispose();
     super.dispose();
   }
@@ -186,12 +205,19 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
   }
 
   // Closing follows the route, which then takes the menu away, from its
-  // linear progress: Material's curve would hold it still at first.
+  // linear progress: Material's curve would hold it still at first. A menu
+  // closed before it opened all the way plays the whole return in the time
+  // its route has left.
   double? get _returnTime {
     if (!_closing) {
       return null;
     }
-    return (1 - _linear(widget.animation)) * _returnSeconds;
+    final from = _closedFrom ?? 1;
+    if (from <= 0) {
+      return _returnSeconds;
+    }
+    final left = _linear(widget.animation) / from;
+    return (1 - left).clamp(0.0, 1.0) * _returnSeconds;
   }
 
   static double _linear(Animation<double> animation) => switch (animation) {
