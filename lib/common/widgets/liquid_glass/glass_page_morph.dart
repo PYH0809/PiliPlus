@@ -382,6 +382,12 @@ class _RenderMorph extends RenderBox
   // How the page stands in its platter while it morphs, and where the face
   // stands; for hit tests and transforms as for paint.
   Matrix4? _pageTransform;
+
+  // Whether the page is morphing, or opening, as last painted. While it
+  // morphs it takes hits only where it is drawn, and while it opens it
+  // takes the rest, so that a tap does not reach the hidden button.
+  bool _morphing = false;
+  bool _opening = false;
   Offset _faceOffset = Offset.zero;
 
   // Where the button last was, and the page as it began to return.
@@ -465,8 +471,11 @@ class _RenderMorph extends RenderBox
     final config = _config!;
     final anchor = _anchor();
     _pageTransform = null;
-    if (anchor == null ||
-        (config.openTime == null && config.returnTime == null)) {
+    _morphing =
+        anchor != null &&
+        (config.openTime != null || config.returnTime != null);
+    _opening = _morphing && config.returnTime == null;
+    if (anchor == null || !_morphing) {
       _clear();
       context.paintChild(_page, offset);
       return;
@@ -778,10 +787,13 @@ class _RenderMorph extends RenderBox
   }
 
   @override
+  bool hitTestSelf(Offset position) => _opening;
+
+  @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
     final transform = _pageTransform;
     if (transform == null) {
-      return _page.hitTest(result, position: position);
+      return !_morphing && _page.hitTest(result, position: position);
     }
     return result.addWithPaintTransform(
       transform: transform,
