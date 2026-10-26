@@ -131,7 +131,8 @@ jobs:
                   for file in PiliPlus_android_*.apk; do
                     echo "::group::$file"
                     sha256sum "$file"
-                    "$tools/zipalign" -c 4 "$file" && echo "zipalign: ok"
+                    "$tools/zipalign" -c 4 "$file"
+                    echo "zipalign: ok"
                     "$tools/apksigner" verify --verbose --print-certs --min-sdk-version 21 "$file" | grep -v "DN:"
                     echo "::endgroup::"
                   done
