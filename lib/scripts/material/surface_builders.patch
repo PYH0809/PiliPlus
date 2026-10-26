@@ -273,10 +273,10 @@ index 0022a99..751c447 100644
  // This WidgetStateProperty is passed along to the menu item's InkWell which
 diff --git a/lib/src/surface_builders.dart b/lib/src/surface_builders.dart
 new file mode 100644
-index 0000000..5250cad
+index 0000000..bff9d94
 --- /dev/null
 +++ b/lib/src/surface_builders.dart
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,69 @@
 +// PiliPlus: lets the app draw the surfaces of dialogs and popup menus itself,
 +// as liquid glass does, in place of their Material.
 +
@@ -301,9 +301,15 @@ index 0000000..5250cad
 +    );
 +
 +/// Builds a switch for [value], in place of Material's track and thumb.
-+/// [onChanged] is null when the switch is disabled.
++/// [onChanged] is null when the switch is disabled. [thumbIcon] is the one the
++/// Switch itself was given, not its theme's.
 +typedef SwitchBuilder =
-+    Widget Function(BuildContext context, bool value, ValueChanged<bool>? onChanged);
++    Widget Function(
++      BuildContext context,
++      bool value,
++      ValueChanged<bool>? onChanged,
++      WidgetStateProperty<Icon?>? thumbIcon,
++    );
 +
 +/// Builds a PopupMenuButton around its [button], given what [open]s its
 +/// menu, so that a press can open it rather than a tap.
@@ -341,7 +347,7 @@ index 0000000..5250cad
 +  static Duration? popupMenuReverseDuration;
 +}
 diff --git a/lib/src/switch.dart b/lib/src/switch.dart
-index dd0fc48..644b98c 100644
+index dd0fc48..d369502 100644
 --- a/lib/src/switch.dart
 +++ b/lib/src/switch.dart
 @@ -23,6 +23,7 @@ import 'constants.dart';
@@ -358,7 +364,7 @@ index dd0fc48..644b98c 100644
    Widget build(BuildContext context) {
 +    // PiliPlus: the app's switch in place of Material's.
 +    if (SurfaceBuilders.switchBuilder case final SwitchBuilder builder) {
-+      return builder(context, value, onChanged);
++      return builder(context, value, onChanged, thumbIcon);
 +    }
      Color? effectiveActiveThumbColor;
      Color? effectiveActiveTrackColor;

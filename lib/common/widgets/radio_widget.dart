@@ -65,25 +65,32 @@ class RadioWidgetState<T> extends State<RadioWidget<T>> with RadioClient<T> {
   Widget build(BuildContext context) {
     // On glass, as an iOS list of choices: a row a choice, pressed on a
     // platter, the chosen one checked at its end.
+    // The row reads as a radio button, as the Radio it replaces does.
     if (GlassSurfaces.installed) {
-      return InkWell(
-        onTap: _handleTap,
-        focusNode: focusNode,
-        customBorder: const RoundedSuperellipseBorder(
-          borderRadius: .all(.circular(12)),
-        ),
-        child: Padding(
-          padding: const .symmetric(horizontal: 12, vertical: 11),
-          child: Row(
-            children: [
-              Expanded(child: Text(widget.title)),
-              if (checked)
-                Icon(
-                  Icons.check_rounded,
-                  size: 18,
-                  color: ColorScheme.of(context).primary,
-                ),
-            ],
+      return MergeSemantics(
+        child: Semantics(
+          checked: checked,
+          inMutuallyExclusiveGroup: true,
+          child: InkWell(
+            onTap: _handleTap,
+            focusNode: focusNode,
+            customBorder: const RoundedSuperellipseBorder(
+              borderRadius: .all(.circular(12)),
+            ),
+            child: Padding(
+              padding: const .symmetric(horizontal: 12, vertical: 11),
+              child: Row(
+                children: [
+                  Expanded(child: Text(widget.title)),
+                  if (checked)
+                    Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: ColorScheme.of(context).primary,
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       );

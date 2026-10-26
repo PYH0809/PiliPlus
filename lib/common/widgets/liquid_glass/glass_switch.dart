@@ -16,10 +16,15 @@ class GlassSwitch extends StatefulWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.thumbIcon,
   });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
+
+  /// An icon on the thumb, as [Switch.thumbIcon], for a switch that means
+  /// more than on and off, such as one locked on.
+  final WidgetStateProperty<Icon?>? thumbIcon;
 
   static const trackWidth = 52.0;
   static const trackHeight = 32.0;
@@ -223,12 +228,36 @@ class _GlassSwitchState extends State<GlassSwitch>
     final thumbFill = lens
         ? thumbColor.withValues(alpha: thumbColor.a * (1 - lift))
         : Color.lerp(thumbColor, Colors.white, lift)!;
+    final icon = widget.thumbIcon?.resolve({
+      if (widget.value) WidgetState.selected,
+      if (!enabled) WidgetState.disabled,
+    });
+    // M3's icon colors for the thumb's.
+    final iconColor = enabled
+        ? Color.lerp(
+            colorScheme.surfaceContainerHighest,
+            colorScheme.onPrimaryContainer,
+            on,
+          )
+        : Color.lerp(
+            colorScheme.surfaceContainerHighest.withValues(alpha: 0.38),
+            colorScheme.onSurface.withValues(alpha: 0.38),
+            on,
+          );
     final thumb = DecoratedBox(
       decoration: ShapeDecoration(
         color: thumbFill,
         shape: const StadiumBorder(),
         shadows: lens ? null : shadows,
       ),
+      child: icon == null
+          ? null
+          : Center(
+              child: IconTheme.merge(
+                data: IconThemeData(size: 16, color: iconColor),
+                child: icon,
+              ),
+            ),
     );
     return Stack(
       clipBehavior: Clip.none,

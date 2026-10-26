@@ -91,8 +91,8 @@ abstract final class GlassSurfaces {
         GlassMenuPress(open: open, child: button);
     SurfaceBuilders.popupMenuReverseDuration = glassMenuReturn;
     // As FlClash's: a press lifts the thumb into a lens over the track.
-    SurfaceBuilders.switchBuilder = (context, value, onChanged) =>
-        GlassSwitch(value: value, onChanged: onChanged);
+    SurfaceBuilders.switchBuilder = (context, value, onChanged, thumbIcon) =>
+        GlassSwitch(value: value, onChanged: onChanged, thumbIcon: thumbIcon);
     // The copy and paste menu floats over the text as iOS's edit menu does,
     // a capsule of the menus' glass.
     SurfaceBuilders.textSelectionToolbar = (context, shape, child) {

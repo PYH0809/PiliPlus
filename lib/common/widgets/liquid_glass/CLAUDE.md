@@ -43,7 +43,7 @@ turns on every glass part. It only takes effect after a restart.
 | `liquid_glass_header.dart` | A header over a soft fade, for content that scrolls under it | Yes |
 | `glass_panel.dart` | `GlassPanel`: glass with a rim and a wide shadow, clipping its child, as a menu or alert | Yes |
 | `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled, 取消 at the bottom | Yes |
-| `glass_switch.dart` | `GlassSwitch`, FlClash's switch: a press lifts the thumb into a lens over the track | Yes |
+| `glass_switch.dart` | `GlassSwitch`, FlClash's switch: a press lifts the thumb into a lens over the track. A `Switch`'s own `thumbIcon` (a lock) stays on the thumb; the theme's tick doesn't | Yes |
 | `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, thicker glass, grow in, swell on press), menus (24 dp, rows inset 8), the selection toolbar and switches; `panel`, `pill`, `onGlass` for call sites | Yes |
 | `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass | Yes |
 | `glass_menu_press.dart` | `GlassMenuPress`: a `PopupMenuButton` opens on press and carries the press on into its menu | Yes |
