@@ -1668,3 +1668,31 @@ List<double> _optics(double saturation, double brightness) {
     0, 0, 0, 1, 0,
   ];
 }
+
+// PiliPlus: added, for VideoGlass, glass over a video texture, which the host
+// cannot replay: a backdrop filter runs the same shader over the screen.
+
+/// The glass shader once loaded, or null while it loads, after which
+/// [onLoaded] runs, or for good without Impeller's shader filters.
+ui.FragmentProgram? liquidGlassProgram(VoidCallback onLoaded) =>
+    _GlassProgram.request(onLoaded);
+
+void forgetLiquidGlassProgram(VoidCallback onLoaded) =>
+    _GlassProgram.forget(onLoaded);
+
+/// The shader's uniforms from the pane's shape on, as a pane of [size] with
+/// [corners] in [style] writes them after where it and its texture lie.
+List<double> liquidGlassLook(
+  Size size,
+  BorderRadius corners,
+  LiquidGlassStyle style,
+) {
+  final layer = _LiquidGlassLayer()
+    ..rect = Offset.zero & size
+    ..corners = corners;
+  try {
+    return layer._look(style);
+  } finally {
+    layer.dispose();
+  }
+}
