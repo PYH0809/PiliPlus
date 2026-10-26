@@ -86,6 +86,13 @@ class _DynamicsTabPageState extends State<DynamicsTabPage>
                       itemCount: response.length,
                     )
             : HttpError(onReload: controller.onReload),
+      // Logged out, retrying cannot help.
+      Error(:final errMsg) when !controller.accountService.isLogin.value =>
+        HttpError(
+          errMsg: errMsg,
+          btnText: '去登录',
+          onReload: () => Get.toNamed('/loginPage'),
+        ),
       Error(:final errMsg) => HttpError(
         errMsg: errMsg,
         onReload: controller.onReload,
