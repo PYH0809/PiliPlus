@@ -9,13 +9,16 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
-// The player's glass is dark whatever the theme: its icons are white. Its
-// frost blurs the danmaku passing under them.
+// The player's glass is dark whatever the theme: its icons are white. Over
+// the video alone, it stays clear, as iOS's, so that its rim bends what lies
+// under it; it darkens over bright video, for the icons.
 const _darkStyle = LiquidGlassStyle(
-  tint: Color(0x47000000),
-  blur: 10,
+  tint: Color(0x2E000000),
+  contrast: -0.4,
+  blur: 2.5,
   saturation: 1.6,
-  rim: 0.28,
+  dispersion: 3,
+  rim: 0.45,
   rimWidth: 1.2,
   rimTail: 0.17,
   rimFocus: 1,
