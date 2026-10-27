@@ -2085,8 +2085,12 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       ],
     );
     if (_glass) {
-      // The controls' panes read the screen once between them.
-      child = BackdropGroup(backdropKey: _backdropKey, child: child);
+      // The controls' panes draw the video again under them, frosted or
+      // bent; panes away from it read the screen once between them.
+      child = BackdropGroup(
+        backdropKey: _backdropKey,
+        child: VideoGlassSource(video: _videoKey, child: child),
+      );
     }
     if (PlatformUtils.isDesktop) {
       return Obx(
