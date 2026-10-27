@@ -48,8 +48,8 @@ turns on every glass part. It only takes effect after a restart.
   the page is drawn from a snapshot taken as it starts to open or return, and keeps the keyboard insets it started
   with; a page holds back what would jank the morph, as the search page's keyboard, with
   `GlassMorphButton.deferUntilOpened`.
-- **Switches are iOS's size on glass.** The app shrinks every `Switch` with `Transform.scale`; a new one takes
-  `scale: GlassSurfaces.switchScale`, which keeps Material's at 0.8 and leaves the glass one as it is.
+- **Switches are near iOS's size on glass.** The app shrinks every `Switch` with `Transform.scale`; a new one takes
+  `scale: GlassSurfaces.switchScale`, which keeps Material's at 0.8 and the glass one at 0.9.
 
 ## Files
 
