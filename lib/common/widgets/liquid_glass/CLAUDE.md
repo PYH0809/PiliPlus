@@ -36,7 +36,8 @@ turns on every glass part. It only takes effect after a restart.
   (every `PopupMenuButton` through `GlassMenuPress`, and a pull-down's value) is snapshotted and hidden while its
   menu is open, and `GlassMenuMorph` draws the snapshot sinking into the card as it opens and coming back in the
   droplet as it returns, so the button shows again just where the droplet lands. Call `arm()` right before opening
-  the menu; a pick that changes the button waits for `landed`, so the value changes in place.
+  the menu; one opened another way, from the keyboard or for assistive technology, finds the source standing where it
+  opens from. A pick that changes the button waits for `landed`, so the value changes in place.
 - **Call sites with surfaces of their own** (popovers, banners, a framed screenshot) check `GlassSurfaces.installed`
   and draw on `GlassSurfaces.panel` or `GlassSurfaces.pill` instead. Controls that fill themselves, as `iconButton`
   does, ask `GlassSurfaces.onGlass(context)` and fill with `glassFillOf` there.

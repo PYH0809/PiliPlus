@@ -45,7 +45,10 @@ const _glyphBlur = 4.0;
 /// The button a menu opens out of, as FlClash's popup source: while its menu
 /// is open it is hidden, and the menu draws it from a snapshot instead, sinking
 /// into the card as it opens and coming back in the droplet that returns into
-/// it, so the button takes over where the droplet lands.
+/// it, so the button takes over where the droplet lands. A menu takes the
+/// source [GlassMenuSourceState.arm]ed for it, or else the one standing where
+/// it opens from, as when its button opens it from the keyboard or for
+/// assistive technology.
 class GlassMenuSource extends StatefulWidget {
   const GlassMenuSource({super.key, required this.child});
 
@@ -57,6 +60,7 @@ class GlassMenuSource extends StatefulWidget {
 
 class GlassMenuSourceState extends State<GlassMenuSource> {
   static GlassMenuSourceState? _armed;
+  static final _sources = <GlassMenuSourceState>{};
 
   final _boundary = GlobalKey();
   final _hidden = ValueNotifier(false);
@@ -79,10 +83,47 @@ class GlassMenuSourceState extends State<GlassMenuSource> {
   /// returning droplet.
   Future<void> get landed => _landed?.future ?? Future.value();
 
-  static GlassMenuSourceState? _take() {
-    final source = _armed;
+  @override
+  void initState() {
+    super.initState();
+    _sources.add(this);
+  }
+
+  static GlassMenuSourceState? _take(Rect anchor) {
+    final armed = _armed;
     _armed = null;
-    return source != null && source.mounted ? source : null;
+    if (armed != null && armed.mounted) {
+      return armed;
+    }
+    for (final source in _sources) {
+      if (source._isAt(anchor)) {
+        return source;
+      }
+    }
+    return null;
+  }
+
+  // Whether this stands at [anchor], a rect in its navigator's overlay, on a
+  // page that shows: a covered page keeps its buttons, offstage.
+  bool _isAt(Rect anchor) {
+    if (!mounted || !TickerMode.getValuesNotifier(context).value.enabled) {
+      return false;
+    }
+    final box = context.findRenderObject();
+    final overlay = Navigator.maybeOf(
+      context,
+    )?.overlay?.context.findRenderObject();
+    if (box is! RenderBox ||
+        !box.attached ||
+        !box.hasSize ||
+        overlay is! RenderBox) {
+      return false;
+    }
+    final rect = box.localToGlobal(.zero, ancestor: overlay) & box.size;
+    return (rect.left - anchor.left).abs() < 1 &&
+        (rect.top - anchor.top).abs() < 1 &&
+        (rect.width - anchor.width).abs() < 1 &&
+        (rect.height - anchor.height).abs() < 1;
   }
 
   ui.Image? _capture() {
@@ -113,6 +154,7 @@ class GlassMenuSourceState extends State<GlassMenuSource> {
     if (identical(_armed, this)) {
       _armed = null;
     }
+    _sources.remove(this);
     _landed?.complete();
     _landed = null;
     _hidden.dispose();
@@ -182,8 +224,8 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
     super.initState();
     GlassMenuMorph._active = this;
     widget.animation.addStatusListener(_handleStatus);
-    if (widget.anchor != null) {
-      _source = GlassMenuSourceState._take();
+    if (widget.anchor case final anchor?) {
+      _source = GlassMenuSourceState._take(anchor);
     }
     // The button may still paint the press that opened the menu, so it is
     // taken once this frame has painted.

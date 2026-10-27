@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/pages/setting/widgets/popup_item.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
@@ -63,6 +64,34 @@ void main() {
     // Still on its way back, the menu draws the button in its droplet.
     expect(_shown(tester, button), 0);
 
+    await tester.pumpAndSettle();
+    expect(find.text('一'), findsNothing);
+    expect(_shown(tester, button), 1);
+  });
+
+  testWidgets('a button opened from the keyboard hides and returns too', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        PopupMenuButton<int>(
+          itemBuilder: (_) => const [PopupMenuItem(value: 1, child: Text('一'))],
+          child: const Text('按钮'),
+        ),
+      ),
+    );
+    final button = find.text('按钮');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('一'), findsOneWidget);
+    expect(_shown(tester, button), 0);
+
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.text('一'), findsNothing);
     expect(_shown(tester, button), 1);
