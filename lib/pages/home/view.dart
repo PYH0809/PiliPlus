@@ -2,8 +2,8 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_height_widget.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
-import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
@@ -107,12 +107,11 @@ class _HomePageState extends CommonPageState<HomePage>
     }
   }
 
-  void _toSearch() => Get.toNamed(
-    '/search',
-    parameters: _homeController.enableSearchWord
-        ? {'hintText': _homeController.defaultSearch.value}
-        : null,
-  );
+  Map<String, String>? get _searchParameters => _homeController.enableSearchWord
+      ? {'hintText': _homeController.defaultSearch.value}
+      : null;
+
+  void _toSearch() => Get.toNamed('/search', parameters: _searchParameters);
 
   /// The header in liquid glass, laid over the content, which scrolls under it
   /// starting below it.
@@ -196,8 +195,9 @@ class _HomePageState extends CommonPageState<HomePage>
             Expanded(
               child: SizedBox(
                 height: 44,
-                child: LiquidGlassButton(
-                  onTap: _toSearch,
+                child: GlassMorphButton(
+                  onTap: (button) =>
+                      button.toNamed('/search', parameters: _searchParameters),
                   shadows: floatingGlassShadows(_colorScheme),
                   child: Row(
                     children: [
@@ -407,10 +407,14 @@ Widget userAvatar({
   );
 }
 
-void _openMessages(MainController mainController) {
+void _readMessages(MainController mainController) {
   mainController
     ..clearUnreadMsg()
     ..lastCheckUnreadAt = DateTime.now().millisecondsSinceEpoch;
+}
+
+void _openMessages(MainController mainController) {
+  _readMessages(mainController);
   Get.toNamed('/whisper');
 }
 
@@ -434,9 +438,12 @@ Widget msgBadge(MainController mainController, {bool glass = false}) {
             padding: const EdgeInsets.only(right: 8),
             child: SizedBox.square(
               dimension: 40,
-              child: LiquidGlassButton(
+              child: GlassMorphButton(
                 tooltip: '消息',
-                onTap: () => _openMessages(mainController),
+                onTap: (button) {
+                  _readMessages(mainController);
+                  button.toNamed('/whisper');
+                },
                 child: Center(child: icon),
               ),
             ),

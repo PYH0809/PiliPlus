@@ -5,11 +5,11 @@
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_droplet.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/goo.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:flutter/foundation.dart' show listEquals;
-import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,35 +26,10 @@ final _openSpring = SpringDescription.withDampingRatio(
 const _contentFrom = 0.3;
 
 /// How long a menu takes to return into its button.
-const glassMenuReturn = Duration(milliseconds: 500);
+const glassMenuReturn = glassDropletReturn;
 
-// iOS returns a menu into its button as one drop of glass: the platter dips
-// away, then shrinks into the button, which re-forms out of a droplet and
-// rises past its place.
-final _droplet = SpringSimulation(
-  SpringDescription.withDampingRatio(mass: 1, stiffness: 165, ratio: 0.8),
-  0,
-  1,
-  0,
-);
-const _dropletBlend = 28.0;
+// The rows leave this soon into the return.
 const _dropletContentOut = 0.1;
-const _dropletShare = 0.25;
-const _platterInControl = 0.41;
-final _returnSeconds = glassMenuReturn.inMicroseconds / 1e6;
-
-// Inside the button by then, the droplet dissolves into it, as the button
-// here is no glass of its own.
-const _dropletAbsorbed = Interval(0.6, 0.9, curve: Curves.easeInOut);
-
-/// Rises to 1 at [peak] and back, as iOS's droplets overshoot and swell.
-double _riseAndFall(double time, double peak, double sharpness) {
-  if (time <= 0) {
-    return 0;
-  }
-  final x = time / peak;
-  return math.pow(x, sharpness) * math.exp(sharpness * (1 - x));
-}
 
 /// A popup menu that grows out of [anchor], its button, as an iOS menu does:
 /// the button's capsule of glass swells into the card, its glass turning to
@@ -214,10 +189,10 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
     }
     final from = _closedFrom ?? 1;
     if (from <= 0) {
-      return _returnSeconds;
+      return glassDropletReturnSeconds;
     }
     final left = _linear(widget.animation) / from;
-    return (1 - left).clamp(0.0, 1.0) * _returnSeconds;
+    return (1 - left).clamp(0.0, 1.0) * glassDropletReturnSeconds;
   }
 
   static double _linear(Animation<double> animation) => switch (animation) {
@@ -397,7 +372,7 @@ class _RenderMenuMorph extends RenderProxyBox {
         ? config.progress
         : math.min(
             config.progress,
-            1 - Curves.easeOutCubic.transform(time / _returnSeconds),
+            1 - Curves.easeOutCubic.transform(time / glassDropletReturnSeconds),
           );
     final rect = Rect.lerp(from, Offset.zero & size, progress)!;
     if (rect.width <= 0 || rect.height <= 0) {
@@ -484,57 +459,17 @@ class _RenderMenuMorph extends RenderProxyBox {
   ) {
     final config = _config!;
     final from = _returnFrom!;
-    final fromRadius = _returnRadius;
-    final fromDroplet = Rect.fromCenter(
-      center: Offset.lerp(anchor.center, from.center, _dropletShare)!,
-      width: anchor.width * _dropletShare,
-      height: anchor.height * _dropletShare,
+    final frame = glassDropletReturnAt(
+      from: from,
+      fromRadius: _returnRadius,
+      anchor: anchor,
+      time: time,
     );
-    // The spring still rings a little when the route ends; ease that out so
-    // the droplet comes to rest on the button.
-    final ringing =
-        1 - Curves.easeIn.transform(((time - 0.4) / 0.1).clamp(0.0, 1.0));
-    final progress = 1 + (_droplet.x(time) - 1) * ringing;
-    final toCard = from.center.dy - anchor.center.dy;
-    final away = toCard.sign;
-    final dip =
-        math.min(0.21 * toCard.abs(), 22.0) * _riseAndFall(time, 0.072, 2.4);
-    final lift =
-        math.min(0.25 * toCard.abs(), 19.0) * _riseAndFall(time, 0.176, 4.9);
-    final scale = lerpDouble(
-      1,
-      _platterInControl *
-          anchor.shortestSide /
-          math.max(from.width, from.height),
-      progress,
-    )!;
-    final platter = Rect.fromCenter(
-      center:
-          Offset.lerp(from.center, anchor.center, progress)! +
-          Offset(0, away * dip * ringing),
-      width: math.max(0.0, from.width * scale),
-      height: math.max(
-        0.0,
-        lerpDouble(from.height, from.width, progress)! * scale,
-      ),
-    );
-    final platterRadius = math.max(
-      0.0,
-      lerpDouble(fromRadius, from.width / 2, progress)! * scale,
-    );
-    final droplet = Rect.fromCenter(
-      center:
-          Offset.lerp(fromDroplet.center, anchor.center, progress)! -
-          Offset(0, away * lift * ringing),
-      width: lerpDouble(fromDroplet.width, anchor.width, progress)!,
-      height: lerpDouble(fromDroplet.height, anchor.height, progress)!,
-    );
-    final absorbed = _dropletAbsorbed.transform(
-      (time / _returnSeconds).clamp(0.0, 1.0),
-    );
-    final blend = _dropletBlend * math.min(1.0, time / 0.05) * (1 - absorbed);
-    final outline = gooPairOutline(platter, platterRadius, droplet, blend);
+    final (:platter, :radius, :droplet, :blend, :progress, :absorbed) = frame;
+    final outline = gooPairOutline(platter, radius, droplet, blend);
     final shape = outline.getBounds();
+    // Inside the button by then, the droplet dissolves into it, as the
+    // button here is no glass of its own.
     if (shape.isEmpty || absorbed >= 1) {
       _clear();
       return;
@@ -547,7 +482,7 @@ class _RenderMenuMorph extends RenderProxyBox {
         outline.shift(-shape.topLeft),
         [platter.shift(-shape.topLeft), droplet.shift(-shape.topLeft)],
         [blend],
-        firstRadius: math.max(platterRadius, 1e-3),
+        firstRadius: math.max(radius, 1e-3),
       ),
       style: LiquidGlassStyle.lerp(
         config.buttonStyle,
@@ -560,11 +495,11 @@ class _RenderMenuMorph extends RenderProxyBox {
           .inflate(size.longestSide * 0.1)
           .shift(offset),
     );
-    _paintShadows(
+    paintGlassShadowsOutside(
       context.canvas,
       outline.shift(offset),
       platter.shift(offset),
-      platterRadius,
+      radius,
       menuShadows(config.colorScheme, remaining),
     );
     // The rows leave at once, inside the platter as it starts to shrink.
@@ -572,44 +507,10 @@ class _RenderMenuMorph extends RenderProxyBox {
         1 -
         Curves.easeOut.transform((time / _dropletContentOut).clamp(0.0, 1.0));
     if (reveal > 0) {
-      _paintContent(context, offset, platter, platterRadius, reveal);
+      _paintContent(context, offset, platter, radius, reveal);
     } else {
       _clip.layer = null;
       _opacity.layer = null;
     }
-  }
-
-  // A pane of goo casts none: the platter's shadow falls outside the outline,
-  // as FlClash draws it.
-  void _paintShadows(
-    Canvas canvas,
-    Path path,
-    Rect rect,
-    double radius,
-    List<BoxShadow> shadows,
-  ) {
-    final reach = shadows.fold(
-      0.0,
-      (reach, shadow) =>
-          math.max(reach, shadow.blurSigma * 3 + shadow.offset.distance),
-    );
-    canvas
-      ..save()
-      ..clipPath(
-        Path()
-          ..fillType = PathFillType.evenOdd
-          ..addRect(path.getBounds().inflate(reach))
-          ..addPath(path, Offset.zero),
-      );
-    for (final shadow in shadows) {
-      canvas.drawRSuperellipse(
-        RSuperellipse.fromRectAndRadius(
-          rect.shift(shadow.offset),
-          Radius.circular(radius),
-        ),
-        shadow.toPaint(),
-      );
-    }
-    canvas.restore();
   }
 }
