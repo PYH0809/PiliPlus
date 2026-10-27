@@ -23,7 +23,6 @@ import 'package:PiliPlus/models/common/msg/msg_unread_type.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
 import 'package:PiliPlus/models/common/theme/theme_type.dart';
-import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
@@ -147,31 +146,6 @@ List<SettingsModel> get styleSettings => [
     leading: Icon(Icons.blur_on),
     setKey: SettingBoxKey.liquidGlass,
     defaultVal: true,
-    needReboot: true,
-  ),
-  // Each step down costs the player less a frame, for comparing them.
-  PopupModel(
-    title: '播放器玻璃效果',
-    leading: const Icon(Icons.blur_linear),
-    value: () => Pref.videoGlassMode,
-    items: VideoGlassMode.values,
-    onSelected: (value, setState) => GStorage.setting
-        .put(SettingBoxKey.videoGlassMode, value.index)
-        .whenComplete(setState),
-  ),
-  const SwitchModel(
-    title: '播放器小浮层用玻璃',
-    subtitle: '锁定、截图和各种提示；关闭后只画底色，更省电',
-    leading: Icon(Icons.bubble_chart_outlined),
-    setKey: SettingBoxKey.videoGlassNotes,
-    defaultVal: true,
-  ),
-  const SwitchModel(
-    title: '显示性能浮层',
-    subtitle: '在屏幕上显示最近 120 帧的 UI 和 raster（GPU）耗时，用于对比各项效果的开销',
-    leading: Icon(Icons.speed_outlined),
-    setKey: SettingBoxKey.perfOverlay,
-    defaultVal: false,
     needReboot: true,
   ),
   SwitchModel(
