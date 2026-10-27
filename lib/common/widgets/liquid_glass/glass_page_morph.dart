@@ -34,17 +34,25 @@ const _cornersDelay = 0.07;
 const _cornersReach = 0.48;
 const _rimDepth = 8.0;
 
-// Long enough for both springs to settle. The route keeps the time, rather
-// than springs of its own, so the navigator knows when the page has opened.
-const _openDuration = Duration(milliseconds: 500);
-final _openSeconds = _openDuration.inMicroseconds / 1e6;
+// Both springs settle in half a second of their own time, which the route
+// plays in less: a little slower than they run as it starts, so the glass
+// is seen to swell, and faster through their tail, which hardly moves, so
+// the page is live sooner. The route keeps the time, rather than springs of
+// its own, so the navigator knows when the page has opened.
+const _openDuration = Duration(milliseconds: 360);
+const _openSeconds = 0.5;
+const _openPace = Cubic(1 / 3, 0.2, 2 / 3, 8 / 15);
 
-// The page leaves this soon into the return, its fill a little later.
-const _contentOut = 0.1;
-const _fillOut = 0.16;
+// How far into its return the page fades into the glass as it shrinks with
+// it, its fill a little behind, and how frosted it is by then.
+const _contentOut = Interval(0.3, 0.8, curve: Curves.easeIn);
+const _fillOut = Interval(0.4, 0.9, curve: Curves.easeIn);
+const _returnFrost = 6.0;
 
-// A blur the page takes below this does not show, so it takes none.
+// A blur the page takes below this does not show, so it takes none; nor does
+// it take more than this, on the page as drawn, before it is shrunk.
 const _blurUnseen = 0.5;
+const _blurMost = 64.0;
 
 /// A [LiquidGlassButton] that opens a page out of itself, as FlClash's and
 /// iOS's buttons open their popovers: the page grows out of the button's
@@ -363,7 +371,7 @@ class _PageMorphState extends State<_PageMorph> {
         final status = widget.animation.status;
         return _Morph(
           openTime: status == AnimationStatus.forward
-              ? _linear(widget.animation) * _openSeconds
+              ? _openPace.transform(_linear(widget.animation)) * _openSeconds
               : null,
           returnTime: status.isForwardOrCompleted ? null : _returnTime,
           source: _sourceBox,
@@ -648,8 +656,10 @@ class _RenderMorph extends RenderBox
     );
     _lastPlatter = platter;
     _lastRadius = radius;
-    _lastContent = Curves.easeOut.transform(_interval(0.15, 0.6, settled));
-    _lastFill = Curves.easeIn.transform(_interval(0.2, 0.85, settled));
+    // The glass swells first, and the page comes into it, quickly, as it
+    // nears its size.
+    _lastContent = Curves.easeOut.transform(_interval(0.6, 0.95, settled));
+    _lastFill = Curves.easeIn.transform(_interval(0.55, 0.9, settled));
     _paintMorph(
       context,
       offset,
@@ -668,18 +678,18 @@ class _RenderMorph extends RenderBox
       fill: _lastFill,
       content: _lastContent,
       blur: math.sqrt(
-        math.pow(4 * (1 - settled), 2) +
-            math.pow(1.9 * glassRiseAndFall(time, 0.069, 2.1), 2),
+        math.pow(7 * (1 - settled), 2) +
+            math.pow(2.5 * glassRiseAndFall(time, 0.069, 2.1), 2),
       ),
       face: 1 - math.min(1.0, settled / 0.25),
       faceAt: anchor,
     );
   }
 
-  /// The return into the button [time] seconds on, as a menu's: the page
-  /// leaves at once and its platter dips away and shrinks toward the button,
-  /// while a droplet flows out of it and rises into the button, re-forming
-  /// it.
+  /// The return into the button [time] seconds on, as a menu's: the platter
+  /// dips away and shrinks toward the button, the page shrinking with it and
+  /// frosting into its glass, while a droplet flows out of it and rises into
+  /// the button, re-forming it.
   void _paintReturn(
     PaintingContext context,
     Offset offset,
@@ -707,6 +717,7 @@ class _RenderMorph extends RenderBox
       time: time,
     );
     final remaining = (1 - progress).clamp(0.0, 1.0);
+    final shrunk = progress.clamp(0.0, 1.0);
     _paintMorph(
       context,
       offset,
@@ -721,14 +732,10 @@ class _RenderMorph extends RenderBox
         remaining,
       ),
       platterShadows: menuShadows(config.colorScheme, remaining),
-      dropletShadows: _scaled(config.buttonShadows, progress.clamp(0.0, 1.0)),
-      fill:
-          _returnFill *
-          (1 - Curves.easeOut.transform((time / _fillOut).clamp(0.0, 1.0))),
-      content:
-          _returnContent *
-          (1 - Curves.easeOut.transform((time / _contentOut).clamp(0.0, 1.0))),
-      blur: 4 * Curves.easeOut.transform((time / _contentOut).clamp(0.0, 1.0)),
+      dropletShadows: _scaled(config.buttonShadows, shrunk),
+      fill: _returnFill * (1 - _fillOut.transform(shrunk)),
+      content: _returnContent * (1 - _contentOut.transform(shrunk)),
+      blur: _returnFrost * shrunk,
       face: absorbed,
       faceAt: droplet,
     );
@@ -831,7 +838,9 @@ class _RenderMorph extends RenderBox
     );
   }
 
-  // The page, shrunk into its platter and clipped to it.
+  // The page, shrunk into its platter and clipped to it, blurred by [blur]
+  // as it shows on screen: a blur shrinks with what it blurs, and the page
+  // shrunk to a third would otherwise show a third of it.
   void _paintPage(
     PaintingContext context,
     Offset offset,
@@ -847,6 +856,7 @@ class _RenderMorph extends RenderBox
       return;
     }
     final scale = platter.width / size.width;
+    final sigma = blur > _blurUnseen ? math.min(blur / scale, _blurMost) : 0.0;
     final transform = Matrix4.identity()
       ..translateByDouble(platter.left, platter.top, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1);
@@ -858,10 +868,10 @@ class _RenderMorph extends RenderBox
       final paint = Paint()
         ..filterQuality = FilterQuality.low
         ..color = Color.fromRGBO(0, 0, 0, opacity);
-      if (blur > _blurUnseen) {
+      if (sigma > 0) {
         paint.imageFilter = ui.ImageFilter.blur(
-          sigmaX: blur,
-          sigmaY: blur,
+          sigmaX: sigma,
+          sigmaY: sigma,
           tileMode: TileMode.clamp,
         );
       }
@@ -887,8 +897,8 @@ class _RenderMorph extends RenderBox
     // The fade and the blur in one pass offscreen, the page's size, and none
     // once a blur would no longer show.
     ui.ImageFilter? filter;
-    if (blur > _blurUnseen) {
-      filter = ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur);
+    if (sigma > 0) {
+      filter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma);
     }
     if (opacity < 1) {
       final fade = ColorFilter.matrix([
