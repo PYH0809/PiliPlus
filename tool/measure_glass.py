@@ -125,7 +125,8 @@ def describe(f):
         return "no frames"
     return (
         f"raster {f['rasterMean']:.1f} / worst {f['rasterWorst']:.1f} ms, "
-        f"ui {f['uiMean']:.1f} / {f['uiWorst']:.1f} ms, {f['fps']:.0f} fps over {f['frames']} frames"
+        f"ui {f['uiMean']:.1f} / {f['uiWorst']:.1f} ms, {f['fps']:.0f} fps, "
+        f"{f.get('dropped', '?')} late of {f['frames']} frames"
     )
 
 
@@ -145,6 +146,17 @@ def print_ui_time(events):
             totals[name] = totals.get(name, 0) + e["ts"] - open_[(e["tid"], name)].pop()
     for name, us in sorted(totals.items(), key=lambda kv: -kv[1])[:12]:
         print(f"    {us / 1000:8.1f} ms  {name}", flush=True)
+    # The raster thread: how many offscreen layers and render passes a
+    # frame takes, each a pass the GPU starts and stores apart.
+    raster = {e["tid"] for e in events if e.get("ph") == "M" and e.get("args", {}).get("name", "").startswith("1.raster")}
+    counts = {}
+    for e in events:
+        if e.get("tid") in raster and e.get("ph") in ("B", "X"):
+            counts[e["name"]] = counts.get(e["name"], 0) + 1
+    frames = max(counts.get("Rasterizer::DrawToSurfaces", 0), 1)
+    print(f"    raster: {frames} frames", flush=True)
+    for name in ("Canvas::saveLayer", "Canvas::FlipBackdrop", "RenderPassGLES::EncodeCommandsInReactor"):
+        print(f"    {counts.get(name, 0) / frames:8.1f} a frame  {name}", flush=True)
 
 
 def measure(case):

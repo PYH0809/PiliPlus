@@ -7,6 +7,7 @@ import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 
@@ -26,6 +27,9 @@ import 'package:get/get.dart';
 /// - `ext.piliplus.state`: the open player's state, the frames the
 ///   performance overlay counted and what the glass over the video drew.
 /// - `ext.piliplus.resetFrames`: starts the overlay's count over.
+/// - `ext.piliplus.layers`: the layer tree the screen last drew, a layer a
+///   line with what it clips, filters, offsets or draws, to tell what each
+///   offscreen pass holds.
 /// - `ext.piliplus.frames?seconds=`: draws a frame every vsync for that long,
 ///   though nothing changed, and answers once done: the overlay then counts
 ///   what the screen costs a frame, as a video's every new frame redraws it,
@@ -82,6 +86,25 @@ abstract final class DebugCommands {
         'glass': VideoGlass.debugInfo.value,
       });
     });
+    _register('layers', (params) async {
+      final view = RendererBinding.instance.renderViews.first;
+      // ignore: invalid_use_of_protected_member
+      final root = view.layer;
+      if (root == null) return 'no layers';
+      final lines = <String>[];
+      void walk(Layer layer, int depth) {
+        lines.add('${'  ' * depth}${_describeLayer(layer)}');
+        if (layer is ContainerLayer) {
+          for (Layer? child = layer.firstChild; child != null;) {
+            walk(child, depth + 1);
+            child = child.nextSibling;
+          }
+        }
+      }
+
+      walk(root, 0);
+      return lines.join('\n');
+    });
     _register('resetFrames', (params) async {
       FrameStats.reset();
       return 'ok';
@@ -95,6 +118,36 @@ abstract final class DebugCommands {
       ticker.dispose();
       return 'ok';
     });
+  }
+
+  static String _describeLayer(Layer layer) {
+    String rect(Rect r) =>
+        '${r.left.toStringAsFixed(0)},${r.top.toStringAsFixed(0)} '
+        '${r.width.toStringAsFixed(0)}x${r.height.toStringAsFixed(0)}';
+    final name = layer.runtimeType.toString();
+    return switch (layer) {
+      PictureLayer(:final canvasBounds) => '$name ${rect(canvasBounds)}',
+      TextureLayer(:final rect, :final textureId) =>
+        '$name #$textureId ${rect.toString()}',
+      ClipRectLayer(:final clipRect?) => '$name ${rect(clipRect)}',
+      ClipRRectLayer(:final clipRRect?) => '$name ${rect(clipRRect.outerRect)}',
+      ClipRSuperellipseLayer(:final clipRSuperellipse?) =>
+        '$name ${rect(clipRSuperellipse.outerRect)}',
+      ClipPathLayer(:final clipPath?) => '$name ${rect(clipPath.getBounds())}',
+      ImageFilterLayer(:final imageFilter) =>
+        '$name ${imageFilter.runtimeType} ${'$imageFilter'.split('(').first}',
+      BackdropFilterLayer(:final filter) =>
+        '$name ${'$filter'.split('(').first}',
+      OpacityLayer(:final alpha, :final offset) => '$name a=$alpha @$offset',
+      ColorFilterLayer() => name,
+      ShaderMaskLayer() => name,
+      TransformLayer(:final transform?) =>
+        '$name t=${transform.getTranslation().x.toStringAsFixed(0)},'
+            '${transform.getTranslation().y.toStringAsFixed(0)} '
+            's=${transform.storage[0].toStringAsFixed(2)}',
+      OffsetLayer(:final offset) => '$name @$offset',
+      _ => name,
+    };
   }
 
   static void _register(
