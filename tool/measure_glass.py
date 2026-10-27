@@ -14,8 +14,11 @@ layout full or portrait; extras hidden (the controls out of sight), notesoff
 (the small notes only tint), trace (list the UI thread's time by event),
 builds (as trace, with each widget built and box laid out, the timeline
 saved as timeline_<case>.json), panel (full screen, open the ⋮ side
-panel), panelhide (as panel, then hide the controls under it) and scroll
-(portrait, scroll the page under the player and switch its tabs). Each prints the raster and UI times
+panel), panelhide (as panel, then hide the controls under it), scroll
+(portrait, scroll the page under the player and switch its tabs) and tabs
+(portrait, switch between 简介 and 评论 three times) and idletabs (portrait,
+switch tabs six times, each after the page stood still for 2.5 s, without
+forcing frames, and count the vsyncs each switch's first 400 ms missed). Each prints the raster and UI times
 of a frame drawn every vsync for 3 s, as the video's every new frame redraws
 the screen, and saves a screenshot as glass_<case>.png.
 
@@ -38,6 +41,9 @@ import urllib.request
 PACKAGE = "com.example.piliplus"
 VIDEO = "https://www.bilibili.com/video/BV1GJ411x7h7"
 MODES = {"refract": 0, "frost": 1, "tint": 2}
+# The video page's glass tabs under the player, on a 1440x3120 screen.
+INTRO_TAB = "170 1050"
+REPLY_TAB = "460 1050"
 SERIAL = os.environ.get("ANDROID_SERIAL")
 
 URL = None
@@ -127,7 +133,8 @@ def describe(f):
     return (
         f"raster {f['rasterMean']:.1f} / worst {f['rasterWorst']:.1f} ms, "
         f"ui {f['uiMean']:.1f} / {f['uiWorst']:.1f} ms, {f['fps']:.0f} fps, "
-        f"{f.get('dropped', '?')} late of {f['frames']} frames"
+        f"{f.get('dropped', '?')} late of {f['frames']} frames; raster over 8.3/11.1/20 ms: "
+        f"{f.get('over8', '?')}/{f.get('over11', '?')}/{f.get('over20', '?')}"
     )
 
 
@@ -186,10 +193,41 @@ def print_ui_time(events):
         print(f"    {counts.get(name, 0) / frames:8.1f} a frame  {name}", flush=True)
 
 
+def idle_tabs(case):
+    # The page stands still but for the video, the GPU slowing down to it,
+    # till a tab is tapped: as a viewer switches.
+    ext("resetFrames")
+    taps = []
+    for tab in [INTRO_TAB, REPLY_TAB] * 3:
+        time.sleep(2.5)
+        # The VM's clock is the frames' own.
+        taps.append(call("getVMTimelineMicros")["timestamp"] / 1e6)
+        adb("shell", f"input tap {tab}")
+    time.sleep(1)
+    log = json.loads(ext("frameLog"))
+    missed, worst = [], 0.0
+    for tap in taps:
+        start = tap
+        # From the first frame the tap built, as the video's own frames build
+        # nothing, over the 300 ms the tabs slide.
+        built = [f for f in log if start <= f[0] / 1e6 <= start + 0.6 and f[2] > 1]
+        if not built:
+            missed.append(None)
+            continue
+        first = built[0][0] / 1e6
+        frames = [f for f in log if first <= f[0] / 1e6 <= first + 0.33]
+        gaps = [(b[0] - a[0]) / 1000 for a, b in zip(frames, frames[1:])]
+        missed.append(sum(round(g / 11.1) - 1 for g in gaps if g > 16.7))
+        worst = max([worst] + [f[1] for f in frames])
+    print(f"  missed vsyncs a switch: {missed}, worst raster {worst:.1f} ms", flush=True)
+    return state()
+
+
 def measure(case):
     mode, layout, *rest = case.split(":")
     panel = "panel" in rest or "panelhide" in rest
     scroll = "scroll" in rest
+    tabs = "tabs" in rest
     foreground()
     leave_video()
     ext("setting", key="videoGlassMode", value=str(MODES[mode]))
@@ -206,6 +244,8 @@ def measure(case):
     ext("controls", on=json.dumps(shown))
     wait("the controls", lambda s: s["controls"] == shown, 5)
     time.sleep(2)
+    if "idletabs" in rest:
+        return idle_tabs(case)
     if panel:
         # The ⋮ at the top right opens the side panel: count the frames of
         # its slide in, then of the panel standing open.
@@ -230,29 +270,37 @@ def measure(case):
     ext("resetFrames")
     # Every vsync, as the video's every new frame redraws the screen, which
     # the overlay does not count by itself.
-    taker = TimelineTaker() if trace else None
+    # Taking the timeline as it goes costs the phone frames of its own:
+    # only builds, whose events overflow the VM's buffer, does.
+    taker = TimelineTaker() if builds else None
     if taker:
         taker.start()
-    forced = threading.Thread(target=lambda: ext("frames", seconds="4" if scroll else "3"))
+    forced = threading.Thread(target=lambda: ext("frames", seconds="4" if scroll or tabs else "3"))
     forced.start()
     if scroll:
         # Under the player, as the controls show: scroll the page, switch to
         # the comments and back.
         adb(
             "shell",
-            "input swipe 720 2700 720 1500 250; sleep 0.4; input swipe 720 1500 720 2700 250; "
-            "sleep 0.4; input tap 820 1048; sleep 0.8; input swipe 720 2700 720 1500 250; "
-            "sleep 0.4; input tap 440 1048",
+            f"input swipe 720 2700 720 1500 250; sleep 0.4; input swipe 720 1500 720 2700 250; "
+            f"sleep 0.4; input tap {REPLY_TAB}; sleep 0.8; input swipe 720 2700 720 1500 250; "
+            f"sleep 0.4; input tap {INTRO_TAB}",
+        )
+    if tabs:
+        adb(
+            "shell",
+            "; sleep 0.6; ".join(f"input tap {tab}" for tab in [INTRO_TAB, REPLY_TAB] * 3),
         )
     forced.join(timeout=8)
     s = state()
     if trace:
-        events = taker.stop()
+        events = taker.stop() if taker else call("getVMTimeline", timeout=30)["traceEvents"]
         print_ui_time(events)
         call("setVMTimelineFlags", recordedStreams="[]")
     if builds:
         call("ext.flutter.profileWidgetBuilds", enabled="false")
         call("ext.flutter.profileRenderObjectLayouts", enabled="false")
+    if trace:
         with open(f"timeline_{case.replace(':', '_')}.json", "w") as f:
             json.dump(events, f)
     if not s["playing"] or (s["frames"] or {}).get("frames", 0) < 120:
