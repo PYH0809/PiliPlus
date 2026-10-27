@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:PiliPlus/common/widgets/dialog/export_import.dart';
 import 'package:PiliPlus/common/widgets/disabled_icon.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/sliver_wrap.dart';
@@ -32,6 +33,9 @@ class _SearchPageState extends State<SearchPage> {
   late ThemeData theme;
   late bool isPortrait;
   late EdgeInsets padding;
+  // Whether the field takes focus once the page has grown out of the glass
+  // search button, rather than as it opens, its keyboard rising with it.
+  bool? _focusLater;
 
   @override
   void initState() {
@@ -42,6 +46,10 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _focusLater ??= GlassMorphButton.deferUntilOpened(
+      context,
+      _searchController.searchFocusNode.requestFocus,
+    );
     theme = Theme.of(context);
     padding = MediaQuery.viewPaddingOf(context);
     isPortrait = MediaQuery.sizeOf(context).isPortrait;
@@ -117,7 +125,7 @@ class _SearchPageState extends State<SearchPage> {
       const SizedBox(width: 10),
     ],
     title: TextField(
-      autofocus: true,
+      autofocus: !_focusLater!,
       focusNode: _searchController.searchFocusNode,
       controller: _searchController.controller,
       textInputAction: TextInputAction.search,
