@@ -5,7 +5,14 @@ param(
 try {
     $versionName = $null
 
-    $versionCode = [int](git rev-list --count HEAD).Trim()
+    # A build number given by hand, to install over a build from a branch
+    # with more commits; the commit count otherwise.
+    $versionCode = if ($env:BUILD_NUMBER) {
+        [int]$env:BUILD_NUMBER.Trim()
+    }
+    else {
+        [int](git rev-list --count HEAD).Trim()
+    }
 
     $commitHash = (git rev-parse HEAD).Trim()
 
