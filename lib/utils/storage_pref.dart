@@ -23,6 +23,7 @@ import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models/common/video/cdn_type.dart';
 import 'package:PiliPlus/models/common/video/subtitle_pref_type.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:PiliPlus/models/user/danmaku_rule.dart';
 import 'package:PiliPlus/models/user/info.dart';
 import 'package:PiliPlus/pages/setting/pages/fullscreen_sc.dart'
@@ -1069,6 +1070,18 @@ abstract final class Pref {
 
   static bool get liquidGlass =>
       _setting.get(SettingBoxKey.liquidGlass, defaultValue: true);
+
+  static VideoGlassMode get videoGlassMode =>
+      VideoGlassMode.values[_setting.get(
+        SettingBoxKey.videoGlassMode,
+        defaultValue: VideoGlassMode.refract.index,
+      )];
+
+  static bool get videoGlassNotes =>
+      _setting.get(SettingBoxKey.videoGlassNotes, defaultValue: true);
+
+  static bool get perfOverlay =>
+      _setting.get(SettingBoxKey.perfOverlay, defaultValue: false);
 
   static bool get removeSafeArea =>
       _setting.get(SettingBoxKey.removeSafeArea, defaultValue: false);

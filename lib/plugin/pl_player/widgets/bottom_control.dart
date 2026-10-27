@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
@@ -158,12 +156,7 @@ class BottomControl extends StatelessWidget {
     );
     return Padding(
       padding: isFullScreen
-          ? EdgeInsets.fromLTRB(
-              16,
-              0,
-              16,
-              math.max(12, MediaQuery.viewPaddingOf(context).bottom),
-            )
+          ? VideoGlass.fullScreenBarPadding(context)
           : const EdgeInsets.fromLTRB(8, 0, 8, 6),
       child: VideoGlass(
         radius: isFullScreen ? 26 : 20,

@@ -3,17 +3,24 @@ import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
-// The player's glass is dark whatever the theme: its icons are white. Its
-// frost blurs the danmaku passing under them.
+// The player's glass is dark whatever the theme: its icons are white. Over
+// the video alone, it stays clear, as iOS's, so that its rim bends what lies
+// under it; it darkens over bright video, for the icons. Its frost of 1 dp
+// frosts the screen under a pane off the video; over the video, the bend
+// drops it, reading a texel a pixel where the frost took the shader 16.
 const _darkStyle = LiquidGlassStyle(
-  tint: Color(0x47000000),
-  blur: 10,
+  tint: Color(0x2E000000),
+  contrast: -0.4,
+  blur: 1,
   saturation: 1.6,
-  rim: 0.28,
+  dispersion: 3,
+  rim: 0.45,
   rimWidth: 1.2,
   rimTail: 0.17,
   rimFocus: 1,
@@ -21,9 +28,26 @@ const _darkStyle = LiquidGlassStyle(
   hairlineSide: 0.5,
 );
 
+// The glass shader's pixels to a dp at most: past it, as at the 4 of a phone
+// with a 1440p screen, it runs a frame's time over a bar, for an edge too
+// fine to tell apart. It bends at this, then draws up.
+const double _bendTexelsPerDp = 2;
+// The same for a player in a page, its video under half the screen: the page
+// slides and scrolls around it, every frame redrawing the bend, and at 2 a
+// slow phone's GPU, idle at a low clock, dropped six frames a tab switch for
+// it, at 1 none more than the tint did. A small video shows little finer.
+const double _embeddedBendTexelsPerDp = 1;
+const double _embeddedScreenShare = 0.5;
+
 // Without shader filters the glass frosts: a wide blur, livelier colors.
 const double _frostSigma = 20;
 const double _frostSaturation = 1.6;
+
+// A frost from this sigma in dp up, as it eases in, blurs a copy of a texel
+// a dp: no finer than its blur can show, and at a 1440p phone's 4 pixels a
+// dp, a sixteenth of them.
+const double _frostDrawnDownFrom = 4;
+const double _frostTexelsPerDp = 1;
 
 /// Glass over the video, after iOS's player controls.
 ///
@@ -43,6 +67,8 @@ class VideoGlass extends StatelessWidget {
     this.t = 1,
     this.style,
     this.rim,
+    this.note = false,
+    this.refract = true,
     this.child,
   });
 
@@ -52,6 +78,8 @@ class VideoGlass extends StatelessWidget {
     this.t = 1,
     this.style,
     this.rim,
+    this.note = false,
+    this.refract = true,
     this.child,
   }) : radius = null;
 
@@ -62,6 +90,8 @@ class VideoGlass extends StatelessWidget {
     this.t = 1,
     this.style,
     this.rim,
+    this.note = false,
+    this.refract = true,
     Widget? child,
   }) : radius = null,
        child = SizedBox.square(
@@ -74,21 +104,43 @@ class VideoGlass extends StatelessWidget {
   final double t;
   final LiquidGlassStyle? style;
   final LiquidGlassRim? rim;
+
+  /// Whether this is a small note or button rather than a bar, which the
+  /// 播放器小浮层用玻璃 setting can leave as a bare tint.
+  final bool note;
+
+  /// Whether the pane may bend what lies under it. A thick pane, as a
+  /// panel's, shows little of the bending, which over a wide pane costs much.
+  final bool refract;
   final Widget? child;
 
   /// Replaces a button's fill with the glass, keeping its focus and
   /// semantics; a press lights it a little and no ripple spreads.
-  static ButtonStyle buttonStyle() => ButtonStyle(
+  static ButtonStyle buttonStyle({bool note = false}) => ButtonStyle(
     backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
     overlayColor: const WidgetStatePropertyAll(Colors.transparent),
     splashFactory: NoSplash.splashFactory,
     foregroundColor: const WidgetStatePropertyAll(Colors.white),
     backgroundBuilder: (context, states, child) => VideoGlass.capsule(
+      note: note,
       child: states.contains(WidgetState.pressed)
           ? ColoredBox(color: const Color(0x1FFFFFFF), child: child)
           : child,
     ),
   );
+
+  /// Around a bottom bar over the full-screen video: a tenth of the width
+  /// each side, so that on a phone the bar keeps over a 16:9 video rather
+  /// than the black either side of it, where the glass hardly shows.
+  static EdgeInsets fullScreenBarPadding(BuildContext context) {
+    final side = math.max(16.0, MediaQuery.sizeOf(context).width * 0.1);
+    return EdgeInsets.fromLTRB(
+      side,
+      0,
+      side,
+      math.max(12, MediaQuery.viewPaddingOf(context).bottom),
+    );
+  }
 
   static final _darkSchemes = <Color, ColorScheme>{};
 
@@ -120,6 +172,13 @@ class VideoGlass extends StatelessWidget {
     );
   }
 
+  /// What the widest pane over the video last drew, for the performance
+  /// overlay to show while measuring on a device.
+  static final debugInfo = ValueNotifier<String>('');
+
+  /// Whether to fill [debugInfo], as the performance overlay is on.
+  static var debugDescribing = false;
+
   @override
   Widget build(BuildContext context) {
     return _VideoGlassPane(
@@ -127,11 +186,67 @@ class VideoGlass extends StatelessWidget {
       t: VideoGlassHidden.of(context) ? 0 : t.clamp(0.0, 1.0),
       style: style ?? _darkStyle,
       rim: rim,
+      // Bending costs a shader pass a pane each frame; frosting, one blur;
+      // a tint, nothing.
+      mode: switch (Pref.videoGlassMode) {
+        _ when note && !Pref.videoGlassNotes => VideoGlassMode.tint,
+        VideoGlassMode.refract when !refract => VideoGlassMode.frost,
+        final mode => mode,
+      },
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      screenSize: MediaQuery.sizeOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,
+      source: VideoGlassSource.of(context)?.video,
+      changes: VideoGlassSource.of(context)?.changes,
       child: child,
     );
   }
+}
+
+/// Where the video under the [VideoGlass] below lies: [video] keys a box
+/// holding its [Texture].
+///
+/// Glass over the video then draws the video's texture again itself, frosted
+/// or bent, in place of a backdrop filter. Impeller draws a frame holding
+/// any backdrop filter offscreen, ends and redraws the whole screen's pass to
+/// read it, and copies it on screen at the end, a few milliseconds a frame on
+/// a phone; a layer filtering only what the pane draws again costs a pass the
+/// pane's size. What the player draws over the video, as danmaku, does not
+/// show through.
+class VideoGlassSource extends InheritedWidget {
+  const VideoGlassSource({
+    super.key,
+    required this.video,
+    this.changes,
+    required super.child,
+  });
+
+  final GlobalKey video;
+
+  /// Notifies as the video's texture or its size changes, as the player
+  /// outputs anew when the screen turns, for the panes to draw it again.
+  final Listenable? changes;
+
+  /// The player on screen, for glass over its video from outside its tree,
+  /// as a panel slid in over the full-screen video in a route of its own.
+  static ({GlobalKey video, Listenable changes})? player;
+
+  /// [child] over the video of the [player] on screen, if one is.
+  static Widget overPlayer({required Widget child}) => switch (player) {
+    (:final video, :final changes) => VideoGlassSource(
+      video: video,
+      changes: changes,
+      child: child,
+    ),
+    null => child,
+  };
+
+  static VideoGlassSource? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<VideoGlassSource>();
+
+  @override
+  bool updateShouldNotify(VideoGlassSource oldWidget) =>
+      video != oldWidget.video || changes != oldWidget.changes;
 }
 
 /// Turns off the [VideoGlass] below while its controls are out of sight, as
@@ -160,8 +275,12 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.t,
     required this.style,
     required this.rim,
+    required this.mode,
     required this.devicePixelRatio,
+    required this.screenSize,
     required this.backdropKey,
+    required this.source,
+    required this.changes,
     super.child,
   });
 
@@ -169,8 +288,12 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final double t;
   final LiquidGlassStyle style;
   final LiquidGlassRim? rim;
+  final VideoGlassMode mode;
   final double devicePixelRatio;
+  final Size screenSize;
   final BackdropKey? backdropKey;
+  final GlobalKey? source;
+  final Listenable? changes;
 
   @override
   _RenderVideoGlass createRenderObject(BuildContext context) =>
@@ -179,8 +302,12 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         t: t,
         style: style,
         rim: rim,
+        mode: mode,
         devicePixelRatio: devicePixelRatio,
+        screenSize: screenSize,
         backdropKey: backdropKey,
+        source: source,
+        changes: changes,
       );
 
   @override
@@ -193,8 +320,12 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..t = t
       ..style = style
       ..rim = rim
+      ..mode = mode
       ..devicePixelRatio = devicePixelRatio
-      ..backdropKey = backdropKey;
+      ..screenSize = screenSize
+      ..backdropKey = backdropKey
+      ..source = source
+      ..changes = changes;
   }
 }
 
@@ -204,9 +335,75 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._t,
     required this._style,
     required this._rim,
+    required this._mode,
     required this._devicePixelRatio,
+    required this._screenSize,
     required this._backdropKey,
+    required this._source,
+    required this._changes,
   });
+
+  Listenable? _changes;
+  set changes(Listenable? value) {
+    if (_changes == value) return;
+    if (attached) {
+      _changes?.removeListener(_onVideoChanged);
+      value?.addListener(_onVideoChanged);
+    }
+    _changes = value;
+  }
+
+  // The texture or its size changed: draw the new one, once laid out.
+  void _onVideoChanged() {
+    _video = null;
+    if (attached) markNeedsPaint();
+  }
+
+  GlobalKey? _source;
+  set source(GlobalKey? value) {
+    if (_source == value) return;
+    _source = value;
+    _video = null;
+    if (attached) _track();
+    markNeedsPaint();
+  }
+
+  // The video's texture under the pane, and where it lay from the pane
+  // when last painted.
+  TextureBox? _video;
+  Matrix4? _videoAt;
+  // The texture, and its size, as last painted: the player swaps them as
+  // the screen turns, as hardware decoding outputs anew.
+  int? _videoTexture;
+  Size? _videoSize;
+
+  // From the video's coordinates to this pane's, through the root: the
+  // video is no ancestor of the pane, and getTransformTo between cousins
+  // composes them the wrong way round on this SDK, off by the video's scale.
+  Matrix4 _fromVideo(TextureBox video) {
+    final toPane = getTransformTo(null)..invert();
+    return toPane..multiply(video.getTransformTo(null));
+  }
+
+  TextureBox? _findVideo() {
+    if (_video case final video? when video.attached) {
+      return video;
+    }
+    TextureBox? found;
+    void visit(RenderObject child) {
+      if (found != null) return;
+      if (child is TextureBox) {
+        found = child;
+      } else {
+        child.visitChildren(visit);
+      }
+    }
+
+    if (_source?.currentContext?.findRenderObject() case final box?) {
+      visit(box);
+    }
+    return _video = found;
+  }
 
   double? get radius => _radius;
   double? _radius;
@@ -244,11 +441,35 @@ class _RenderVideoGlass extends RenderProxyBox {
     markNeedsPaint();
   }
 
+  /// Whether the pane bends the video, where shader filters allow, frosts
+  /// it, or only tints it.
+  VideoGlassMode get mode => _mode;
+  VideoGlassMode _mode;
+  set mode(VideoGlassMode value) {
+    if (_mode == value) return;
+    final filtered = _filters;
+    _mode = value;
+    if (attached) _track();
+    if (filtered != _filters) {
+      markNeedsCompositingBitsUpdate();
+    }
+    markNeedsPaint();
+  }
+
+  bool get _filters => _mode != VideoGlassMode.tint;
+
   double get devicePixelRatio => _devicePixelRatio;
   double _devicePixelRatio;
   set devicePixelRatio(double value) {
     if (_devicePixelRatio == value) return;
     _devicePixelRatio = value;
+    markNeedsPaint();
+  }
+
+  Size _screenSize;
+  set screenSize(Size value) {
+    if (_screenSize == value) return;
+    _screenSize = value;
     markNeedsPaint();
   }
 
@@ -265,12 +486,30 @@ class _RenderVideoGlass extends RenderProxyBox {
   final _clip = LayerHandle<ClipRSuperellipseLayer>();
   final _backdrop = LayerHandle<BackdropFilterLayer>();
   final _frost = LayerHandle<BackdropFilterLayer>();
+  final _blur = LayerHandle<ImageFilterLayer>();
+  final _bend = LayerHandle<ImageFilterLayer>();
+  final _videoTransform = LayerHandle<TransformLayer>();
+  final _unseen = LayerHandle<LiquidGlassUnseenLayer>();
+  final _drawUp = LayerHandle<ImageFilterLayer>();
+  final _drawDown = LayerHandle<TransformLayer>();
+
+  void _dropLayers() {
+    _clip.layer = null;
+    _backdrop.layer = null;
+    _frost.layer = null;
+    _blur.layer = null;
+    _bend.layer = null;
+    _videoTransform.layer = null;
+    _unseen.layer = null;
+    _drawUp.layer = null;
+    _drawDown.layer = null;
+  }
 
   // Where the shader last placed the pane on screen, in logical pixels.
   Offset? _placed;
   bool _awaitingPaint = false;
 
-  bool get _bends => _program != null;
+  bool get _bends => _mode == VideoGlassMode.refract && _program != null;
 
   void _onProgram() {
     _program = liquidGlassProgram(_onProgram);
@@ -284,12 +523,14 @@ class _RenderVideoGlass extends RenderProxyBox {
   void attach(PipelineOwner owner) {
     super.attach(owner);
     _program = liquidGlassProgram(_onProgram);
+    _changes?.addListener(_onVideoChanged);
     _track();
   }
 
   @override
   void detach() {
     forgetLiquidGlassProgram(_onProgram);
+    _changes?.removeListener(_onVideoChanged);
     _tracked.remove(this);
     super.detach();
   }
@@ -298,22 +539,19 @@ class _RenderVideoGlass extends RenderProxyBox {
   void dispose() {
     _shader?.dispose();
     _shader = null;
-    _clip.layer = null;
-    _backdrop.layer = null;
-    _frost.layer = null;
+    _dropLayers();
     super.dispose();
   }
 
   @override
-  bool get alwaysNeedsCompositing => _t > 0;
+  bool get alwaysNeedsCompositing => _t > 0 && _filters;
 
   @override
   void paint(PaintingContext context, Offset offset) {
     if (_t <= 0 || size.isEmpty) {
-      _clip.layer = null;
-      _backdrop.layer = null;
-      _frost.layer = null;
+      _dropLayers();
       _placed = null;
+      _videoAt = null;
       super.paint(context, offset);
       return;
     }
@@ -321,6 +559,28 @@ class _RenderVideoGlass extends RenderProxyBox {
     final corners = BorderRadius.circular(
       math.min(_radius ?? double.infinity, size.shortestSide / 2),
     );
+    // Over the video, the pane draws the video again itself; until its
+    // texture shows, as while it loads, only the tint.
+    final video = _filters && _source != null ? _findVideo() : null;
+    if (video != null) {
+      _paintOverVideo(context, offset, corners, video);
+      super.paint(context, offset);
+      return;
+    }
+    if (!_filters || _source != null) {
+      // No backdrop to read: the tint thickens to stand in for the frost,
+      // as LiquidGlass's does without shader filters.
+      _dropLayers();
+      _placed = null;
+      _videoAt = null;
+      final canvas = context.canvas
+        ..save()
+        ..clipRSuperellipse(corners.toRSuperellipse(offset & size));
+      _paintFrost(canvas, offset & size, corners, thicken: 0.2);
+      canvas.restore();
+      super.paint(context, offset);
+      return;
+    }
     _clip.layer = context.pushClipRSuperellipse(
       needsCompositing,
       offset,
@@ -374,24 +634,201 @@ class _RenderVideoGlass extends RenderProxyBox {
     }, offset);
   }
 
+  void _paintOverVideo(
+    PaintingContext context,
+    Offset offset,
+    BorderRadius corners,
+    TextureBox video,
+  ) {
+    _backdrop.layer = null;
+    _frost.layer = null;
+    final toPane = _fromVideo(video);
+    _debugDescribe(video, toPane);
+    _videoAt = toPane;
+    _videoTexture = video.textureId;
+    _videoSize = video.size;
+    _awaitingPaint = false;
+    final bends = _bends;
+    final bounds = Offset.zero & size;
+    // The video as the player lays it out, over its black.
+    void paintVideo(PaintingContext context, Offset offset) {
+      context.canvas.drawRect(
+        offset & size,
+        Paint()..color = const Color(0xFF000000),
+      );
+      _videoTransform.layer = context.pushTransform(
+        true,
+        offset,
+        toPane,
+        (context, offset) => context.addLayer(
+          TextureLayer(
+            rect: offset & video.size,
+            textureId: video.textureId,
+          ),
+        ),
+        oldLayer: _videoTransform.layer,
+      );
+    }
+
+    _clip.layer = context.pushClipRSuperellipse(
+      needsCompositing,
+      offset,
+      bounds,
+      corners.toRSuperellipse(bounds),
+      (context, offset) {
+        // A glass host, as a menu's over the player, replays what lies
+        // behind it but never sees the texture: it leaves this out.
+        final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
+        // The shader bends the copy, its pixels starting at the pane's
+        // corner, as its layer covers the pane alone, and frosts it as it
+        // samples: the style's little frost costs it less than a blur's
+        // passes of their own, each a pass the GPU stores and reads back.
+        // A blur's input the engine draws whole, the pane and three sigmas
+        // around it at the screen's pixels, before it shrinks it: a wide
+        // frost blurs a copy of _frostTexelsPerDp, as fine as it can show.
+        // Past those texels a dp, the pane filters a copy drawn down, which
+        // a matrix filter draws up again about the corner.
+        final double down;
+        final ImageFilterLayer filtered;
+        if (bends) {
+          down = math.min(1.0, _bendTexelsPerDpOver(video) / _devicePixelRatio);
+          filtered = (_bend.layer ??= ImageFilterLayer())
+            ..imageFilter = _bendFilter(
+              corners,
+              0,
+              texture: localToGlobal(Offset.zero),
+              texelsPerDp: _devicePixelRatio * down,
+              clear: true,
+            );
+          _blur.layer = null;
+        } else {
+          down = _frostRadius >= _frostDrawnDownFrom
+              ? math.min(1.0, _frostTexelsPerDp / _devicePixelRatio)
+              : 1.0;
+          filtered = (_blur.layer ??= ImageFilterLayer())
+            ..imageFilter = _frostFilter();
+          _bend.layer = null;
+        }
+        void paintFiltered(PaintingContext context, Offset offset) =>
+            context.pushLayer(filtered, paintVideo, offset);
+        context.pushLayer(unseen, (context, offset) {
+          if (down == 1) {
+            _drawUp.layer = null;
+            _drawDown.layer = null;
+            paintFiltered(context, offset);
+            return;
+          }
+          final drawnUp = ui.ImageFilter.matrix(
+            (Matrix4.translationValues(offset.dx, offset.dy, 0)
+                  ..scaleByDouble(1 / down, 1 / down, 1, 1)
+                  ..translateByDouble(-offset.dx, -offset.dy, 0, 1))
+                .storage,
+            filterQuality: FilterQuality.low,
+          );
+          if (bends) {
+            // The bend draws up what it drew: a matrix filter after the
+            // shader only moves its pixels, where a layer of its own would
+            // draw them again, a pass more a pane.
+            _drawUp.layer = null;
+            filtered.imageFilter = ui.ImageFilter.compose(
+              outer: drawnUp,
+              inner: filtered.imageFilter!,
+            );
+            context.pushLayer(filtered, (context, offset) {
+              _drawDown.layer = context.pushTransform(
+                true,
+                offset,
+                Matrix4.diagonal3Values(down, down, 1),
+                paintVideo,
+                oldLayer: _drawDown.layer,
+              );
+            }, offset);
+            return;
+          }
+          final up = (_drawUp.layer ??= ImageFilterLayer())
+            ..imageFilter = drawnUp;
+          context.pushLayer(up, (context, offset) {
+            _drawDown.layer = context.pushTransform(
+              true,
+              offset,
+              Matrix4.diagonal3Values(down, down, 1),
+              paintFiltered,
+              oldLayer: _drawDown.layer,
+            );
+          }, offset);
+        }, offset);
+        if (!bends) _paintFrost(context.canvas, offset & size, corners);
+      },
+      oldLayer: _clip.layer,
+    );
+  }
+
+  // A player in a page shares the GPU with the page around it.
+  double _bendTexelsPerDpOver(TextureBox video) {
+    final shown = MatrixUtils.transformRect(
+      video.getTransformTo(null),
+      Offset.zero & video.size,
+    );
+    final screen = _screenSize.width * _screenSize.height;
+    return shown.width * shown.height < _embeddedScreenShare * screen
+        ? _embeddedBendTexelsPerDp
+        : _bendTexelsPerDp;
+  }
+
+  void _debugDescribe(TextureBox video, Matrix4 toPane) {
+    // The bottom bar: the widest pane, while the overlay shows.
+    if (!VideoGlass.debugDescribing || size.width < 300) return;
+    String f(double v) => v.toStringAsFixed(1);
+    final m = toPane.storage;
+    final shown = MatrixUtils.transformRect(toPane, Offset.zero & video.size);
+    final info =
+        'tex ${video.textureId} · video ${f(video.size.width)}×'
+        '${f(video.size.height)} · pane ${f(size.width)}×${f(size.height)}\n'
+        'scale ${m[0].toStringAsFixed(3)},${m[5].toStringAsFixed(3)} '
+        'skew ${m[1].toStringAsFixed(2)},${m[4].toStringAsFixed(2)} · '
+        'shown ${f(shown.left)},${f(shown.top)} ${f(shown.width)}×'
+        '${f(shown.height)} · ${_bends ? '折射' : '磨砂'}';
+    if (VideoGlass.debugInfo.value != info) {
+      SchedulerBinding.instance.addPostFrameCallback(
+        (_) => VideoGlass.debugInfo.value = info,
+      );
+    }
+  }
+
+  double get _frostRadius => math.max(_frostSigma, _style.blur) * _t;
+
+  // Livelier colors, then the blur, which comes to the same, as both are
+  // linear: a color filter after it would hand on its few pixels without
+  // the blur's own smooth sampling, which draws them up in steps.
   ui.ImageFilter _frostFilter() {
-    final sigma = math.max(_frostSigma, _style.blur) * _t;
+    final sigma = _frostRadius;
     return ui.ImageFilter.compose(
-      outer: ColorFilter.matrix(
+      outer: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+      inner: ColorFilter.matrix(
         _saturate(1 + (_frostSaturation - 1) * _t),
       ),
-      inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
     );
   }
 
   // The pane in screen pixels, as the backdrop's texture holds the screen:
   // the shader reads glass coordinates in dp from the pane's top left.
-  ui.ImageFilter _bendFilter(BorderRadius corners, double frost) {
-    final style = _style.scale(_t);
-    final dpr = _devicePixelRatio;
-    final origin = localToGlobal(Offset.zero);
-    _placed = origin;
+  // [texture] is where the pixels the shader reads start on screen: the
+  // screen's corner for a backdrop, a layer's own for a layer's filter.
+  // [clear] drops the style's frost, as over the video: a slow phone's GPU
+  // dropped a tab switch's frames for its taps.
+  ui.ImageFilter _bendFilter(
+    BorderRadius corners,
+    double frost, {
+    Offset texture = Offset.zero,
+    double? texelsPerDp,
+    bool clear = false,
+  }) {
+    final style = (clear ? _style.copyWith(blur: 0) : _style).scale(_t);
+    final dpr = texelsPerDp ?? _devicePixelRatio;
+    final placed = localToGlobal(Offset.zero);
+    _placed = placed;
     _awaitingPaint = false;
+    final origin = placed - texture;
     final shader = _shader ??= _program!.fragmentShader();
     final toGlass = [-origin.dx, -origin.dy, 1 / dpr, 1 / dpr];
     const everywhere = [0.5, 0.5, 1e6, 1e6];
@@ -416,12 +853,24 @@ class _RenderVideoGlass extends RenderProxyBox {
 
   // As LiquidGlass draws its frost: the tint, a rim lit from the top left,
   // and a dark hairline.
-  void _paintFrost(Canvas canvas, Rect rect, BorderRadius corners) {
+  void _paintFrost(
+    Canvas canvas,
+    Rect rect,
+    BorderRadius corners, {
+    double thicken = 0,
+  }) {
     final style = _style.scale(_t);
     final shape = corners.toRSuperellipse(rect);
     final rim = style.rim;
+    final tint = style.tint;
     canvas
-      ..drawRSuperellipse(shape, Paint()..color = style.tint)
+      ..drawRSuperellipse(
+        shape,
+        Paint()
+          ..color = tint.withValues(
+            alpha: math.min(1, tint.a + thicken * _t),
+          ),
+      )
       ..drawRSuperellipse(
         shape.deflate(style.rimWidth / 2),
         Paint()
@@ -455,7 +904,10 @@ class _RenderVideoGlass extends RenderProxyBox {
   static var _checking = false;
 
   void _track() {
-    if (!_bends) return;
+    if (!_bends && _source == null) {
+      _tracked.remove(this);
+      return;
+    }
     _tracked.add(this);
     if (!_checking) {
       _checking = true;
@@ -468,6 +920,29 @@ class _RenderVideoGlass extends RenderProxyBox {
   }
 
   void _checkPlace() {
+    // Tinted till the video's texture shows, as while it loads.
+    if (_source != null && _filters && _videoAt == null) {
+      if (_t > 0 && !_awaitingPaint && attached && _findVideo() != null) {
+        _awaitingPaint = true;
+        markNeedsPaint();
+      }
+      return;
+    }
+    // Over the video, what matters is where the video lies from the pane.
+    if (_videoAt case final at?) {
+      if (_awaitingPaint || !attached || !hasSize) return;
+      final video = _video;
+      if (video == null ||
+          !video.attached ||
+          video.textureId != _videoTexture ||
+          !video.hasSize ||
+          video.size != _videoSize ||
+          _fromVideo(video) != at) {
+        _awaitingPaint = true;
+        markNeedsPaint();
+      }
+      return;
+    }
     final placed = _placed;
     if (placed == null || _awaitingPaint || !attached || !hasSize) return;
     if (localToGlobal(Offset.zero) != placed) {
