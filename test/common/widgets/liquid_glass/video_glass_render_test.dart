@@ -14,16 +14,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
-// Stripes standing in for the video.
+// Stripes standing in for the video, [width] dp each, as far apart.
 class _Stripes extends CustomPainter {
-  const _Stripes();
+  const _Stripes([this.width = 4]);
+
+  final double width;
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (var x = 0.0; x < size.width; x += 8) {
+    for (var i = 0; i * width * 2 < size.width; i++) {
       canvas.drawRect(
-        Rect.fromLTWH(x, 0, 4, size.height),
-        Paint()..color = x % 16 == 0 ? Colors.red : Colors.yellow,
+        Rect.fromLTWH(i * width * 2, 0, width, size.height),
+        Paint()..color = i.isEven ? Colors.red : Colors.yellow,
       );
     }
   }
@@ -74,8 +76,10 @@ void main() {
               height: 200,
               child: Stack(
                 children: [
+                  // As fine as text: the bend's frost of 1 dp, light as
+                  // iOS's, softens it, as the frost's wide blur does.
                   const Positioned.fill(
-                    child: CustomPaint(painter: _Stripes()),
+                    child: CustomPaint(painter: _Stripes(1)),
                   ),
                   Positioned.fromRect(
                     rect: _pane,
@@ -278,13 +282,14 @@ void main() {
       expect(count<BackdropFilterLayer>(drawn), 0, reason: '$mode');
       // The video's own texture, and the pane's copy of it.
       expect(count<TextureLayer>(drawn), 2, reason: '$mode');
-      // Frosting, a blur; bending, the shader, which frosts as it samples,
-      // and past two texels a dp, as the test's 3, a matrix filter that
-      // draws the bend up.
+      // Frosting, a blur; bending, the shader, which frosts as it samples.
+      // Past its texels a dp, a frost's 1 or a bend's 2 against the test's
+      // 3, each filters a copy drawn down, which a matrix filter draws up.
       final dpr = tester.view.devicePixelRatio;
+      final texelsPerDp = mode == VideoGlassMode.refract && bends ? 2 : 1;
       expect(
         count<ImageFilterLayer>(drawn),
-        mode == VideoGlassMode.refract && bends && dpr > 2 ? 2 : 1,
+        dpr > texelsPerDp ? 2 : 1,
         reason: '$mode',
       );
     }
@@ -415,7 +420,15 @@ void main() {
       }
       if (layer is ContainerLayer) {
         final inner = at.clone();
-        if (layer is TransformLayer) inner.multiply(layer.transform!);
+        // A copy drawn down is drawn up again by the matrix filter over it,
+        // which a layer does not expose: the two cancel.
+        final drawnUp =
+            layer.parent is ImageFilterLayer &&
+            layer.parent!.parent is LiquidGlassUnseenLayer &&
+            layer.firstChild is ImageFilterLayer;
+        if (layer is TransformLayer && !drawnUp) {
+          inner.multiply(layer.transform!);
+        }
         if (layer is OffsetLayer) {
           inner.translateByDouble(layer.offset.dx, layer.offset.dy, 0, 1);
         }
