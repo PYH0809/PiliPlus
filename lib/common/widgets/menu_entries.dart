@@ -75,35 +75,53 @@ IconData reasonIcon(String name) =>
     };
 
 /// A row of a popup menu with an optional [icon]. A [name] such as "UP主:name"
-/// shows its kind in the secondary color before the name.
+/// shows its kind in the secondary color before the name, unless [showKind] is
+/// off, as for an action such as "临时屏蔽：name". A [destructive] row, such as
+/// 删除, is in the error color.
 PopupMenuItem<T> menuRow<T>(
   String name, {
   IconData? icon,
   T? value,
   VoidCallback? onTap,
+  bool showKind = true,
+  bool destructive = false,
 }) => PopupMenuItem<T>(
   value: value,
   onTap: onTap,
-  child: _MenuRow(name, icon),
+  child: _MenuRow(
+    name,
+    icon,
+    showKind: showKind,
+    destructive: destructive,
+  ),
 );
 
 class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.name, this.icon);
+  const _MenuRow(
+    this.name,
+    this.icon, {
+    required this.showKind,
+    required this.destructive,
+  });
 
   final String name;
   final IconData? icon;
+  final bool showKind;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
-    final match = _kindAndName.firstMatch(name);
+    final match = showKind ? _kindAndName.firstMatch(name) : null;
+    final color = destructive ? ColorScheme.of(context).error : null;
     return Row(
       children: [
         if (icon != null) ...[
-          Icon(icon, size: 20),
+          Icon(icon, size: 20, color: color),
           const SizedBox(width: 12),
         ],
         Flexible(
           child: Text.rich(
+            style: TextStyle(color: color),
             match == null
                 ? TextSpan(text: name)
                 : TextSpan(

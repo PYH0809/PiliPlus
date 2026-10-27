@@ -58,7 +58,12 @@ class DynamicPanel extends StatelessWidget {
       onSetReplySubject: onSetReplySubject,
     );
 
-    void showMore() => _imageSaveDialog(context, authorWidget.morePanel);
+    // Where the card was last pressed, for the more menu to open at.
+    var pressAt = Offset.zero;
+    void showMore() => _imageSaveDialog(
+      context,
+      () => authorWidget.showMoreMenu(context, pressAt),
+    );
 
     final child = Material(
       type: MaterialType.transparency,
@@ -77,7 +82,9 @@ class DynamicPanel extends StatelessWidget {
                 }.contains(item.type)
             ? null
             : () => PageUtils.pushDynDetail(item),
+        onTapDown: (details) => pressAt = details.globalPosition,
         onLongPress: showMore,
+        onSecondaryTapDown: (details) => pressAt = details.globalPosition,
         onSecondaryTap: PlatformUtils.isMobile ? null : showMore,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -142,7 +149,7 @@ class DynamicPanel extends StatelessWidget {
 
   void _imageSaveDialog(
     BuildContext context,
-    Function(BuildContext) morePanel,
+    VoidCallback showMoreMenu,
   ) {
     String? title;
     String? cover;
@@ -195,7 +202,7 @@ class DynamicPanel extends StatelessWidget {
         }
         break;
       default:
-        morePanel(context);
+        showMoreMenu();
         return;
     }
     imageSaveDialog(
