@@ -14,6 +14,15 @@ class FrameStats extends StatefulWidget {
 
   final Widget child;
 
+  static _FrameStatsState? _shown;
+
+  /// Starts the count over, as before measuring what a change costs.
+  static void reset() => _shown?._timings.clear();
+
+  /// The frames counted so far, in milliseconds, or null while the overlay
+  /// is off: for a debug command to read.
+  static Map<String, num>? measure() => _shown?._measure();
+
   @override
   State<FrameStats> createState() => _FrameStatsState();
 }
@@ -29,12 +38,14 @@ class _FrameStatsState extends State<FrameStats> {
     super.initState();
     SchedulerBinding.instance.addTimingsCallback(_onTimings);
     VideoGlass.debugDescribing = true;
+    FrameStats._shown = this;
   }
 
   @override
   void dispose() {
     SchedulerBinding.instance.removeTimingsCallback(_onTimings);
     VideoGlass.debugDescribing = false;
+    if (identical(FrameStats._shown, this)) FrameStats._shown = null;
     _refresh?.cancel();
     super.dispose();
   }
@@ -53,6 +64,27 @@ class _FrameStatsState extends State<FrameStats> {
         setState(() => _text = _describe());
       }
     });
+  }
+
+  Map<String, num>? _measure() {
+    if (_timings.length < 2) return null;
+    double ms(Duration duration) => duration.inMicroseconds / 1000;
+    final ui = [for (final timing in _timings) ms(timing.buildDuration)];
+    final raster = [for (final timing in _timings) ms(timing.rasterDuration)];
+    double mean(List<double> values) =>
+        values.reduce((a, b) => a + b) / values.length;
+    double worst(List<double> values) => values.reduce((a, b) => a > b ? a : b);
+    final span =
+        _timings.last.timestampInMicroseconds(FramePhase.rasterFinish) -
+        _timings.first.timestampInMicroseconds(FramePhase.buildStart);
+    return {
+      'frames': _timings.length,
+      'rasterMean': mean(raster),
+      'rasterWorst': worst(raster),
+      'uiMean': mean(ui),
+      'uiWorst': worst(ui),
+      'fps': span > 0 ? (_timings.length - 1) * 1e6 / span : 0,
+    };
   }
 
   String _describe() {
