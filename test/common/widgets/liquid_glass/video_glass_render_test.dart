@@ -221,4 +221,53 @@ void main() {
       await GStorage.setting.delete(SettingBoxKey.videoGlassNotes);
     });
   });
+
+  testWidgets('a group reads the screen once for its bars', (tester) async {
+    Future<int> filters(VideoGlassMode mode, {double t = 1}) async {
+      await tester.runAsync(
+        () => GStorage.setting.put(SettingBoxKey.videoGlassMode, mode.index),
+      );
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          key: ValueKey((mode, t)),
+          child: Center(
+            child: VideoGlassGroup(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const VideoGlass.capsule(
+                    child: SizedBox(width: 120, height: 36),
+                  ),
+                  const SizedBox(height: 40),
+                  VideoGlass(
+                    radius: 20,
+                    t: t,
+                    child: const SizedBox(width: 200, height: 60),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      // The shader loads off the frame.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump();
+      return tester.layers.whereType<BackdropFilterLayer>().length;
+    }
+
+    final bends = ui.ImageFilter.isShaderFilterSupported;
+    // One blur for both, and bending, one shader pass on each pane over it.
+    expect(await filters(VideoGlassMode.refract), bends ? 3 : 1);
+    expect(await filters(VideoGlassMode.frost), 1);
+    expect(await filters(VideoGlassMode.tint), 0);
+    // A pane easing in reads the screen on its own.
+    expect(await filters(VideoGlassMode.frost, t: 0.5), 2);
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+    );
+  });
 }
