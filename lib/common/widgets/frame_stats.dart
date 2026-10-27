@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:ui' show FramePhase, FrameTiming;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -27,11 +28,13 @@ class _FrameStatsState extends State<FrameStats> {
   void initState() {
     super.initState();
     SchedulerBinding.instance.addTimingsCallback(_onTimings);
+    VideoGlass.debugDescribing = true;
   }
 
   @override
   void dispose() {
     SchedulerBinding.instance.removeTimingsCallback(_onTimings);
+    VideoGlass.debugDescribing = false;
     _refresh?.cancel();
     super.dispose();
   }
@@ -91,15 +94,18 @@ class _FrameStatsState extends State<FrameStats> {
                     horizontal: 6,
                     vertical: 3,
                   ),
-                  child: Text(
-                    _text,
-                    textDirection: TextDirection.ltr,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      height: 1.3,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                      decoration: TextDecoration.none,
+                  child: ValueListenableBuilder(
+                    valueListenable: VideoGlass.debugInfo,
+                    builder: (context, glass, _) => Text(
+                      glass.isEmpty ? _text : '$_text\n$glass',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        height: 1.3,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                        decoration: TextDecoration.none,
+                      ),
                     ),
                   ),
                 ),

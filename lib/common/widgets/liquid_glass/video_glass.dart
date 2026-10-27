@@ -146,6 +146,13 @@ class VideoGlass extends StatelessWidget {
     );
   }
 
+  /// What the widest pane over the video last drew, for the performance
+  /// overlay to show while measuring on a device.
+  static final debugInfo = ValueNotifier<String>('');
+
+  /// Whether to fill [debugInfo], as the performance overlay is on.
+  static var debugDescribing = false;
+
   @override
   Widget build(BuildContext context) {
     return _VideoGlassPane(
@@ -321,6 +328,14 @@ class _RenderVideoGlass extends RenderProxyBox {
   // the screen turns, as hardware decoding outputs anew.
   int? _videoTexture;
   Size? _videoSize;
+
+  // From the video's coordinates to this pane's, through the root: the
+  // video is no ancestor of the pane, and getTransformTo between cousins
+  // composes them the wrong way round on this SDK, off by the video's scale.
+  Matrix4 _fromVideo(TextureBox video) {
+    final toPane = getTransformTo(null)..invert();
+    return toPane..multiply(video.getTransformTo(null));
+  }
 
   TextureBox? _findVideo() {
     if (_video case final video? when video.attached) {
@@ -568,7 +583,8 @@ class _RenderVideoGlass extends RenderProxyBox {
   ) {
     _backdrop.layer = null;
     _frost.layer = null;
-    final toPane = video.getTransformTo(this);
+    final toPane = _fromVideo(video);
+    _debugDescribe(video, toPane);
     _videoAt = toPane;
     _videoTexture = video.textureId;
     _videoSize = video.size;
@@ -640,6 +656,26 @@ class _RenderVideoGlass extends RenderProxyBox {
       },
       oldLayer: _clip.layer,
     );
+  }
+
+  void _debugDescribe(TextureBox video, Matrix4 toPane) {
+    // The bottom bar: the widest pane, while the overlay shows.
+    if (!VideoGlass.debugDescribing || size.width < 300) return;
+    String f(double v) => v.toStringAsFixed(1);
+    final m = toPane.storage;
+    final shown = MatrixUtils.transformRect(toPane, Offset.zero & video.size);
+    final info =
+        'tex ${video.textureId} · video ${f(video.size.width)}×'
+        '${f(video.size.height)} · pane ${f(size.width)}×${f(size.height)}\n'
+        'scale ${m[0].toStringAsFixed(3)},${m[5].toStringAsFixed(3)} '
+        'skew ${m[1].toStringAsFixed(2)},${m[4].toStringAsFixed(2)} · '
+        'shown ${f(shown.left)},${f(shown.top)} ${f(shown.width)}×'
+        '${f(shown.height)} · ${_bends ? '折射' : '磨砂'}';
+    if (VideoGlass.debugInfo.value != info) {
+      SchedulerBinding.instance.addPostFrameCallback(
+        (_) => VideoGlass.debugInfo.value = info,
+      );
+    }
   }
 
   ui.ImageFilter _frostFilter() {
@@ -775,7 +811,7 @@ class _RenderVideoGlass extends RenderProxyBox {
           video.textureId != _videoTexture ||
           !video.hasSize ||
           video.size != _videoSize ||
-          video.getTransformTo(this) != at) {
+          _fromVideo(video) != at) {
         _awaitingPaint = true;
         markNeedsPaint();
       }
