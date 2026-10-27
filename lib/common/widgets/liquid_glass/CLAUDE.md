@@ -32,6 +32,12 @@ turns on every glass part. It only takes effect after a restart.
 - **Choice rows** (`PopupListTile`, behind every `PopupModel` setting) turn into FlClash's pull-downs with the switch
   on: the value sits at the row's end with an up-down chevron, and the menu opens out of it, its current value
   checked.
+- **A menu takes its button in and gives it back**, as FlClash's popups do: a `GlassMenuSource` around the button
+  (every `PopupMenuButton` through `GlassMenuPress`, and a pull-down's value) is snapshotted and hidden while its
+  menu is open, and `GlassMenuMorph` draws the snapshot sinking into the card as it opens and coming back in the
+  droplet as it returns, so the button shows again just where the droplet lands. Call `arm()` right before opening
+  the menu; one opened another way, from the keyboard or for assistive technology, finds the source standing where it
+  opens from. A pick that changes the button waits for `landed`, so the value changes in place.
 - **Call sites with surfaces of their own** (popovers, banners, a framed screenshot) check `GlassSurfaces.installed`
   and draw on `GlassSurfaces.panel` or `GlassSurfaces.pill` instead. Controls that fill themselves, as `iconButton`
   does, ask `GlassSurfaces.onGlass(context)` and fill with `glassFillOf` there.
@@ -63,7 +69,7 @@ turns on every glass part. It only takes effect after a restart.
 | `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, thicker glass, grow in, swell on press), menus (24 dp, rows inset 8), the selection toolbar and switches; `panel`, `pill`, `onGlass` for call sites | Yes |
 | `video_glass.dart` | `VideoGlass`: a backdrop filter pane over the video, which the host cannot replay; the player's and live room's controls, notes and full-screen panels | Yes |
 | `glass_droplet.dart` | The return into a button as a drop of glass, shared by menus and pages: where the platter and droplet stand at a time, their shadows | Yes |
-| `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass | Yes |
+| `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass. `GlassMenuSource`, the button it takes in and gives back | Yes |
 | `glass_page_morph.dart` | `GlassMorphButton`: a page growing out of its button and returning into it, on the route's own time, drawn from a snapshot | Yes |
 | `glass_menu_press.dart` | `GlassMenuPress`: a `PopupMenuButton` opens on press and carries the press on into its menu | Yes |
 | `../liquid_glass_navigation_bar.dart` | The nav bar: a lens you can press, drag and fling | Yes |

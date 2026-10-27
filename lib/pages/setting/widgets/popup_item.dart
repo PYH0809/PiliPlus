@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -54,18 +55,21 @@ class _PopupListTileState<T> extends State<PopupListTile<T>> {
   static final bool _pullDown = Pref.liquidGlass;
 
   final _key = PlatformUtils.isDesktop ? null : GlobalKey();
-  late final _valueKey = GlobalKey();
+  late final _valueKey = GlobalKey<GlassMenuSourceState>();
 
   void _showPullDown(T value) {
-    final valueBox = _valueKey.currentContext!.findRenderObject()! as RenderBox;
+    final source = _valueKey.currentState!;
+    final valueBox = source.context.findRenderObject()! as RenderBox;
     final overlay =
         Navigator.of(context).overlay!.context.findRenderObject()! as RenderBox;
+    source.arm();
     _showMenu(
       RelativeRect.fromRect(
         valueBox.localToGlobal(.zero, ancestor: overlay) & valueBox.size,
         Offset.zero & overlay.size,
       ),
       value,
+      source: source,
     );
   }
 
@@ -83,16 +87,24 @@ class _PopupListTileState<T> extends State<PopupListTile<T>> {
     _showMenu(RelativeRect.fromLTRB(dx, thisOffset.dy + 5, dx, 0), value);
   }
 
-  void _showMenu(RelativeRect position, T value) {
+  void _showMenu(
+    RelativeRect position,
+    T value, {
+    GlassMenuSourceState? source,
+  }) {
     showMenu<T>(
       context: context,
       position: position,
       items: widget.itemBuilder(context),
       initialValue: value,
       requestFocus: false,
-    ).then<void>((newValue) {
+    ).then<void>((newValue) async {
       if (!mounted) return;
       if (newValue == null || newValue == value) return;
+      // The menu returns into the value as it was, which then changes in
+      // place.
+      await source?.landed;
+      if (!mounted) return;
       widget.onSelected(newValue, _refresh);
     });
   }
@@ -122,22 +134,24 @@ class _PopupListTileState<T> extends State<PopupListTile<T>> {
         leading: widget.leading,
         title: widget.title,
         titleTextStyle: widget.titleStyle ?? theme.textTheme.titleMedium,
-        trailing: Row(
+        trailing: GlassMenuSource(
           key: _valueKey,
-          mainAxisSize: .min,
-          spacing: 4,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 160),
-              child: Text(
-                descStr,
-                maxLines: 1,
-                overflow: .ellipsis,
-                style: theme.textTheme.bodyMedium!.copyWith(color: color),
+          child: Row(
+            mainAxisSize: .min,
+            spacing: 4,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  descStr,
+                  maxLines: 1,
+                  overflow: .ellipsis,
+                  style: theme.textTheme.bodyMedium!.copyWith(color: color),
+                ),
               ),
-            ),
-            Icon(Icons.unfold_more_rounded, size: 18, color: color),
-          ],
+              Icon(Icons.unfold_more_rounded, size: 18, color: color),
+            ],
+          ),
         ),
       );
     }
