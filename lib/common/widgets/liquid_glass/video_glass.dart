@@ -157,195 +157,8 @@ class VideoGlass extends StatelessWidget {
           : Pref.videoGlassMode,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,
-      group: _VideoGlassGroupScope.of(context),
       child: child,
     );
-  }
-}
-
-/// Reads the screen once for the dark bars of [VideoGlass] below it, where
-/// each would read it on its own: on a phone each read costs about a
-/// millisecond a frame, whatever the pane's size. The blur is the group's;
-/// each pane still bends its own patch of it, reading the group's layer.
-///
-/// Put it inside the repaint boundary its panes are in, so that it repaints
-/// as they move. A pane joins while whole (t 1) in the default style, and
-/// lays out as a plain translation within the group.
-class VideoGlassGroup extends StatefulWidget {
-  const VideoGlassGroup({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  State<VideoGlassGroup> createState() => _VideoGlassGroupState();
-}
-
-class _VideoGlassGroupState extends State<VideoGlassGroup> {
-  final _link = _GroupLink();
-
-  @override
-  Widget build(BuildContext context) {
-    return _VideoGlassGroupScope(
-      link: _link,
-      child: _VideoGlassGroupPane(
-        link: _link,
-        backdropKey: BackdropGroup.of(context)?.backdropKey,
-        child: widget.child,
-      ),
-    );
-  }
-}
-
-class _GroupLink {
-  _RenderVideoGlassGroup? group;
-}
-
-class _VideoGlassGroupScope extends InheritedWidget {
-  const _VideoGlassGroupScope({required this.link, required super.child});
-
-  final _GroupLink link;
-
-  static _GroupLink? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_VideoGlassGroupScope>()?.link;
-
-  @override
-  bool updateShouldNotify(_VideoGlassGroupScope oldWidget) =>
-      link != oldWidget.link;
-}
-
-class _VideoGlassGroupPane extends SingleChildRenderObjectWidget {
-  const _VideoGlassGroupPane({
-    required this.link,
-    required this.backdropKey,
-    super.child,
-  });
-
-  final _GroupLink link;
-  final BackdropKey? backdropKey;
-
-  @override
-  _RenderVideoGlassGroup createRenderObject(BuildContext context) =>
-      _RenderVideoGlassGroup(link: link, backdropKey: backdropKey);
-
-  @override
-  void updateRenderObject(
-    BuildContext context,
-    _RenderVideoGlassGroup renderObject,
-  ) {
-    renderObject
-      ..link = link
-      ..backdropKey = backdropKey;
-  }
-}
-
-class _RenderVideoGlassGroup extends RenderProxyBox {
-  _RenderVideoGlassGroup({
-    required _GroupLink link,
-    required this._backdropKey,
-  }) : _link = link {
-    link.group = this;
-  }
-
-  _GroupLink _link;
-  set link(_GroupLink value) {
-    if (identical(_link, value)) return;
-    if (identical(_link.group, this)) _link.group = null;
-    _link = value..group = this;
-    markNeedsPaint();
-  }
-
-  BackdropKey? _backdropKey;
-  set backdropKey(BackdropKey? value) {
-    if (_backdropKey == value) return;
-    _backdropKey = value;
-    markNeedsPaint();
-  }
-
-  final _panes = <_RenderVideoGlass>{};
-  final _clip = LayerHandle<ClipPathLayer>();
-
-  void _enter(_RenderVideoGlass pane) {
-    if (_panes.add(pane)) markNeedsPaint();
-  }
-
-  void _leave(_RenderVideoGlass pane) {
-    if (_panes.remove(pane) && attached) markNeedsPaint();
-  }
-
-  final _frost = LayerHandle<BackdropFilterLayer>();
-
-  @override
-  void dispose() {
-    if (identical(_link.group, this)) _link.group = null;
-    _clip.layer = null;
-    _frost.layer = null;
-    super.dispose();
-  }
-
-  @override
-  bool get alwaysNeedsCompositing => true;
-
-  /// Whether [pane] is drawn by the group's read of the screen.
-  bool joins(_RenderVideoGlass pane) =>
-      attached &&
-      pane.attached &&
-      pane.hasSize &&
-      !pane.size.isEmpty &&
-      pane._t == 1 &&
-      pane._filters &&
-      identical(pane._style, _darkStyle) &&
-      pane._rim == null &&
-      _offsetOf(pane) != null;
-
-  Offset? _offsetOf(_RenderVideoGlass pane) =>
-      MatrixUtils.getAsTranslation(pane.getTransformTo(this));
-
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    final joined = [
-      for (final pane in _panes)
-        if (joins(pane)) (pane, _offsetOf(pane)!),
-    ];
-    if (joined.isEmpty) {
-      _clip.layer = null;
-      _frost.layer = null;
-      super.paint(context, offset);
-      return;
-    }
-    final outline = Path();
-    for (final (pane, at) in joined) {
-      outline.addRSuperellipse(pane._corners.toRSuperellipse(at & pane.size));
-    }
-    // The frost's layer covers the panes together, from whole device pixels.
-    final dpr = joined.first.$1._devicePixelRatio;
-    final corner = localToGlobal(outline.getBounds().topLeft) * dpr;
-    final texture =
-        Offset(corner.dx.floorToDouble(), corner.dy.floorToDouble()) / dpr;
-    // All the panes share one mode, as the settings give it.
-    final bends = joined.first.$1._bends;
-    _clip.layer = context.pushClipPath(
-      needsCompositing,
-      offset,
-      Offset.zero & size,
-      outline,
-      (context, offset) {
-        final first = joined.first.$1;
-        final sigma = first._style.blur;
-        final frost = (_frost.layer ??= BackdropFilterLayer())
-          ..filter = bends
-              ? ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma)
-              : first._frostFilter()
-          ..backdropKey = _backdropKey;
-        context.pushLayer(frost, (context, offset) {
-          if (!bends) return;
-          for (final (pane, at) in joined) {
-            pane._paintBend(context, offset + at, sigma, texture);
-          }
-        }, offset);
-      },
-      oldLayer: _clip.layer,
-    );
-    super.paint(context, offset);
   }
 }
 
@@ -378,7 +191,6 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.mode,
     required this.devicePixelRatio,
     required this.backdropKey,
-    required this.group,
     super.child,
   });
 
@@ -389,7 +201,6 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final VideoGlassMode mode;
   final double devicePixelRatio;
   final BackdropKey? backdropKey;
-  final _GroupLink? group;
 
   @override
   _RenderVideoGlass createRenderObject(BuildContext context) =>
@@ -401,7 +212,6 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         mode: mode,
         devicePixelRatio: devicePixelRatio,
         backdropKey: backdropKey,
-        group: group,
       );
 
   @override
@@ -416,8 +226,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..rim = rim
       ..mode = mode
       ..devicePixelRatio = devicePixelRatio
-      ..backdropKey = backdropKey
-      ..group = group;
+      ..backdropKey = backdropKey;
   }
 }
 
@@ -430,22 +239,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._mode,
     required this._devicePixelRatio,
     required this._backdropKey,
-    required this._group,
   });
-
-  _GroupLink? _group;
-  set group(_GroupLink? value) {
-    if (identical(_group, value)) return;
-    _group?.group?._leave(this);
-    _group = value;
-    if (attached) _group?.group?._enter(this);
-    markNeedsPaint();
-  }
-
-  // Asks the group to draw again, as what it draws for this pane changed.
-  void _regroup() => _group?.group?.markNeedsPaint();
-
-  bool get _joined => _group?.group?.joins(this) ?? false;
 
   double? get radius => _radius;
   double? _radius;
@@ -464,7 +258,6 @@ class _RenderVideoGlass extends RenderProxyBox {
     if (wasOn != value > 0) {
       markNeedsCompositingBitsUpdate();
     }
-    _regroup();
     markNeedsPaint();
   }
 
@@ -496,7 +289,6 @@ class _RenderVideoGlass extends RenderProxyBox {
     if (filtered != _filters) {
       markNeedsCompositingBitsUpdate();
     }
-    _regroup();
     markNeedsPaint();
   }
 
@@ -534,7 +326,6 @@ class _RenderVideoGlass extends RenderProxyBox {
     _program = liquidGlassProgram(_onProgram);
     if (attached) {
       _track();
-      _regroup();
       markNeedsPaint();
     }
   }
@@ -544,26 +335,14 @@ class _RenderVideoGlass extends RenderProxyBox {
     super.attach(owner);
     _program = liquidGlassProgram(_onProgram);
     _track();
-    _group?.group?._enter(this);
   }
 
   @override
   void detach() {
     forgetLiquidGlassProgram(_onProgram);
     _tracked.remove(this);
-    _group?.group?._leave(this);
     super.detach();
   }
-
-  @override
-  void performLayout() {
-    super.performLayout();
-    _regroup();
-  }
-
-  BorderRadius get _corners => BorderRadius.circular(
-    math.min(_radius ?? double.infinity, size.shortestSide / 2),
-  );
 
   @override
   void dispose() {
@@ -589,20 +368,9 @@ class _RenderVideoGlass extends RenderProxyBox {
       return;
     }
     final bounds = Offset.zero & size;
-    final corners = _corners;
-    if (_joined) {
-      // The group read the screen under this pane and, bending, drew it
-      // here already; its layers are this pane's to keep.
-      if (!_bends) {
-        final canvas = context.canvas
-          ..save()
-          ..clipRSuperellipse(corners.toRSuperellipse(offset & size));
-        _paintFrost(canvas, offset & size, corners);
-        canvas.restore();
-      }
-      super.paint(context, offset);
-      return;
-    }
+    final corners = BorderRadius.circular(
+      math.min(_radius ?? double.infinity, size.shortestSide / 2),
+    );
     if (!_filters) {
       // No backdrop to read: the tint thickens to stand in for the frost,
       // as LiquidGlass's does without shader filters.
@@ -671,31 +439,6 @@ class _RenderVideoGlass extends RenderProxyBox {
     }, offset);
   }
 
-  // For a group: this pane's patch of the group's frost, bent.
-  void _paintBend(
-    PaintingContext context,
-    Offset offset,
-    double sigma,
-    Offset texture,
-  ) {
-    final bounds = Offset.zero & size;
-    final corners = _corners;
-    _frost.layer = null;
-    _clip.layer = context.pushClipRSuperellipse(
-      true,
-      offset,
-      bounds,
-      corners.toRSuperellipse(bounds),
-      (context, offset) {
-        final bend = (_backdrop.layer ??= BackdropFilterLayer())
-          ..filter = _bendFilter(corners, sigma, texture: texture)
-          ..backdropKey = null;
-        context.pushLayer(bend, (_, _) {}, offset);
-      },
-      oldLayer: _clip.layer,
-    );
-  }
-
   ui.ImageFilter _frostFilter() {
     final sigma = math.max(_frostSigma, _style.blur) * _t;
     return ui.ImageFilter.compose(
@@ -708,19 +451,12 @@ class _RenderVideoGlass extends RenderProxyBox {
 
   // The pane in screen pixels, as the backdrop's texture holds the screen:
   // the shader reads glass coordinates in dp from the pane's top left.
-  // [texture] is where the frost's layer starts on screen, which a group's
-  // layer, as wide as its panes together, does not: its pixels start there.
-  ui.ImageFilter _bendFilter(
-    BorderRadius corners,
-    double frost, {
-    Offset texture = Offset.zero,
-  }) {
+  ui.ImageFilter _bendFilter(BorderRadius corners, double frost) {
     final style = _style.scale(_t);
     final dpr = _devicePixelRatio;
-    final placed = localToGlobal(Offset.zero);
-    _placed = placed;
+    final origin = localToGlobal(Offset.zero);
+    _placed = origin;
     _awaitingPaint = false;
-    final origin = placed - texture;
     final shader = _shader ??= _program!.fragmentShader();
     final toGlass = [-origin.dx, -origin.dy, 1 / dpr, 1 / dpr];
     const everywhere = [0.5, 0.5, 1e6, 1e6];

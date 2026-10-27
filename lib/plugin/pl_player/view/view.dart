@@ -920,10 +920,6 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
   PlPlayerController get plPlayerController => widget.plPlayerController;
 
-  // On glass the bars read the screen once between them.
-  Widget _glassGroup(Widget bars) =>
-      _glass ? VideoGlassGroup(child: bars) : bars;
-
   /// The lock or screenshot button at a side of the video: on glass, a disc.
   Widget _sideButton(Widget button) {
     if (_glass) {
@@ -1646,49 +1642,45 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           bottom: -1,
           child: ClipRect(
             child: RepaintBoundary(
-              child: _glassGroup(
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    AppBarAni(
-                      isTop: true,
-                      controller: _animationController,
-                      isFullScreen: isFullScreen,
-                      removeSafeArea: plPlayerController.removeSafeArea,
-                      glass: _glass,
-                      child: plPlayerController.isDesktopPip
-                          ? GestureDetector(
-                              behavior: HitTestBehavior.translucent,
-                              onPanStart: (_) => WindowController
-                                  .instance
-                                  .window
-                                  ?.startDragging(),
-                              child: widget.headerControl,
-                            )
-                          : widget.headerControl,
-                    ),
-                    AppBarAni(
-                      key: _bottomBarKey,
-                      isTop: false,
-                      controller: _animationController,
-                      isFullScreen: isFullScreen,
-                      removeSafeArea: plPlayerController.removeSafeArea,
-                      glass: _glass,
-                      child:
-                          widget.bottomControl ??
-                          BottomControl(
-                            maxWidth: maxWidth,
-                            isFullScreen: isFullScreen,
-                            controller: plPlayerController,
-                            videoDetailController: videoDetailController,
-                            buildBottomControl: () => buildBottomControl(
-                              videoDetailController,
-                              maxWidth > maxHeight,
-                            ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppBarAni(
+                    isTop: true,
+                    controller: _animationController,
+                    isFullScreen: isFullScreen,
+                    removeSafeArea: plPlayerController.removeSafeArea,
+                    glass: _glass,
+                    child: plPlayerController.isDesktopPip
+                        ? GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onPanStart: (_) => WindowController.instance.window
+                                ?.startDragging(),
+                            child: widget.headerControl,
+                          )
+                        : widget.headerControl,
+                  ),
+                  AppBarAni(
+                    key: _bottomBarKey,
+                    isTop: false,
+                    controller: _animationController,
+                    isFullScreen: isFullScreen,
+                    removeSafeArea: plPlayerController.removeSafeArea,
+                    glass: _glass,
+                    child:
+                        widget.bottomControl ??
+                        BottomControl(
+                          maxWidth: maxWidth,
+                          isFullScreen: isFullScreen,
+                          controller: plPlayerController,
+                          videoDetailController: videoDetailController,
+                          buildBottomControl: () => buildBottomControl(
+                            videoDetailController,
+                            maxWidth > maxHeight,
                           ),
-                    ),
-                  ],
-                ),
+                        ),
+                  ),
+                ],
               ),
             ),
           ),
