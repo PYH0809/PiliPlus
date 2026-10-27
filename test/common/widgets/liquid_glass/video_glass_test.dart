@@ -6,6 +6,8 @@ import 'package:PiliPlus/plugin/pl_player/widgets/backward_seek.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
@@ -50,6 +52,12 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('piliplus-glass-test-');
     Hive.init(tempDir.path);
     GStorage.setting = await Hive.openBox('setting');
+    // Frosted, so that what is counted holds whether or not the glass
+    // shader has loaded, as it may have under Impeller.
+    await GStorage.setting.put(
+      SettingBoxKey.videoGlassMode,
+      VideoGlassMode.frost.index,
+    );
   });
   tearDownAll(() async {
     await Hive.close();
