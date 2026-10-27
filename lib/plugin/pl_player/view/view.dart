@@ -924,6 +924,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   Widget _sideButton(Widget button) {
     if (_glass) {
       return VideoGlass(
+        note: true,
         radius: 22,
         child: SizedBox.square(dimension: 44, child: button),
       );
@@ -951,6 +952,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         duration: context.motionDuration(const Duration(milliseconds: 150)),
         curve: Curves.easeInOut,
         builder: (context, t, child) => VideoGlass(
+          note: true,
           radius: radius,
           t: t,
           child: Opacity(opacity: t, child: child),
@@ -1123,6 +1125,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             // On glass, a pill of the video's glass.
             builder: (context) => _glass
                 ? const VideoGlass.capsule(
+                    note: true,
                     child: Padding(
                       padding: .symmetric(horizontal: 14, vertical: 7),
                       child: Text(
@@ -1707,7 +1710,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     padding: const EdgeInsets.only(bottom: 95),
                     child: FilledButton.tonal(
                       style: _glass
-                          ? VideoGlass.buttonStyle().merge(
+                          ? VideoGlass.buttonStyle(note: true).merge(
                               FilledButton.styleFrom(
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,

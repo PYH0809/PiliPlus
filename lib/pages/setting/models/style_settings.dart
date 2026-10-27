@@ -23,6 +23,7 @@ import 'package:PiliPlus/models/common/msg/msg_unread_type.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
 import 'package:PiliPlus/models/common/theme/theme_type.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
@@ -148,11 +149,21 @@ List<SettingsModel> get styleSettings => [
     defaultVal: true,
     needReboot: true,
   ),
+  // Each step down costs the player less a frame, for comparing them.
+  PopupModel(
+    title: '播放器玻璃效果',
+    leading: const Icon(Icons.blur_linear),
+    value: () => Pref.videoGlassMode,
+    items: VideoGlassMode.values,
+    onSelected: (value, setState) => GStorage.setting
+        .put(SettingBoxKey.videoGlassMode, value.index)
+        .whenComplete(setState),
+  ),
   const SwitchModel(
-    title: '视频上的玻璃折射',
-    subtitle: '播放器控件的玻璃折射视频画面；关闭后只做磨砂，更省电。需启用 Impeller',
-    leading: Icon(Icons.blur_linear),
-    setKey: SettingBoxKey.videoGlassRefraction,
+    title: '播放器小浮层用玻璃',
+    subtitle: '锁定、截图和各种提示；关闭后只画底色，更省电',
+    leading: Icon(Icons.bubble_chart_outlined),
+    setKey: SettingBoxKey.videoGlassNotes,
     defaultVal: true,
   ),
   SwitchModel(

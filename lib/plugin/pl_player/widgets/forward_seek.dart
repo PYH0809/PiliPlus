@@ -63,6 +63,7 @@ class ForwardSeekIndicatorState extends State<ForwardSeekIndicator> {
           onTap: increment,
           child: Center(
             child: VideoGlass(
+              note: true,
               radius: 24,
               t: t,
               child: Opacity(
