@@ -351,4 +351,87 @@ void main() {
       () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
     );
   });
+
+  testWidgets('the copy lies where the video shows, scaled and offset', (
+    tester,
+  ) async {
+    final video = GlobalKey();
+    await tester.runAsync(
+      () => GStorage.setting.put(
+        SettingBoxKey.videoGlassMode,
+        VideoGlassMode.frost.index,
+      ),
+    );
+    // As the player fits a video, scaled up and centered: a cousin of the
+    // pane, not its ancestor.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: VideoGlassSource(
+          video: video,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 10,
+                top: 0,
+                child: Transform.scale(
+                  scale: 2,
+                  alignment: Alignment.topLeft,
+                  child: RepaintBoundary(
+                    key: video,
+                    child: const SizedBox(
+                      width: 150,
+                      height: 100,
+                      child: Texture(textureId: 7),
+                    ),
+                  ),
+                ),
+              ),
+              const Positioned(
+                left: 40,
+                top: 140,
+                width: 220,
+                height: 48,
+                child: VideoGlass(radius: 20),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final unseen = tester.layers.whereType<LiquidGlassUnseenLayer>().single;
+    TextureLayer? copy;
+    Matrix4 placed = Matrix4.identity();
+    void find(Layer layer, Matrix4 at) {
+      if (layer is TextureLayer) {
+        copy = layer;
+        placed = at;
+        return;
+      }
+      if (layer is ContainerLayer) {
+        final inner = at.clone();
+        if (layer is TransformLayer) inner.multiply(layer.transform!);
+        if (layer is OffsetLayer) {
+          inner.translateByDouble(layer.offset.dx, layer.offset.dy, 0, 1);
+        }
+        for (Layer? child = layer.firstChild; child != null;) {
+          find(child, inner);
+          child = child.nextSibling;
+        }
+      }
+    }
+
+    find(unseen, Matrix4.identity());
+    expect(copy, isNotNull);
+    // On screen, the copy covers the video: from (10, 0), 300 by 200.
+    final shown = MatrixUtils.transformRect(placed, copy!.rect);
+    expect(shown.left, moreOrLessEquals(10));
+    expect(shown.top, moreOrLessEquals(0));
+    expect(shown.width, moreOrLessEquals(300));
+    expect(shown.height, moreOrLessEquals(200));
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+    );
+  });
 }
