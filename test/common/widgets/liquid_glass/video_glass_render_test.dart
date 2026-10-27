@@ -292,4 +292,63 @@ void main() {
       () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
     );
   });
+
+  testWidgets('a pane follows the video to a new texture', (tester) async {
+    final video = GlobalKey();
+    final changes = ValueNotifier(7);
+    addTearDown(changes.dispose);
+    Widget player() => Directionality(
+      textDirection: TextDirection.ltr,
+      child: VideoGlassSource(
+        video: video,
+        changes: changes,
+        child: Stack(
+          children: [
+            RepaintBoundary(
+              key: video,
+              child: SizedBox(
+                width: 300,
+                height: 200,
+                child: ValueListenableBuilder(
+                  valueListenable: changes,
+                  builder: (context, texture, _) => Texture(textureId: texture),
+                ),
+              ),
+            ),
+            const Positioned(
+              left: 40,
+              top: 140,
+              width: 220,
+              height: 48,
+              child: VideoGlass(radius: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+    Set<int> textures() => {
+      for (final layer in tester.layers.whereType<TextureLayer>())
+        layer.textureId,
+    };
+
+    await tester.runAsync(
+      () => GStorage.setting.put(
+        SettingBoxKey.videoGlassMode,
+        VideoGlassMode.frost.index,
+      ),
+    );
+    await tester.pumpWidget(player());
+    await tester.pump();
+    expect(textures(), {7});
+    // The copy a glass host would replay for nothing, it leaves out.
+    expect(tester.layers.whereType<LiquidGlassUnseenLayer>(), hasLength(1));
+
+    // As the screen turns, hardware decoding outputs to a texture anew.
+    changes.value = 8;
+    await tester.pump();
+    expect(textures(), {8});
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+    );
+  });
 }
