@@ -37,6 +37,12 @@ const double _bendTexelsPerDp = 2;
 const double _frostSigma = 20;
 const double _frostSaturation = 1.6;
 
+// A frost from this sigma in dp up, as it eases in, blurs a copy of a texel
+// a dp: no finer than its blur can show, and at a 1440p phone's 4 pixels a
+// dp, a sixteenth of them.
+const double _frostDrawnDownFrom = 4;
+const double _frostTexelsPerDp = 1;
+
 /// Glass over the video, after iOS's player controls.
 ///
 /// The video is a texture, which [LiquidGlassHost] cannot replay, so this
@@ -654,42 +660,42 @@ class _RenderVideoGlass extends RenderProxyBox {
         // A glass host, as a menu's over the player, replays what lies
         // behind it but never sees the texture: it leaves this out.
         final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
-        if (!bends) {
-          _bend.layer = null;
-          _drawUp.layer = null;
-          _drawDown.layer = null;
-          final blur = (_blur.layer ??= ImageFilterLayer())
-            ..imageFilter = _frostFilter();
-          context.pushLayer(
-            unseen,
-            (context, offset) => context.pushLayer(blur, paintVideo, offset),
-            offset,
-          );
-          _paintFrost(context.canvas, offset & size, corners);
-          return;
-        }
         // The shader bends the copy, its pixels starting at the pane's
         // corner, as its layer covers the pane alone, and frosts it as it
         // samples: the style's little frost costs it less than a blur's
         // passes of their own, each a pass the GPU stores and reads back.
-        // Past _bendTexelsPerDp, it bends a copy drawn down, which a matrix
-        // filter draws up again about the corner.
-        final down = math.min(1.0, _bendTexelsPerDp / _devicePixelRatio);
-        final bend = (_bend.layer ??= ImageFilterLayer())
-          ..imageFilter = _bendFilter(
-            corners,
-            0,
-            texture: localToGlobal(Offset.zero),
-            texelsPerDp: _devicePixelRatio * down,
-          );
-        _blur.layer = null;
-        void paintBend(PaintingContext context, Offset offset) =>
-            context.pushLayer(bend, paintVideo, offset);
+        // A blur's input the engine draws whole, the pane and three sigmas
+        // around it at the screen's pixels, before it shrinks it: a wide one
+        // blurs a copy of _frostTexelsPerDp, as fine as it can show.
+        // Past those texels a dp, the pane filters a copy drawn down, which
+        // a matrix filter draws up again about the corner.
+        final double down;
+        final ImageFilterLayer filtered;
+        if (bends) {
+          down = math.min(1.0, _bendTexelsPerDp / _devicePixelRatio);
+          filtered = (_bend.layer ??= ImageFilterLayer())
+            ..imageFilter = _bendFilter(
+              corners,
+              0,
+              texture: localToGlobal(Offset.zero),
+              texelsPerDp: _devicePixelRatio * down,
+            );
+          _blur.layer = null;
+        } else {
+          down = _frostRadius >= _frostDrawnDownFrom
+              ? math.min(1.0, _frostTexelsPerDp / _devicePixelRatio)
+              : 1.0;
+          filtered = (_blur.layer ??= ImageFilterLayer())
+            ..imageFilter = _frostFilter();
+          _bend.layer = null;
+        }
+        void paintFiltered(PaintingContext context, Offset offset) =>
+            context.pushLayer(filtered, paintVideo, offset);
         context.pushLayer(unseen, (context, offset) {
           if (down == 1) {
             _drawUp.layer = null;
             _drawDown.layer = null;
-            paintBend(context, offset);
+            paintFiltered(context, offset);
             return;
           }
           final up = (_drawUp.layer ??= ImageFilterLayer())
@@ -705,11 +711,12 @@ class _RenderVideoGlass extends RenderProxyBox {
               true,
               offset,
               Matrix4.diagonal3Values(down, down, 1),
-              paintBend,
+              paintFiltered,
               oldLayer: _drawDown.layer,
             );
           }, offset);
         }, offset);
+        if (!bends) _paintFrost(context.canvas, offset & size, corners);
       },
       oldLayer: _clip.layer,
     );
@@ -735,8 +742,10 @@ class _RenderVideoGlass extends RenderProxyBox {
     }
   }
 
+  double get _frostRadius => math.max(_frostSigma, _style.blur) * _t;
+
   ui.ImageFilter _frostFilter() {
-    final sigma = math.max(_frostSigma, _style.blur) * _t;
+    final sigma = _frostRadius;
     return ui.ImageFilter.compose(
       outer: ColorFilter.matrix(
         _saturate(1 + (_frostSaturation - 1) * _t),
