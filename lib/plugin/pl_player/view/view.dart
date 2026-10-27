@@ -983,6 +983,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   // restart.
   final _glass = GlassSurfaces.installed;
   final _backdropKey = BackdropKey();
+  // The texture and its size, which the glass over the video draws again.
+  late final _videoChanges = Listenable.merge([
+    videoController.id,
+    videoController.rect,
+  ]);
   final _bottomBarKey = GlobalKey();
 
   late ColorScheme colorScheme;
@@ -2089,7 +2094,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       // bent; panes away from it read the screen once between them.
       child = BackdropGroup(
         backdropKey: _backdropKey,
-        child: VideoGlassSource(video: _videoKey, child: child),
+        child: VideoGlassSource(
+          video: _videoKey,
+          changes: _videoChanges,
+          child: child,
+        ),
       );
     }
     if (PlatformUtils.isDesktop) {

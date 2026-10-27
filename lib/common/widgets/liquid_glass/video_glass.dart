@@ -160,7 +160,8 @@ class VideoGlass extends StatelessWidget {
           : Pref.videoGlassMode,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,
-      source: VideoGlassSource.of(context),
+      source: VideoGlassSource.of(context)?.video,
+      changes: VideoGlassSource.of(context)?.changes,
       child: child,
     );
   }
@@ -180,17 +181,22 @@ class VideoGlassSource extends InheritedWidget {
   const VideoGlassSource({
     super.key,
     required this.video,
+    this.changes,
     required super.child,
   });
 
   final GlobalKey video;
 
-  static GlobalKey? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<VideoGlassSource>()?.video;
+  /// Notifies as the video's texture or its size changes, as the player
+  /// outputs anew when the screen turns, for the panes to draw it again.
+  final Listenable? changes;
+
+  static VideoGlassSource? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<VideoGlassSource>();
 
   @override
   bool updateShouldNotify(VideoGlassSource oldWidget) =>
-      video != oldWidget.video;
+      video != oldWidget.video || changes != oldWidget.changes;
 }
 
 /// Turns off the [VideoGlass] below while its controls are out of sight, as
@@ -223,6 +229,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.devicePixelRatio,
     required this.backdropKey,
     required this.source,
+    required this.changes,
     super.child,
   });
 
@@ -234,6 +241,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final double devicePixelRatio;
   final BackdropKey? backdropKey;
   final GlobalKey? source;
+  final Listenable? changes;
 
   @override
   _RenderVideoGlass createRenderObject(BuildContext context) =>
@@ -246,6 +254,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         devicePixelRatio: devicePixelRatio,
         backdropKey: backdropKey,
         source: source,
+        changes: changes,
       );
 
   @override
@@ -261,7 +270,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..mode = mode
       ..devicePixelRatio = devicePixelRatio
       ..backdropKey = backdropKey
-      ..source = source;
+      ..source = source
+      ..changes = changes;
   }
 }
 
@@ -275,7 +285,24 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._devicePixelRatio,
     required this._backdropKey,
     required this._source,
+    required this._changes,
   });
+
+  Listenable? _changes;
+  set changes(Listenable? value) {
+    if (_changes == value) return;
+    if (attached) {
+      _changes?.removeListener(_onVideoChanged);
+      value?.addListener(_onVideoChanged);
+    }
+    _changes = value;
+  }
+
+  // The texture or its size changed: draw the new one, once laid out.
+  void _onVideoChanged() {
+    _video = null;
+    if (attached) markNeedsPaint();
+  }
 
   GlobalKey? _source;
   set source(GlobalKey? value) {
@@ -290,6 +317,10 @@ class _RenderVideoGlass extends RenderProxyBox {
   // when last painted.
   TextureBox? _video;
   Matrix4? _videoAt;
+  // The texture, and its size, as last painted: the player swaps them as
+  // the screen turns, as hardware decoding outputs anew.
+  int? _videoTexture;
+  Size? _videoSize;
 
   TextureBox? _findVideo() {
     if (_video case final video? when video.attached) {
@@ -388,6 +419,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   final _blur = LayerHandle<ImageFilterLayer>();
   final _bend = LayerHandle<ImageFilterLayer>();
   final _videoTransform = LayerHandle<TransformLayer>();
+  final _unseen = LayerHandle<LiquidGlassUnseenLayer>();
 
   void _dropLayers() {
     _clip.layer = null;
@@ -396,6 +428,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     _blur.layer = null;
     _bend.layer = null;
     _videoTransform.layer = null;
+    _unseen.layer = null;
   }
 
   // Where the shader last placed the pane on screen, in logical pixels.
@@ -416,12 +449,14 @@ class _RenderVideoGlass extends RenderProxyBox {
   void attach(PipelineOwner owner) {
     super.attach(owner);
     _program = liquidGlassProgram(_onProgram);
+    _changes?.addListener(_onVideoChanged);
     _track();
   }
 
   @override
   void detach() {
     forgetLiquidGlassProgram(_onProgram);
+    _changes?.removeListener(_onVideoChanged);
     _tracked.remove(this);
     super.detach();
   }
@@ -535,6 +570,8 @@ class _RenderVideoGlass extends RenderProxyBox {
     _frost.layer = null;
     final toPane = video.getTransformTo(this);
     _videoAt = toPane;
+    _videoTexture = video.textureId;
+    _videoSize = video.size;
     _awaitingPaint = false;
     final bends = _bends;
     final bounds = Offset.zero & size;
@@ -570,9 +607,16 @@ class _RenderVideoGlass extends RenderProxyBox {
           ..imageFilter = bends
               ? ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma)
               : _frostFilter();
+        // A glass host, as a menu's over the player, replays what lies
+        // behind it but never sees the texture: it leaves this out.
+        final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
         if (!bends) {
           _bend.layer = null;
-          context.pushLayer(blur, paintVideo, offset);
+          context.pushLayer(
+            unseen,
+            (context, offset) => context.pushLayer(blur, paintVideo, offset),
+            offset,
+          );
           _paintFrost(context.canvas, offset & size, corners);
           return;
         }
@@ -585,8 +629,12 @@ class _RenderVideoGlass extends RenderProxyBox {
             texture: localToGlobal(Offset.zero),
           );
         context.pushLayer(
-          bend,
-          (context, offset) => context.pushLayer(blur, paintVideo, offset),
+          unseen,
+          (context, offset) => context.pushLayer(
+            bend,
+            (context, offset) => context.pushLayer(blur, paintVideo, offset),
+            offset,
+          ),
           offset,
         );
       },
@@ -724,6 +772,9 @@ class _RenderVideoGlass extends RenderProxyBox {
       final video = _video;
       if (video == null ||
           !video.attached ||
+          video.textureId != _videoTexture ||
+          !video.hasSize ||
+          video.size != _videoSize ||
           video.getTransformTo(this) != at) {
         _awaitingPaint = true;
         markNeedsPaint();
