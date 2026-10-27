@@ -280,6 +280,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       duration: const Duration(milliseconds: 100),
     );
     videoController = plPlayerController.videoController!;
+    if (_glass) {
+      VideoGlassSource.player = (video: _videoKey, changes: _videoChanges);
+    }
 
     if (PlatformUtils.isMobile) {
       Future.microtask(() {
@@ -390,6 +393,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
   @override
   void dispose() {
+    if (VideoGlassSource.player?.video == _videoKey) {
+      VideoGlassSource.player = null;
+    }
     removeObserverMobile(this);
     _danmakuListener?.cancel();
     _tapGestureRecognizer.dispose();
