@@ -321,7 +321,6 @@ class MyApp extends StatelessWidget {
       scrollBehavior: PlatformUtils.isDesktop
           ? const CustomScrollBehavior()
           : null,
-      showPerformanceOverlay: Pref.perfOverlay,
     );
   }
 
