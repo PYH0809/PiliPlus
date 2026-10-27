@@ -21,6 +21,7 @@ import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/contact/view.dart';
 import 'package:PiliPlus/pages/fav_panel/view.dart';
 import 'package:PiliPlus/pages/share/view.dart';
+import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
@@ -488,6 +489,12 @@ abstract final class PageUtils {
       return null;
     }
     final glass = overVideo && GlassSurfaces.installed;
+    // The panel's glass draws the video again under all of it; with the
+    // controls' glass left behind the barrier as well, a 90 Hz phone drew
+    // 80 frames a second. They go as the panel comes, as they would soon.
+    if (glass && !context.isPortrait) {
+      PlPlayerController.instance?.controls = false;
+    }
     return Get.key.currentState!.push(
       PublishRoute(
         barrierColor: glass && !context.isPortrait
