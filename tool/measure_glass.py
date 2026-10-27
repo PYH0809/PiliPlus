@@ -11,11 +11,11 @@ turn on 显示性能浮层 in the app once, then:
 true or false shows danmaku or not (default false: danmaku cost frames of
 their own). A case is mode:layout[:extra...]: mode refract, frost or tint;
 layout full or portrait; extras hidden (the controls out of sight), notesoff
-(the small notes only tint), trace (list the UI thread's time by
-event), panel
-(full screen, open the ⋮ side panel), panelhide (as panel, then hide
-the controls under it) and scroll (portrait, scroll the page
-under the player and switch its tabs). Each prints the raster and UI times
+(the small notes only tint), trace (list the UI thread's time by event),
+builds (as trace, with each widget built and box laid out, the timeline
+saved as timeline_<case>.json), panel (full screen, open the ⋮ side
+panel), panelhide (as panel, then hide the controls under it) and scroll
+(portrait, scroll the page under the player and switch its tabs). Each prints the raster and UI times
 of a frame drawn every vsync for 3 s, as the video's every new frame redraws
 the screen, and saves a screenshot as glass_<case>.png.
 
@@ -60,13 +60,13 @@ def vm_url(log):
     return urls[-1]
 
 
-def call(method, **params):
+def call(method, timeout=5, **params):
     # The app's commands run in its isolate; the VM's own methods take none.
     if ISOLATE and method.startswith("ext."):
         params = {"isolateId": ISOLATE, **params}
     query = urllib.parse.urlencode(params)
     try:
-        with urllib.request.urlopen(f"{URL}{method}?{query}", timeout=5) as response:
+        with urllib.request.urlopen(f"{URL}{method}?{query}", timeout=timeout) as response:
             body = json.load(response)
     except Exception as e:
         raise Failed(f"{method}: {e}") from e
@@ -131,6 +131,32 @@ def describe(f):
     )
 
 
+class TimelineTaker(threading.Thread):
+    # The VM keeps a second or two of a timeline of every widget built:
+    # take what is new every half second, for the whole of a case.
+    def __init__(self):
+        super().__init__()
+        self.events, self.seen, self.done = [], set(), threading.Event()
+
+    def take(self):
+        since = max((e["ts"] for e in self.events if "ts" in e), default=0)
+        for e in call("getVMTimeline", timeout=30, timeOriginMicros=since, timeExtentMicros=10**12)["traceEvents"]:
+            key = (e.get("ts"), e.get("tid"), e.get("ph"), e.get("name"))
+            if key not in self.seen:
+                self.seen.add(key)
+                self.events.append(e)
+
+    def run(self):
+        while not self.done.wait(0.5):
+            self.take()
+
+    def stop(self):
+        self.done.set()
+        self.join()
+        self.take()
+        return self.events
+
+
 def print_ui_time(events):
     # What the UI thread spent its time on, by event, the longest first.
     ui = {e["tid"] for e in events if e.get("ph") == "M" and e.get("args", {}).get("name", "").startswith("1.ui")}
@@ -192,13 +218,21 @@ def measure(case):
             ext("controls", on="false")
             wait("the controls hidden", lambda s: not s["controls"], 5)
             time.sleep(1)
-    trace = "trace" in rest
+    builds = "builds" in rest
+    trace = "trace" in rest or builds
     if trace:
         call("clearVMTimeline")
         call("setVMTimelineFlags", recordedStreams="[Dart,Embedder]")
+    if builds:
+        # Flutter's own events, one a widget built, one a box laid out.
+        call("ext.flutter.profileWidgetBuilds", enabled="true")
+        call("ext.flutter.profileRenderObjectLayouts", enabled="true")
     ext("resetFrames")
     # Every vsync, as the video's every new frame redraws the screen, which
     # the overlay does not count by itself.
+    taker = TimelineTaker() if trace else None
+    if taker:
+        taker.start()
     forced = threading.Thread(target=lambda: ext("frames", seconds="4" if scroll else "3"))
     forced.start()
     if scroll:
@@ -213,8 +247,14 @@ def measure(case):
     forced.join(timeout=8)
     s = state()
     if trace:
-        print_ui_time(call("getVMTimeline")["traceEvents"])
+        events = taker.stop()
+        print_ui_time(events)
         call("setVMTimelineFlags", recordedStreams="[]")
+    if builds:
+        call("ext.flutter.profileWidgetBuilds", enabled="false")
+        call("ext.flutter.profileRenderObjectLayouts", enabled="false")
+        with open(f"timeline_{case.replace(':', '_')}.json", "w") as f:
+            json.dump(events, f)
     if not s["playing"] or (s["frames"] or {}).get("frames", 0) < 120:
         raise Failed(f"counted too little: {s}")
     if layout == "full" and not s["fullscreen"]:
@@ -228,10 +268,11 @@ def main():
     if len(sys.argv) < 3:
         sys.exit(__doc__)
     URL = vm_url(sys.argv[1])
+    # The VM answers nothing while the app is in the background.
+    foreground()
     ISOLATE = next(i["id"] for i in call("getVM")["isolates"] if "main" in i["name"])
     args = sys.argv[2:]
     danmaku = args.pop(0) if args[0] in ("true", "false") else "false"
-    foreground()
     ext("setting", key="autoPlayEnable", value="true")
     ext("setting", key="enableShowDanmaku", value=danmaku)
     for case in args:
