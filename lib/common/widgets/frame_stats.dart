@@ -17,11 +17,22 @@ class FrameStats extends StatefulWidget {
   static _FrameStatsState? _shown;
 
   /// Starts the count over, as before measuring what a change costs.
-  static void reset() => _shown?._timings.clear();
+  static void reset() => _shown?._counted.clear();
 
   /// The frames counted so far, in milliseconds, or null while the overlay
   /// is off: for a debug command to read.
   static Map<String, num>? measure() => _shown?._measure();
+
+  /// Each frame counted so far: when its raster finished, in microseconds,
+  /// and its raster and UI times in milliseconds.
+  static List<List<num>> log() => [
+    for (final timing in _shown?._counted ?? const <FrameTiming>[])
+      [
+        timing.timestampInMicroseconds(FramePhase.rasterFinish),
+        timing.rasterDuration.inMicroseconds / 1000,
+        timing.buildDuration.inMicroseconds / 1000,
+      ],
+  ];
 
   @override
   State<FrameStats> createState() => _FrameStatsState();
@@ -30,6 +41,9 @@ class FrameStats extends StatefulWidget {
 class _FrameStatsState extends State<FrameStats> {
   static const _frames = 120;
   final _timings = Queue<FrameTiming>();
+  // Every frame since the last reset, for a measurement longer than the
+  // overlay's window, up to a minute's at 120 Hz.
+  final _counted = <FrameTiming>[];
   Timer? _refresh;
   String _text = '';
 
@@ -52,6 +66,7 @@ class _FrameStatsState extends State<FrameStats> {
 
   void _onTimings(List<FrameTiming> timings) {
     for (final timing in timings) {
+      if (_counted.length < 7200) _counted.add(timing);
       _timings.addLast(timing);
       if (_timings.length > _frames) {
         _timings.removeFirst();
@@ -67,21 +82,22 @@ class _FrameStatsState extends State<FrameStats> {
   }
 
   Map<String, num>? _measure() {
-    if (_timings.length < 2) return null;
+    final counted = _counted;
+    if (counted.length < 2) return null;
     double ms(Duration duration) => duration.inMicroseconds / 1000;
-    final ui = [for (final timing in _timings) ms(timing.buildDuration)];
-    final raster = [for (final timing in _timings) ms(timing.rasterDuration)];
+    final ui = [for (final timing in counted) ms(timing.buildDuration)];
+    final raster = [for (final timing in counted) ms(timing.rasterDuration)];
     double mean(List<double> values) =>
         values.reduce((a, b) => a + b) / values.length;
     double worst(List<double> values) => values.reduce((a, b) => a > b ? a : b);
     final span =
-        _timings.last.timestampInMicroseconds(FramePhase.rasterFinish) -
-        _timings.first.timestampInMicroseconds(FramePhase.buildStart);
+        counted.last.timestampInMicroseconds(FramePhase.rasterFinish) -
+        counted.first.timestampInMicroseconds(FramePhase.buildStart);
     // Frames that came later than one and a half of the usual interval:
     // what a viewer sees as a stutter. The raster time alone is no sign of
     // it, as on OpenGL ES it holds the wait for a free screen buffer too.
     final finishes = [
-      for (final timing in _timings)
+      for (final timing in counted)
         timing.timestampInMicroseconds(FramePhase.rasterFinish),
     ];
     final intervals = [
@@ -89,14 +105,19 @@ class _FrameStatsState extends State<FrameStats> {
     ]..sort();
     final usual = intervals.isEmpty ? 0 : intervals[intervals.length ~/ 2];
     final dropped = intervals.where((i) => i > usual * 1.5).length;
+    // Frames whose raster ran past a 120, a 90 Hz frame, and two of them.
+    int over(double limit) => raster.where((t) => t > limit).length;
     return {
-      'frames': _timings.length,
+      'frames': counted.length,
       'dropped': dropped,
+      'over8': over(8.3),
+      'over11': over(11.1),
+      'over20': over(20),
       'rasterMean': mean(raster),
       'rasterWorst': worst(raster),
       'uiMean': mean(ui),
       'uiWorst': worst(ui),
-      'fps': span > 0 ? (_timings.length - 1) * 1e6 / span : 0,
+      'fps': span > 0 ? (counted.length - 1) * 1e6 / span : 0,
     };
   }
 

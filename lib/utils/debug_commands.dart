@@ -109,6 +109,7 @@ abstract final class DebugCommands {
       FrameStats.reset();
       return 'ok';
     });
+    _register('frameLog', (params) async => jsonEncode(FrameStats.log()));
     _register('frames', (params) async {
       final seconds = double.tryParse(params['seconds'] ?? '') ?? 3;
       final ticker = Ticker((_) {})..start();
