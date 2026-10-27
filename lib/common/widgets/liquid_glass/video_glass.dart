@@ -26,6 +26,11 @@ const _darkStyle = LiquidGlassStyle(
   hairlineSide: 0.5,
 );
 
+// The glass shader's pixels to a dp at most: past it, as at the 4 of a phone
+// with a 1440p screen, it runs a frame's time over a bar, for an edge too
+// fine to tell apart. It bends at this, then draws up.
+const double _bendTexelsPerDp = 2;
+
 // Without shader filters the glass frosts: a wide blur, livelier colors.
 const double _frostSigma = 20;
 const double _frostSaturation = 1.6;
@@ -458,6 +463,8 @@ class _RenderVideoGlass extends RenderProxyBox {
   final _bend = LayerHandle<ImageFilterLayer>();
   final _videoTransform = LayerHandle<TransformLayer>();
   final _unseen = LayerHandle<LiquidGlassUnseenLayer>();
+  final _drawUp = LayerHandle<ImageFilterLayer>();
+  final _drawDown = LayerHandle<TransformLayer>();
 
   void _dropLayers() {
     _clip.layer = null;
@@ -467,6 +474,8 @@ class _RenderVideoGlass extends RenderProxyBox {
     _bend.layer = null;
     _videoTransform.layer = null;
     _unseen.layer = null;
+    _drawUp.layer = null;
+    _drawDown.layer = null;
   }
 
   // Where the shader last placed the pane on screen, in logical pixels.
@@ -660,22 +669,48 @@ class _RenderVideoGlass extends RenderProxyBox {
           return;
         }
         // The shader bends the blurred copy, its pixels starting at the
-        // pane's corner, as its layer covers the pane alone.
+        // pane's corner, as its layer covers the pane alone; past
+        // _bendTexelsPerDp, it bends a copy drawn down, which a matrix
+        // filter draws up again about the corner.
+        final down = math.min(1.0, _bendTexelsPerDp / _devicePixelRatio);
         final bend = (_bend.layer ??= ImageFilterLayer())
           ..imageFilter = _bendFilter(
             corners,
             sigma,
             texture: localToGlobal(Offset.zero),
+            texelsPerDp: _devicePixelRatio * down,
           );
-        context.pushLayer(
-          unseen,
-          (context, offset) => context.pushLayer(
-            bend,
-            (context, offset) => context.pushLayer(blur, paintVideo, offset),
-            offset,
-          ),
-          offset,
-        );
+        void paintBend(PaintingContext context, Offset offset) =>
+            context.pushLayer(
+              bend,
+              (context, offset) => context.pushLayer(blur, paintVideo, offset),
+              offset,
+            );
+        context.pushLayer(unseen, (context, offset) {
+          if (down == 1) {
+            _drawUp.layer = null;
+            _drawDown.layer = null;
+            paintBend(context, offset);
+            return;
+          }
+          final up = (_drawUp.layer ??= ImageFilterLayer())
+            ..imageFilter = ui.ImageFilter.matrix(
+              (Matrix4.translationValues(offset.dx, offset.dy, 0)
+                    ..scaleByDouble(1 / down, 1 / down, 1, 1)
+                    ..translateByDouble(-offset.dx, -offset.dy, 0, 1))
+                  .storage,
+              filterQuality: FilterQuality.low,
+            );
+          context.pushLayer(up, (context, offset) {
+            _drawDown.layer = context.pushTransform(
+              true,
+              offset,
+              Matrix4.diagonal3Values(down, down, 1),
+              paintBend,
+              oldLayer: _drawDown.layer,
+            );
+          }, offset);
+        }, offset);
       },
       oldLayer: _clip.layer,
     );
@@ -719,9 +754,10 @@ class _RenderVideoGlass extends RenderProxyBox {
     BorderRadius corners,
     double frost, {
     Offset texture = Offset.zero,
+    double? texelsPerDp,
   }) {
     final style = _style.scale(_t);
-    final dpr = _devicePixelRatio;
+    final dpr = texelsPerDp ?? _devicePixelRatio;
     final placed = localToGlobal(Offset.zero);
     _placed = placed;
     _awaitingPaint = false;
