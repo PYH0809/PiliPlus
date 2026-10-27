@@ -11,11 +11,13 @@ import 'package:material_ui/material_ui.dart';
 
 // The player's glass is dark whatever the theme: its icons are white. Over
 // the video alone, it stays clear, as iOS's, so that its rim bends what lies
-// under it; it darkens over bright video, for the icons.
+// under it; it darkens over bright video, for the icons. Its frost of 1 dp,
+// 2 texels at _bendTexelsPerDp, takes the shader's 16 taps a texel, where
+// 2.5 dp took 64 over a full-screen bar.
 const _darkStyle = LiquidGlassStyle(
   tint: Color(0x2E000000),
   contrast: -0.4,
-  blur: 2.5,
+  blur: 1,
   saturation: 1.6,
   dispersion: 3,
   rim: 0.45,
@@ -623,8 +625,6 @@ class _RenderVideoGlass extends RenderProxyBox {
     _awaitingPaint = false;
     final bends = _bends;
     final bounds = Offset.zero & size;
-    final sigma =
-        (bends ? _style.blur : math.max(_frostSigma, _style.blur)) * _t;
     // The video as the player lays it out, over its black.
     void paintVideo(PaintingContext context, Offset offset) {
       context.canvas.drawRect(
@@ -651,15 +651,15 @@ class _RenderVideoGlass extends RenderProxyBox {
       bounds,
       corners.toRSuperellipse(bounds),
       (context, offset) {
-        final blur = (_blur.layer ??= ImageFilterLayer())
-          ..imageFilter = bends
-              ? ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma)
-              : _frostFilter();
         // A glass host, as a menu's over the player, replays what lies
         // behind it but never sees the texture: it leaves this out.
         final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
         if (!bends) {
           _bend.layer = null;
+          _drawUp.layer = null;
+          _drawDown.layer = null;
+          final blur = (_blur.layer ??= ImageFilterLayer())
+            ..imageFilter = _frostFilter();
           context.pushLayer(
             unseen,
             (context, offset) => context.pushLayer(blur, paintVideo, offset),
@@ -668,24 +668,23 @@ class _RenderVideoGlass extends RenderProxyBox {
           _paintFrost(context.canvas, offset & size, corners);
           return;
         }
-        // The shader bends the blurred copy, its pixels starting at the
-        // pane's corner, as its layer covers the pane alone; past
-        // _bendTexelsPerDp, it bends a copy drawn down, which a matrix
+        // The shader bends the copy, its pixels starting at the pane's
+        // corner, as its layer covers the pane alone, and frosts it as it
+        // samples: the style's little frost costs it less than a blur's
+        // passes of their own, each a pass the GPU stores and reads back.
+        // Past _bendTexelsPerDp, it bends a copy drawn down, which a matrix
         // filter draws up again about the corner.
         final down = math.min(1.0, _bendTexelsPerDp / _devicePixelRatio);
         final bend = (_bend.layer ??= ImageFilterLayer())
           ..imageFilter = _bendFilter(
             corners,
-            sigma,
+            0,
             texture: localToGlobal(Offset.zero),
             texelsPerDp: _devicePixelRatio * down,
           );
+        _blur.layer = null;
         void paintBend(PaintingContext context, Offset offset) =>
-            context.pushLayer(
-              bend,
-              (context, offset) => context.pushLayer(blur, paintVideo, offset),
-              offset,
-            );
+            context.pushLayer(bend, paintVideo, offset);
         context.pushLayer(unseen, (context, offset) {
           if (down == 1) {
             _drawUp.layer = null;
