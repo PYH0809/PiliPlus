@@ -278,9 +278,12 @@ void main() {
       expect(count<BackdropFilterLayer>(drawn), 0, reason: '$mode');
       // The video's own texture, and the pane's copy of it.
       expect(count<TextureLayer>(drawn), 2, reason: '$mode');
+      // The blur, and bending, the shader's; past two texels a dp, as the
+      // test's 3, a matrix filter draws the bend up.
+      final dpr = tester.view.devicePixelRatio;
       expect(
         count<ImageFilterLayer>(drawn),
-        mode == VideoGlassMode.refract && bends ? 2 : 1,
+        mode == VideoGlassMode.refract && bends ? (dpr > 2 ? 3 : 2) : 1,
         reason: '$mode',
       );
     }
