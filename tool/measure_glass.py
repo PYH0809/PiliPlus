@@ -13,7 +13,8 @@ their own). A case is mode:layout[:extra...]: mode refract, frost or tint;
 layout full or portrait; extras hidden (the controls out of sight), notesoff
 (the small notes only tint), trace (list the UI thread's time by
 event), panel
-(full screen, open the ⋮ side panel) and scroll (portrait, scroll the page
+(full screen, open the ⋮ side panel), panelhide (as panel, then hide
+the controls under it) and scroll (portrait, scroll the page
 under the player and switch its tabs). Each prints the raster and UI times
 of a frame drawn every vsync for 3 s, as the video's every new frame redraws
 the screen, and saves a screenshot as glass_<case>.png.
@@ -161,7 +162,7 @@ def print_ui_time(events):
 
 def measure(case):
     mode, layout, *rest = case.split(":")
-    panel = "panel" in rest
+    panel = "panel" in rest or "panelhide" in rest
     scroll = "scroll" in rest
     foreground()
     leave_video()
@@ -187,6 +188,10 @@ def measure(case):
         time.sleep(1.2)
         print(f"  opening the panel: {describe(state()['frames'])}", flush=True)
         screenshot(f"{case}_opening")
+        if "panelhide" in rest:
+            ext("controls", on="false")
+            wait("the controls hidden", lambda s: not s["controls"], 5)
+            time.sleep(1)
     trace = "trace" in rest
     if trace:
         call("clearVMTimeline")
