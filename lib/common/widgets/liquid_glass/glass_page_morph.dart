@@ -3,7 +3,7 @@
 // the glass button that opens it, and returns into it as a drop of glass.
 
 import 'dart:math' as math;
-import 'dart:ui' as ui show ImageFilter, lerpDouble;
+import 'dart:ui' as ui show Image, ImageFilter, lerpDouble;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_droplet.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/goo.dart';
@@ -70,6 +70,33 @@ class GlassMorphButton extends StatefulWidget {
 
   @override
   State<GlassMorphButton> createState() => GlassMorphButtonState();
+
+  /// Whether the page [context] is in is still growing out of a glass
+  /// button; if so, [then] runs once it has, unless it closes first. A page
+  /// holds back what would jank the morph until then, as the search page
+  /// does its keyboard: laying the page out under a keyboard rising with it
+  /// costs every frame of the morph.
+  static bool deferUntilOpened(BuildContext context, VoidCallback then) {
+    final animation = switch (ModalRoute.of(context)) {
+      final _GlassMorphRoute<dynamic> route => route._own,
+      _ => null,
+    };
+    if (animation == null || animation.status != AnimationStatus.forward) {
+      return false;
+    }
+    void handleStatus(AnimationStatus status) {
+      if (status == AnimationStatus.forward) {
+        return;
+      }
+      animation.removeStatusListener(handleStatus);
+      if (status == AnimationStatus.completed) {
+        then();
+      }
+    }
+
+    animation.addStatusListener(handleStatus);
+    return true;
+  }
 }
 
 class GlassMorphButtonState extends State<GlassMorphButton> {
@@ -196,6 +223,10 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
 
   final GlassMorphButtonState source;
 
+  // The route's own animation. Its first frame, offstage for heroes to
+  // measure, shows its pages a completed one in its place.
+  Animation<double>? get _own => controller;
+
   @override
   Duration get transitionDuration => _openDuration;
 
@@ -247,6 +278,11 @@ class _PageMorphState extends State<_PageMorph> {
   double? _closedFrom;
   RenderBox? _sourceBox;
 
+  // The keyboard's insets as the page began to morph, which it keeps until
+  // it has: a keyboard rising or leaving with it would lay it out again
+  // every frame.
+  EdgeInsets? _insets;
+
   @override
   void initState() {
     super.initState();
@@ -276,6 +312,9 @@ class _PageMorphState extends State<_PageMorph> {
         _closedFrom = null;
       default:
     }
+    if (mounted) {
+      setState(() => _insets = null);
+    }
   }
 
   static double _linear(Animation<double> animation) => switch (animation) {
@@ -300,6 +339,12 @@ class _PageMorphState extends State<_PageMorph> {
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     final source = widget.source;
+    final media = MediaQuery.of(context);
+    if (widget.animation.status.isAnimating) {
+      _insets ??= media.viewInsets;
+    } else {
+      _insets = null;
+    }
     // The button's face, drawn in the glass as it leaves and as it returns.
     final face = ExcludeSemantics(
       child: IgnorePointer(
@@ -327,10 +372,17 @@ class _PageMorphState extends State<_PageMorph> {
           pageStyle: LiquidGlassStyle.menu(colorScheme),
           buttonShadows: source.widget.shadows,
           colorScheme: colorScheme,
+          devicePixelRatio: media.devicePixelRatio,
           children: [child!, face],
         );
       },
-      child: widget.child,
+      child: MediaQuery(
+        data: switch (_insets) {
+          final insets? => media.copyWith(viewInsets: insets),
+          null => media,
+        },
+        child: widget.child,
+      ),
     );
   }
 }
@@ -345,6 +397,7 @@ class _Morph extends MultiChildRenderObjectWidget {
     required this.pageStyle,
     required this.buttonShadows,
     required this.colorScheme,
+    required this.devicePixelRatio,
     required super.children,
   });
 
@@ -359,6 +412,7 @@ class _Morph extends MultiChildRenderObjectWidget {
   final LiquidGlassStyle pageStyle;
   final List<BoxShadow> buttonShadows;
   final ColorScheme colorScheme;
+  final double devicePixelRatio;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
@@ -408,6 +462,15 @@ class _RenderMorph extends RenderBox
   double _returnContent = 1;
   double _returnFill = 1;
 
+  // The page as an image, taken as it begins to open or to return, and
+  // drawn through the morph as Flutter's own page transitions draw theirs,
+  // rather than the page painted, faded and blurred offscreen each frame. A
+  // page with a platform view in it can't be taken, and morphs as it is.
+  ui.Image? _snapshot;
+  bool _snapshotReturning = false;
+  Size? _snapshotSize;
+  bool _unsnappable = false;
+
   RenderBox get _page => firstChild!;
   RenderBox get _face => lastChild!;
 
@@ -447,7 +510,44 @@ class _RenderMorph extends RenderBox
   void dispose() {
     _pane.dispose();
     _clear();
+    _dropSnapshot();
     super.dispose();
+  }
+
+  void _dropSnapshot() {
+    _snapshot?.dispose();
+    _snapshot = null;
+  }
+
+  ui.Image? _pageImage() {
+    if (_unsnappable) {
+      return null;
+    }
+    final returning = _config!.returnTime != null;
+    if (_snapshot case final snapshot?
+        when _snapshotReturning == returning && _snapshotSize == size) {
+      return snapshot;
+    }
+    _dropSnapshot();
+    final layer = OffsetLayer();
+    // As SnapshotWidget paints its child to take it.
+    PaintingContext(layer, Offset.zero & size)
+      ..paintChild(_page, Offset.zero)
+      // ignore: invalid_use_of_protected_member
+      ..stopRecordingIfNeeded();
+    if (!layer.supportsRasterization()) {
+      layer.dispose();
+      _unsnappable = true;
+      return null;
+    }
+    _snapshot = layer.toImageSync(
+      Offset.zero & size,
+      pixelRatio: _config!.devicePixelRatio,
+    );
+    layer.dispose();
+    _snapshotReturning = returning;
+    _snapshotSize = size;
+    return _snapshot;
   }
 
   void _clear() {
@@ -483,6 +583,7 @@ class _RenderMorph extends RenderBox
     _opening = _morphing && config.returnTime == null;
     if (anchor == null || !_morphing) {
       _clear();
+      _dropSnapshot();
       context.paintChild(_page, offset);
       return;
     }
@@ -745,6 +846,44 @@ class _RenderMorph extends RenderBox
       _filter.layer = null;
       return;
     }
+    final scale = platter.width / size.width;
+    final transform = Matrix4.identity()
+      ..translateByDouble(platter.left, platter.top, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
+    _pageTransform = transform;
+    if (_pageImage() case final image?) {
+      _clip.layer = null;
+      _transform.layer = null;
+      _filter.layer = null;
+      final paint = Paint()
+        ..filterQuality = FilterQuality.low
+        ..color = Color.fromRGBO(0, 0, 0, opacity);
+      if (blur > _blurUnseen) {
+        paint.imageFilter = ui.ImageFilter.blur(
+          sigmaX: blur,
+          sigmaY: blur,
+          tileMode: TileMode.clamp,
+        );
+      }
+      context.canvas
+        ..save()
+        ..clipRSuperellipse(
+          RSuperellipse.fromRectAndRadius(
+            platter.shift(offset),
+            Radius.circular(radius),
+          ),
+        )
+        ..translate(offset.dx + platter.left, offset.dy + platter.top)
+        ..scale(scale)
+        ..drawImageRect(
+          image,
+          Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+          Offset.zero & size,
+          paint,
+        )
+        ..restore();
+      return;
+    }
     // The fade and the blur in one pass offscreen, the page's size, and none
     // once a blur would no longer show.
     ui.ImageFilter? filter;
@@ -762,11 +901,6 @@ class _RenderMorph extends RenderBox
           ? fade
           : ui.ImageFilter.compose(outer: fade, inner: filter);
     }
-    final scale = platter.width / size.width;
-    final transform = Matrix4.identity()
-      ..translateByDouble(platter.left, platter.top, 0, 1)
-      ..scaleByDouble(scale, scale, 1, 1);
-    _pageTransform = transform;
     _clip.layer = context.pushClipPath(
       needsCompositing,
       offset,
