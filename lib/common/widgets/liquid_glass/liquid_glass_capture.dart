@@ -968,10 +968,6 @@ class _Replay {
               when _shows(recorded.canvasBounds.inflate(_overflow))) {
             _draw(picture);
           }
-        // PiliPlus: what the host cannot see, as glass drawing the video's
-        // texture again, it leaves out rather than filter it for nothing.
-        case LiquidGlassUnseenLayer():
-          break;
         case final _LiquidGlassVeilLayer veil when _liesEvenly(veil):
           final under = _veil;
           _veil = under == null
