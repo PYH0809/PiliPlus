@@ -665,8 +665,8 @@ class _RenderVideoGlass extends RenderProxyBox {
         // samples: the style's little frost costs it less than a blur's
         // passes of their own, each a pass the GPU stores and reads back.
         // A blur's input the engine draws whole, the pane and three sigmas
-        // around it at the screen's pixels, before it shrinks it: a wide one
-        // blurs a copy of _frostTexelsPerDp, as fine as it can show.
+        // around it at the screen's pixels, before it shrinks it: a wide
+        // frost blurs a copy of _frostTexelsPerDp, as fine as it can show.
         // Past those texels a dp, the pane filters a copy drawn down, which
         // a matrix filter draws up again about the corner.
         final double down;
@@ -744,13 +744,16 @@ class _RenderVideoGlass extends RenderProxyBox {
 
   double get _frostRadius => math.max(_frostSigma, _style.blur) * _t;
 
+  // Livelier colors, then the blur, which comes to the same, as both are
+  // linear: a color filter after it would hand on its few pixels without
+  // the blur's own smooth sampling, which draws them up in steps.
   ui.ImageFilter _frostFilter() {
     final sigma = _frostRadius;
     return ui.ImageFilter.compose(
-      outer: ColorFilter.matrix(
+      outer: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+      inner: ColorFilter.matrix(
         _saturate(1 + (_frostSaturation - 1) * _t),
       ),
-      inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
     );
   }
 
