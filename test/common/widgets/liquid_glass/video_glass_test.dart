@@ -1,9 +1,13 @@
+import 'dart:io';
+
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/app_bar_ani.dart';
 import 'package:PiliPlus/plugin/pl_player/widgets/backward_seek.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
 List<T> _layers<T extends Layer>(WidgetTester tester) => [
@@ -40,6 +44,18 @@ Widget _app(Widget child) => MaterialApp(
 );
 
 void main() {
+  // VideoGlass reads whether to bend through Pref.
+  late Directory tempDir;
+  setUpAll(() async {
+    tempDir = await Directory.systemTemp.createTemp('piliplus-glass-test-');
+    Hive.init(tempDir.path);
+    GStorage.setting = await Hive.openBox('setting');
+  });
+  tearDownAll(() async {
+    await Hive.close();
+    await tempDir.delete(recursive: true);
+  });
+
   testWidgets('filters the screen while shown', (tester) async {
     await tester.pumpWidget(
       _app(const VideoGlass.capsule(child: SizedBox(width: 120, height: 36))),
