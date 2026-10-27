@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:flutter/rendering.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
@@ -174,18 +175,28 @@ void main() {
     },
   );
 
-  testWidgets('with refraction off a pane only frosts', (tester) async {
-    Future<int> filters({required bool refract}) async {
+  testWidgets('each mode filters less than the one above it', (
+    tester,
+  ) async {
+    Future<int> filters(
+      VideoGlassMode mode, {
+      bool notes = true,
+      bool note = false,
+    }) async {
       // Hive writes real files, outside the test's fake clock.
-      await tester.runAsync(
-        () => GStorage.setting.put(SettingBoxKey.videoGlassRefraction, refract),
-      );
+      await tester.runAsync(() async {
+        await GStorage.setting.put(SettingBoxKey.videoGlassMode, mode.index);
+        await GStorage.setting.put(SettingBoxKey.videoGlassNotes, notes);
+      });
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
-          key: ValueKey(refract),
-          child: const Center(
-            child: VideoGlass.capsule(child: SizedBox(width: 120, height: 36)),
+          key: ValueKey((mode, notes, note)),
+          child: Center(
+            child: VideoGlass.capsule(
+              note: note,
+              child: const SizedBox(width: 120, height: 36),
+            ),
           ),
         ),
       );
@@ -199,10 +210,15 @@ void main() {
 
     // Bending stacks the shader's filter on the frost's.
     final bends = ui.ImageFilter.isShaderFilterSupported;
-    expect(await filters(refract: true), bends ? 2 : 1);
-    expect(await filters(refract: false), 1);
-    await tester.runAsync(
-      () => GStorage.setting.delete(SettingBoxKey.videoGlassRefraction),
-    );
+    expect(await filters(VideoGlassMode.refract), bends ? 2 : 1);
+    expect(await filters(VideoGlassMode.frost), 1);
+    expect(await filters(VideoGlassMode.tint), 0);
+    // With notes off a note only tints, and a bar keeps its mode.
+    expect(await filters(VideoGlassMode.frost, notes: false, note: true), 0);
+    expect(await filters(VideoGlassMode.frost, notes: false), 1);
+    await tester.runAsync(() async {
+      await GStorage.setting.delete(SettingBoxKey.videoGlassMode);
+      await GStorage.setting.delete(SettingBoxKey.videoGlassNotes);
+    });
   });
 }

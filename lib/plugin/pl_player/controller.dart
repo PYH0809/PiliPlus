@@ -1832,6 +1832,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
                     // glass.
                     child: GlassSurfaces.installed
                         ? VideoGlass(
+                            note: true,
                             radius: 16,
                             child: Padding(
                               padding: const EdgeInsets.all(6),

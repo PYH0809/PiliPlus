@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -44,6 +45,7 @@ class VideoGlass extends StatelessWidget {
     this.t = 1,
     this.style,
     this.rim,
+    this.note = false,
     this.child,
   });
 
@@ -53,6 +55,7 @@ class VideoGlass extends StatelessWidget {
     this.t = 1,
     this.style,
     this.rim,
+    this.note = false,
     this.child,
   }) : radius = null;
 
@@ -63,6 +66,7 @@ class VideoGlass extends StatelessWidget {
     this.t = 1,
     this.style,
     this.rim,
+    this.note = false,
     Widget? child,
   }) : radius = null,
        child = SizedBox.square(
@@ -75,21 +79,39 @@ class VideoGlass extends StatelessWidget {
   final double t;
   final LiquidGlassStyle? style;
   final LiquidGlassRim? rim;
+
+  /// Whether this is a small note or button rather than a bar, which the
+  /// 播放器小浮层用玻璃 setting can leave as a bare tint.
+  final bool note;
   final Widget? child;
 
   /// Replaces a button's fill with the glass, keeping its focus and
   /// semantics; a press lights it a little and no ripple spreads.
-  static ButtonStyle buttonStyle() => ButtonStyle(
+  static ButtonStyle buttonStyle({bool note = false}) => ButtonStyle(
     backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
     overlayColor: const WidgetStatePropertyAll(Colors.transparent),
     splashFactory: NoSplash.splashFactory,
     foregroundColor: const WidgetStatePropertyAll(Colors.white),
     backgroundBuilder: (context, states, child) => VideoGlass.capsule(
+      note: note,
       child: states.contains(WidgetState.pressed)
           ? ColoredBox(color: const Color(0x1FFFFFFF), child: child)
           : child,
     ),
   );
+
+  /// Around a bottom bar over the full-screen video: a tenth of the width
+  /// each side, so that on a phone the bar keeps over a 16:9 video rather
+  /// than the black either side of it, where the glass hardly shows.
+  static EdgeInsets fullScreenBarPadding(BuildContext context) {
+    final side = math.max(16.0, MediaQuery.sizeOf(context).width * 0.1);
+    return EdgeInsets.fromLTRB(
+      side,
+      0,
+      side,
+      math.max(12, MediaQuery.viewPaddingOf(context).bottom),
+    );
+  }
 
   static final _darkSchemes = <Color, ColorScheme>{};
 
@@ -128,8 +150,11 @@ class VideoGlass extends StatelessWidget {
       t: VideoGlassHidden.of(context) ? 0 : t.clamp(0.0, 1.0),
       style: style ?? _darkStyle,
       rim: rim,
-      // Bending costs a shader pass a pane each frame; frosting, one blur.
-      refract: Pref.videoGlassRefraction,
+      // Bending costs a shader pass a pane each frame; frosting, one blur;
+      // a tint, nothing.
+      mode: note && !Pref.videoGlassNotes
+          ? VideoGlassMode.tint
+          : Pref.videoGlassMode,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,
       child: child,
@@ -163,7 +188,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.t,
     required this.style,
     required this.rim,
-    required this.refract,
+    required this.mode,
     required this.devicePixelRatio,
     required this.backdropKey,
     super.child,
@@ -173,7 +198,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final double t;
   final LiquidGlassStyle style;
   final LiquidGlassRim? rim;
-  final bool refract;
+  final VideoGlassMode mode;
   final double devicePixelRatio;
   final BackdropKey? backdropKey;
 
@@ -184,7 +209,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         t: t,
         style: style,
         rim: rim,
-        refract: refract,
+        mode: mode,
         devicePixelRatio: devicePixelRatio,
         backdropKey: backdropKey,
       );
@@ -199,7 +224,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..t = t
       ..style = style
       ..rim = rim
-      ..refract = refract
+      ..mode = mode
       ..devicePixelRatio = devicePixelRatio
       ..backdropKey = backdropKey;
   }
@@ -211,7 +236,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._t,
     required this._style,
     required this._rim,
-    required this._refract,
+    required this._mode,
     required this._devicePixelRatio,
     required this._backdropKey,
   });
@@ -252,16 +277,22 @@ class _RenderVideoGlass extends RenderProxyBox {
     markNeedsPaint();
   }
 
-  /// Whether the pane bends the video where shader filters allow, or only
-  /// frosts it.
-  bool get refract => _refract;
-  bool _refract;
-  set refract(bool value) {
-    if (_refract == value) return;
-    _refract = value;
+  /// Whether the pane bends the video, where shader filters allow, frosts
+  /// it, or only tints it.
+  VideoGlassMode get mode => _mode;
+  VideoGlassMode _mode;
+  set mode(VideoGlassMode value) {
+    if (_mode == value) return;
+    final filtered = _filters;
+    _mode = value;
     if (attached) _track();
+    if (filtered != _filters) {
+      markNeedsCompositingBitsUpdate();
+    }
     markNeedsPaint();
   }
+
+  bool get _filters => _mode != VideoGlassMode.tint;
 
   double get devicePixelRatio => _devicePixelRatio;
   double _devicePixelRatio;
@@ -289,7 +320,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   Offset? _placed;
   bool _awaitingPaint = false;
 
-  bool get _bends => _refract && _program != null;
+  bool get _bends => _mode == VideoGlassMode.refract && _program != null;
 
   void _onProgram() {
     _program = liquidGlassProgram(_onProgram);
@@ -324,7 +355,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   }
 
   @override
-  bool get alwaysNeedsCompositing => _t > 0;
+  bool get alwaysNeedsCompositing => _t > 0 && _filters;
 
   @override
   void paint(PaintingContext context, Offset offset) {
@@ -340,6 +371,21 @@ class _RenderVideoGlass extends RenderProxyBox {
     final corners = BorderRadius.circular(
       math.min(_radius ?? double.infinity, size.shortestSide / 2),
     );
+    if (!_filters) {
+      // No backdrop to read: the tint thickens to stand in for the frost,
+      // as LiquidGlass's does without shader filters.
+      _clip.layer = null;
+      _backdrop.layer = null;
+      _frost.layer = null;
+      _placed = null;
+      final canvas = context.canvas
+        ..save()
+        ..clipRSuperellipse(corners.toRSuperellipse(offset & size));
+      _paintFrost(canvas, offset & size, corners, thicken: 0.2);
+      canvas.restore();
+      super.paint(context, offset);
+      return;
+    }
     _clip.layer = context.pushClipRSuperellipse(
       needsCompositing,
       offset,
@@ -435,12 +481,24 @@ class _RenderVideoGlass extends RenderProxyBox {
 
   // As LiquidGlass draws its frost: the tint, a rim lit from the top left,
   // and a dark hairline.
-  void _paintFrost(Canvas canvas, Rect rect, BorderRadius corners) {
+  void _paintFrost(
+    Canvas canvas,
+    Rect rect,
+    BorderRadius corners, {
+    double thicken = 0,
+  }) {
     final style = _style.scale(_t);
     final shape = corners.toRSuperellipse(rect);
     final rim = style.rim;
+    final tint = style.tint;
     canvas
-      ..drawRSuperellipse(shape, Paint()..color = style.tint)
+      ..drawRSuperellipse(
+        shape,
+        Paint()
+          ..color = tint.withValues(
+            alpha: math.min(1, tint.a + thicken * _t),
+          ),
+      )
       ..drawRSuperellipse(
         shape.deflate(style.rimWidth / 2),
         Paint()

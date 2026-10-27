@@ -633,6 +633,7 @@ class VideoDetailController extends GetxController
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: VideoGlass.capsule(
+            note: true,
             child: Padding(
               padding: const .symmetric(horizontal: 12, vertical: 6),
               child: Text(
