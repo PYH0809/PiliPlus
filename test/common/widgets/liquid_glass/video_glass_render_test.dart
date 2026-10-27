@@ -221,4 +221,75 @@ void main() {
       await GStorage.setting.delete(SettingBoxKey.videoGlassNotes);
     });
   });
+
+  testWidgets('over the video a pane draws its texture again, not the screen', (
+    tester,
+  ) async {
+    final video = GlobalKey();
+    Future<List<Layer>> layers(
+      VideoGlassMode mode, {
+      bool texture = true,
+    }) async {
+      await tester.runAsync(
+        () => GStorage.setting.put(SettingBoxKey.videoGlassMode, mode.index),
+      );
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          key: ValueKey((mode, texture)),
+          child: VideoGlassSource(
+            video: video,
+            child: Stack(
+              children: [
+                RepaintBoundary(
+                  key: video,
+                  child: SizedBox(
+                    width: 300,
+                    height: 200,
+                    child: texture ? const Texture(textureId: 7) : null,
+                  ),
+                ),
+                const Positioned(
+                  left: 40,
+                  top: 140,
+                  width: 220,
+                  height: 48,
+                  child: VideoGlass(radius: 20),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      // The shader loads off the frame.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump();
+      return tester.layers;
+    }
+
+    int count<T extends Layer>(List<Layer> layers) =>
+        layers.whereType<T>().length;
+
+    final bends = ui.ImageFilter.isShaderFilterSupported;
+    for (final mode in [VideoGlassMode.refract, VideoGlassMode.frost]) {
+      final drawn = await layers(mode);
+      expect(count<BackdropFilterLayer>(drawn), 0, reason: '$mode');
+      // The video's own texture, and the pane's copy of it.
+      expect(count<TextureLayer>(drawn), 2, reason: '$mode');
+      expect(
+        count<ImageFilterLayer>(drawn),
+        mode == VideoGlassMode.refract && bends ? 2 : 1,
+        reason: '$mode',
+      );
+    }
+    // Till the video's texture shows, only the tint.
+    final loading = await layers(VideoGlassMode.frost, texture: false);
+    expect(count<BackdropFilterLayer>(loading), 0);
+    expect(count<ImageFilterLayer>(loading), 0);
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+    );
+  });
 }
