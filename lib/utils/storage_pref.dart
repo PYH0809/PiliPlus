@@ -1080,6 +1080,9 @@ abstract final class Pref {
   static bool get videoGlassNotes =>
       _setting.get(SettingBoxKey.videoGlassNotes, defaultValue: true);
 
+  static bool get perfOverlay =>
+      _setting.get(SettingBoxKey.perfOverlay, defaultValue: false);
+
   static bool get removeSafeArea =>
       _setting.get(SettingBoxKey.removeSafeArea, defaultValue: false);
 

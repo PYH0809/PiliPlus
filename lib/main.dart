@@ -4,6 +4,7 @@ import 'package:PiliPlus/build_config.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/back_detector.dart';
 import 'package:PiliPlus/common/widgets/custom_toast.dart';
+import 'package:PiliPlus/common/widgets/frame_stats.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
@@ -320,6 +321,7 @@ class MyApp extends StatelessWidget {
       scrollBehavior: PlatformUtils.isDesktop
           ? const CustomScrollBehavior()
           : null,
+      showPerformanceOverlay: Pref.perfOverlay,
     );
   }
 
@@ -355,6 +357,9 @@ class MyApp extends StatelessWidget {
         ),
         child: child!,
       );
+    }
+    if (Pref.perfOverlay) {
+      child = FrameStats(child: child);
     }
     if (PlatformUtils.isDesktop) {
       return BackDetector(
