@@ -49,6 +49,7 @@ class VideoGlass extends StatelessWidget {
     this.style,
     this.rim,
     this.note = false,
+    this.refract = true,
     this.child,
   });
 
@@ -59,6 +60,7 @@ class VideoGlass extends StatelessWidget {
     this.style,
     this.rim,
     this.note = false,
+    this.refract = true,
     this.child,
   }) : radius = null;
 
@@ -70,6 +72,7 @@ class VideoGlass extends StatelessWidget {
     this.style,
     this.rim,
     this.note = false,
+    this.refract = true,
     Widget? child,
   }) : radius = null,
        child = SizedBox.square(
@@ -86,6 +89,10 @@ class VideoGlass extends StatelessWidget {
   /// Whether this is a small note or button rather than a bar, which the
   /// 播放器小浮层用玻璃 setting can leave as a bare tint.
   final bool note;
+
+  /// Whether the pane may bend what lies under it. A thick pane, as a
+  /// panel's, shows little of the bending, which over a wide pane costs much.
+  final bool refract;
   final Widget? child;
 
   /// Replaces a button's fill with the glass, keeping its focus and
@@ -162,9 +169,11 @@ class VideoGlass extends StatelessWidget {
       rim: rim,
       // Bending costs a shader pass a pane each frame; frosting, one blur;
       // a tint, nothing.
-      mode: note && !Pref.videoGlassNotes
-          ? VideoGlassMode.tint
-          : Pref.videoGlassMode,
+      mode: switch (Pref.videoGlassMode) {
+        _ when note && !Pref.videoGlassNotes => VideoGlassMode.tint,
+        VideoGlassMode.refract when !refract => VideoGlassMode.frost,
+        final mode => mode,
+      },
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       backdropKey: BackdropGroup.of(context)?.backdropKey,
       source: VideoGlassSource.of(context)?.video,
@@ -197,6 +206,20 @@ class VideoGlassSource extends InheritedWidget {
   /// Notifies as the video's texture or its size changes, as the player
   /// outputs anew when the screen turns, for the panes to draw it again.
   final Listenable? changes;
+
+  /// The player on screen, for glass over its video from outside its tree,
+  /// as a panel slid in over the full-screen video in a route of its own.
+  static ({GlobalKey video, Listenable changes})? player;
+
+  /// [child] over the video of the [player] on screen, if one is.
+  static Widget overPlayer({required Widget child}) => switch (player) {
+    (:final video, :final changes) => VideoGlassSource(
+      video: video,
+      changes: changes,
+      child: child,
+    ),
+    null => child,
+  };
 
   static VideoGlassSource? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<VideoGlassSource>();

@@ -540,20 +540,26 @@ abstract final class PageUtils {
   static Widget _onVideoGlass(ThemeData theme, Widget child) {
     const radius = 24.0;
     final colorScheme = theme.colorScheme;
+    // The panel draws the player's video again under it, as the bars over
+    // the video do, frosted: bending a pane half the screen wide costs a
+    // phone a frame's time, and its thick glass shows little of it.
     return Padding(
       padding: const .all(8),
-      child: VideoGlass(
-        radius: radius,
-        style: GlassSurfaces.alertStyle(colorScheme),
-        rim: LiquidGlassRim.alert(colorScheme),
-        child: ClipRSuperellipse(
-          borderRadius: const .all(.circular(radius)),
-          child: Theme(
-            data: theme.copyWith(
-              colorScheme: colorScheme.copyWith(surface: Colors.transparent),
-              canvasColor: Colors.transparent,
+      child: VideoGlassSource.overPlayer(
+        child: VideoGlass(
+          radius: radius,
+          refract: false,
+          style: GlassSurfaces.alertStyle(colorScheme),
+          rim: LiquidGlassRim.alert(colorScheme),
+          child: ClipRSuperellipse(
+            borderRadius: const .all(.circular(radius)),
+            child: Theme(
+              data: theme.copyWith(
+                colorScheme: colorScheme.copyWith(surface: Colors.transparent),
+                canvasColor: Colors.transparent,
+              ),
+              child: child,
             ),
-            child: child,
           ),
         ),
       ),
