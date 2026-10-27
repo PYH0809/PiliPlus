@@ -6,8 +6,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The last frames' UI and raster times, mean and worst, over [child], for
-/// telling on a device what a change costs. A corner line of text that takes
-/// no taps.
+/// telling on a device what a change costs. Two lines of text that take no
+/// taps.
 class FrameStats extends StatefulWidget {
   const FrameStats({super.key, required this.child});
 
@@ -76,10 +76,10 @@ class _FrameStatsState extends State<FrameStats> {
       textDirection: TextDirection.ltr,
       children: [
         widget.child,
+        // Clear of the player's bars, lock and screenshot buttons.
         if (_text.isNotEmpty)
-          Positioned(
-            left: 8,
-            bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
+          Align(
+            alignment: const Alignment(0, -0.45),
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: const BoxDecoration(
