@@ -24,7 +24,8 @@ Linux hosts need `libgtk-3-dev libx11-dev libxi-dev` before `flutter test` can b
 Release builds come from the manual **Build** workflow (`.github/workflows/build.yml`), not from local machines.
 Its `android_dev` input builds the dev flavor (`--android-project-arg dev=1`): it installs as
 `com.example.piliplus.dev`, "PiliPlus dev", next to the release app, and turns Impeller on, which release Android
-builds keep off.
+builds keep off. The APK's build number (versionCode) is the commit count, so a phone refuses a build from a branch
+with fewer commits than the one installed; the `build_number` input sets it by hand.
 
 ## Hard constraints
 
