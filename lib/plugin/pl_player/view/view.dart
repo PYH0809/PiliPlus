@@ -280,6 +280,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       duration: const Duration(milliseconds: 100),
     );
     videoController = plPlayerController.videoController!;
+    if (_glass) {
+      VideoGlassSource.player = (video: _videoKey, changes: _videoChanges);
+    }
 
     if (PlatformUtils.isMobile) {
       Future.microtask(() {
@@ -390,6 +393,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
   @override
   void dispose() {
+    if (VideoGlassSource.player?.video == _videoKey) {
+      VideoGlassSource.player = null;
+    }
     removeObserverMobile(this);
     _danmakuListener?.cancel();
     _tapGestureRecognizer.dispose();
@@ -924,6 +930,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   Widget _sideButton(Widget button) {
     if (_glass) {
       return VideoGlass(
+        note: true,
         radius: 22,
         child: SizedBox.square(dimension: 44, child: button),
       );
@@ -951,6 +958,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         duration: context.motionDuration(const Duration(milliseconds: 150)),
         curve: Curves.easeInOut,
         builder: (context, t, child) => VideoGlass(
+          note: true,
           radius: radius,
           t: t,
           child: Opacity(opacity: t, child: child),
@@ -981,6 +989,11 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   // restart.
   final _glass = GlassSurfaces.installed;
   final _backdropKey = BackdropKey();
+  // The texture and its size, which the glass over the video draws again.
+  late final _videoChanges = Listenable.merge([
+    videoController.id,
+    videoController.rect,
+  ]);
   final _bottomBarKey = GlobalKey();
 
   late ColorScheme colorScheme;
@@ -1123,6 +1136,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
             // On glass, a pill of the video's glass.
             builder: (context) => _glass
                 ? const VideoGlass.capsule(
+                    note: true,
                     child: Padding(
                       padding: .symmetric(horizontal: 14, vertical: 7),
                       child: Text(
@@ -1707,7 +1721,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     padding: const EdgeInsets.only(bottom: 95),
                     child: FilledButton.tonal(
                       style: _glass
-                          ? VideoGlass.buttonStyle().merge(
+                          ? VideoGlass.buttonStyle(note: true).merge(
                               FilledButton.styleFrom(
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,
@@ -2082,8 +2096,16 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       ],
     );
     if (_glass) {
-      // The controls' panes read the screen once between them.
-      child = BackdropGroup(backdropKey: _backdropKey, child: child);
+      // The controls' panes draw the video again under them, frosted or
+      // bent; panes away from it read the screen once between them.
+      child = BackdropGroup(
+        backdropKey: _backdropKey,
+        child: VideoGlassSource(
+          video: _videoKey,
+          changes: _videoChanges,
+          child: child,
+        ),
+      );
     }
     if (PlatformUtils.isDesktop) {
       return Obx(

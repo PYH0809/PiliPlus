@@ -1,24 +1,31 @@
 // Run both ways: `flutter test` frosts, `flutter test --enable-impeller`
 // bends through the shader.
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:flutter/rendering.dart';
+import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
-// Stripes standing in for the video.
+// Stripes standing in for the video, [width] dp each, as far apart.
 class _Stripes extends CustomPainter {
-  const _Stripes();
+  const _Stripes([this.width = 4]);
+
+  final double width;
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (var x = 0.0; x < size.width; x += 8) {
+    for (var i = 0; i * width * 2 < size.width; i++) {
       canvas.drawRect(
-        Rect.fromLTWH(x, 0, 4, size.height),
-        Paint()..color = x % 16 == 0 ? Colors.red : Colors.yellow,
+        Rect.fromLTWH(i * width * 2, 0, width, size.height),
+        Paint()..color = i.isEven ? Colors.red : Colors.yellow,
       );
     }
   }
@@ -43,6 +50,18 @@ double _variance(ByteData pixels, int width, Rect rect) {
 }
 
 void main() {
+  // VideoGlass reads whether to bend through Pref.
+  late Directory tempDir;
+  setUpAll(() async {
+    tempDir = await Directory.systemTemp.createTemp('piliplus-glass-test-');
+    Hive.init(tempDir.path);
+    GStorage.setting = await Hive.openBox('setting');
+  });
+  tearDownAll(() async {
+    await Hive.close();
+    await tempDir.delete(recursive: true);
+  });
+
   testWidgets('the glass softens what lies under it', (tester) async {
     final key = GlobalKey();
     await tester.pumpWidget(
@@ -57,8 +76,10 @@ void main() {
               height: 200,
               child: Stack(
                 children: [
+                  // As fine as text: the bend's frost of 1 dp, light as
+                  // iOS's, softens it, as the frost's wide blur does.
                   const Positioned.fill(
-                    child: CustomPaint(painter: _Stripes()),
+                    child: CustomPaint(painter: _Stripes(1)),
                   ),
                   Positioned.fromRect(
                     rect: _pane,
@@ -154,6 +175,348 @@ void main() {
         pixels!.getUint8(i),
         greaterThan(150),
         reason: 'shader filters: ${ui.ImageFilter.isShaderFilterSupported}',
+      );
+    },
+  );
+
+  testWidgets('each mode filters less than the one above it', (
+    tester,
+  ) async {
+    Future<int> filters(
+      VideoGlassMode mode, {
+      bool notes = true,
+      bool note = false,
+    }) async {
+      // Hive writes real files, outside the test's fake clock.
+      await tester.runAsync(() async {
+        await GStorage.setting.put(SettingBoxKey.videoGlassMode, mode.index);
+        await GStorage.setting.put(SettingBoxKey.videoGlassNotes, notes);
+      });
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          key: ValueKey((mode, notes, note)),
+          child: Center(
+            child: VideoGlass.capsule(
+              note: note,
+              child: const SizedBox(width: 120, height: 36),
+            ),
+          ),
+        ),
+      );
+      // The shader loads off the frame.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump();
+      return tester.layers.whereType<BackdropFilterLayer>().length;
+    }
+
+    // Bending stacks the shader's filter on the frost's.
+    final bends = ui.ImageFilter.isShaderFilterSupported;
+    expect(await filters(VideoGlassMode.refract), bends ? 2 : 1);
+    expect(await filters(VideoGlassMode.frost), 1);
+    expect(await filters(VideoGlassMode.tint), 0);
+    // With notes off a note only tints, and a bar keeps its mode.
+    expect(await filters(VideoGlassMode.frost, notes: false, note: true), 0);
+    expect(await filters(VideoGlassMode.frost, notes: false), 1);
+    await tester.runAsync(() async {
+      await GStorage.setting.delete(SettingBoxKey.videoGlassMode);
+      await GStorage.setting.delete(SettingBoxKey.videoGlassNotes);
+    });
+  });
+
+  testWidgets('over the video a pane draws its texture again, not the screen', (
+    tester,
+  ) async {
+    final video = GlobalKey();
+    Future<List<Layer>> layers(
+      VideoGlassMode mode, {
+      bool texture = true,
+    }) async {
+      await tester.runAsync(
+        () => GStorage.setting.put(SettingBoxKey.videoGlassMode, mode.index),
+      );
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          key: ValueKey((mode, texture)),
+          child: VideoGlassSource(
+            video: video,
+            child: Stack(
+              children: [
+                RepaintBoundary(
+                  key: video,
+                  child: SizedBox(
+                    width: 300,
+                    height: 200,
+                    child: texture ? const Texture(textureId: 7) : null,
+                  ),
+                ),
+                const Positioned(
+                  left: 40,
+                  top: 140,
+                  width: 220,
+                  height: 48,
+                  child: VideoGlass(radius: 20),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      // The shader loads off the frame.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)),
+      );
+      await tester.pump();
+      return tester.layers;
+    }
+
+    int count<T extends Layer>(List<Layer> layers) =>
+        layers.whereType<T>().length;
+
+    final bends = ui.ImageFilter.isShaderFilterSupported;
+    for (final mode in [VideoGlassMode.refract, VideoGlassMode.frost]) {
+      final drawn = await layers(mode);
+      expect(count<BackdropFilterLayer>(drawn), 0, reason: '$mode');
+      // The video's own texture, and the pane's copy of it.
+      expect(count<TextureLayer>(drawn), 2, reason: '$mode');
+      // Frosting, a blur, past a texel a dp, as the test's 3, of a copy
+      // drawn down, which a matrix filter draws up; bending, the shader,
+      // which draws its copy up itself.
+      final dpr = tester.view.devicePixelRatio;
+      expect(
+        count<ImageFilterLayer>(drawn),
+        (mode == VideoGlassMode.refract && bends) || dpr <= 1 ? 1 : 2,
+        reason: '$mode',
+      );
+    }
+    // Till the video's texture shows, only the tint.
+    final loading = await layers(VideoGlassMode.frost, texture: false);
+    expect(count<BackdropFilterLayer>(loading), 0);
+    expect(count<ImageFilterLayer>(loading), 0);
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+    );
+  });
+
+  testWidgets('a pane follows the video to a new texture', (tester) async {
+    final video = GlobalKey();
+    final changes = ValueNotifier(7);
+    addTearDown(changes.dispose);
+    Widget player() => Directionality(
+      textDirection: TextDirection.ltr,
+      child: VideoGlassSource(
+        video: video,
+        changes: changes,
+        child: Stack(
+          children: [
+            RepaintBoundary(
+              key: video,
+              child: SizedBox(
+                width: 300,
+                height: 200,
+                child: ValueListenableBuilder(
+                  valueListenable: changes,
+                  builder: (context, texture, _) => Texture(textureId: texture),
+                ),
+              ),
+            ),
+            const Positioned(
+              left: 40,
+              top: 140,
+              width: 220,
+              height: 48,
+              child: VideoGlass(radius: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+    Set<int> textures() => {
+      for (final layer in tester.layers.whereType<TextureLayer>())
+        layer.textureId,
+    };
+
+    await tester.runAsync(
+      () => GStorage.setting.put(
+        SettingBoxKey.videoGlassMode,
+        VideoGlassMode.frost.index,
+      ),
+    );
+    await tester.pumpWidget(player());
+    await tester.pump();
+    expect(textures(), {7});
+    // The copy a glass host would replay for nothing, it leaves out.
+    expect(tester.layers.whereType<LiquidGlassUnseenLayer>(), hasLength(1));
+
+    // As the screen turns, hardware decoding outputs to a texture anew.
+    changes.value = 8;
+    await tester.pump();
+    expect(textures(), {8});
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+    );
+  });
+
+  testWidgets('the copy lies where the video shows, scaled and offset', (
+    tester,
+  ) async {
+    final video = GlobalKey();
+    await tester.runAsync(
+      () => GStorage.setting.put(
+        SettingBoxKey.videoGlassMode,
+        VideoGlassMode.frost.index,
+      ),
+    );
+    // As the player fits a video, scaled up and centered: a cousin of the
+    // pane, not its ancestor.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: VideoGlassSource(
+          video: video,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 10,
+                top: 0,
+                child: Transform.scale(
+                  scale: 2,
+                  alignment: Alignment.topLeft,
+                  child: RepaintBoundary(
+                    key: video,
+                    child: const SizedBox(
+                      width: 150,
+                      height: 100,
+                      child: Texture(textureId: 7),
+                    ),
+                  ),
+                ),
+              ),
+              const Positioned(
+                left: 40,
+                top: 140,
+                width: 220,
+                height: 48,
+                child: VideoGlass(radius: 20),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final unseen = tester.layers.whereType<LiquidGlassUnseenLayer>().single;
+    TextureLayer? copy;
+    Matrix4 placed = Matrix4.identity();
+    void find(Layer layer, Matrix4 at) {
+      if (layer is TextureLayer) {
+        copy = layer;
+        placed = at;
+        return;
+      }
+      if (layer is ContainerLayer) {
+        final inner = at.clone();
+        // A copy drawn down is drawn up again by the matrix filter over it,
+        // which a layer does not expose: the two cancel.
+        final drawnUp =
+            layer.parent is ImageFilterLayer &&
+            layer.parent!.parent is LiquidGlassUnseenLayer &&
+            layer.firstChild is ImageFilterLayer;
+        if (layer is TransformLayer && !drawnUp) {
+          inner.multiply(layer.transform!);
+        }
+        if (layer is OffsetLayer) {
+          inner.translateByDouble(layer.offset.dx, layer.offset.dy, 0, 1);
+        }
+        for (Layer? child = layer.firstChild; child != null;) {
+          find(child, inner);
+          child = child.nextSibling;
+        }
+      }
+    }
+
+    find(unseen, Matrix4.identity());
+    expect(copy, isNotNull);
+    // On screen, the copy covers the video: from (10, 0), 300 by 200.
+    final shown = MatrixUtils.transformRect(placed, copy!.rect);
+    expect(shown.left, moreOrLessEquals(10));
+    expect(shown.top, moreOrLessEquals(0));
+    expect(shown.width, moreOrLessEquals(300));
+    expect(shown.height, moreOrLessEquals(200));
+    await tester.runAsync(
+      () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+    );
+  });
+
+  testWidgets(
+    'a player in a page bends at a texel a dp, a full-screen one at two',
+    skip: !ui.ImageFilter.isShaderFilterSupported,
+    (tester) async {
+      final video = GlobalKey();
+      final dpr = tester.view.devicePixelRatio;
+      final screen = tester.view.physicalSize / dpr;
+      await tester.runAsync(
+        () => GStorage.setting.put(
+          SettingBoxKey.videoGlassMode,
+          VideoGlassMode.refract.index,
+        ),
+      );
+      // How far the bend draws its copy of a video [shown] so large down.
+      Future<double> drawnDown(Size shown) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            key: ValueKey(shown),
+            child: VideoGlassSource(
+              video: video,
+              child: Stack(
+                children: [
+                  RepaintBoundary(
+                    key: video,
+                    child: SizedBox.fromSize(
+                      size: shown,
+                      child: const Texture(textureId: 7),
+                    ),
+                  ),
+                  const Positioned(
+                    left: 40,
+                    top: 140,
+                    width: 220,
+                    height: 48,
+                    child: VideoGlass(radius: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        // The shader loads off the frame.
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)),
+        );
+        await tester.pump();
+        final down = tester.layers
+            .whereType<TransformLayer>()
+            .where(
+              (layer) =>
+                  layer.parent is ImageFilterLayer &&
+                  layer.firstChild is! TextureLayer,
+            )
+            .single;
+        // Its scale along x, as it draws the copy down in x and y alone.
+        return down.transform!.storage[0];
+      }
+
+      expect(await drawnDown(const Size(300, 200)), moreOrLessEquals(1 / dpr));
+      expect(
+        await drawnDown(screen),
+        moreOrLessEquals(2 / dpr < 1 ? 2 / dpr : 1),
+      );
+      await tester.runAsync(
+        () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
       );
     },
   );

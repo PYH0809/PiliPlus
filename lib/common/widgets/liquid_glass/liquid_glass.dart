@@ -1672,6 +1672,11 @@ List<double> _optics(double saturation, double brightness) {
 // PiliPlus: added, for VideoGlass, glass over a video texture, which the host
 // cannot replay: a backdrop filter runs the same shader over the screen.
 
+/// Holds what a [LiquidGlassHost] leaves out of what it replays behind a
+/// pane, as glass drawing the video's texture again: the host sees no
+/// texture, and would run the glass's filters over nothing every frame.
+class LiquidGlassUnseenLayer extends ContainerLayer {}
+
 /// The glass shader once loaded, or null while it loads, after which
 /// [onLoaded] runs, or for good without Impeller's shader filters.
 ui.FragmentProgram? liquidGlassProgram(VoidCallback onLoaded) =>

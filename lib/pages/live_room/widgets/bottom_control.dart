@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
@@ -236,12 +234,7 @@ class _BottomControlState extends State<BottomControl> with HeaderMixin {
     // On glass, one rounded pane, as the video's bottom bar.
     return Padding(
       padding: isFullScreen
-          ? .fromLTRB(
-              16,
-              0,
-              16,
-              math.max(12, MediaQuery.viewPaddingOf(context).bottom),
-            )
+          ? VideoGlass.fullScreenBarPadding(context)
           : const .fromLTRB(8, 0, 8, 6),
       child: VideoGlass(
         radius: isFullScreen ? 26 : 20,

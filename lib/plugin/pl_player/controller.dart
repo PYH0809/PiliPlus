@@ -1278,6 +1278,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   /// 隐藏控制条
   void hideTaskControls() {
     _timer?.cancel();
+    // While measuring with the performance overlay, the controls stay till
+    // tapped away, their cost with them.
+    if (Pref.perfOverlay) return;
     _timer = Timer(showControlDuration, () {
       if (!isSeeking.value && !tripling) {
         controls = false;
@@ -1832,6 +1835,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
                     // glass.
                     child: GlassSurfaces.installed
                         ? VideoGlass(
+                            note: true,
                             radius: 16,
                             child: Padding(
                               padding: const EdgeInsets.all(6),
