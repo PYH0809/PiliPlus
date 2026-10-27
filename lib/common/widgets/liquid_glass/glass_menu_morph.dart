@@ -2,8 +2,10 @@
 // lib/ui/popup.dart, GPL-3.0): its opening, the press that slides across the
 // rows, and its return into the button as a drop of glass.
 
+import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
+import 'dart:ui' as ui show Image;
+import 'dart:ui' show ImageFilter, lerpDouble;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_droplet.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
@@ -30,6 +32,103 @@ const glassMenuReturn = glassDropletReturn;
 
 // The rows leave this soon into the return.
 const _dropletContentOut = 0.1;
+
+// The button's snapshot comes back into the droplet over this long.
+const _dropletGlyphIn = 0.47;
+const _dropletGlyphCurve = Cubic(0.25, 0.1, 0.25, 1);
+
+// Opening, the button's snapshot sinks under the card by this share of the
+// way, blurring as it goes.
+const _glyphUnderAt = 0.25;
+const _glyphBlur = 4.0;
+
+/// The button a menu opens out of, as FlClash's popup source: while its menu
+/// is open it is hidden, and the menu draws it from a snapshot instead, sinking
+/// into the card as it opens and coming back in the droplet that returns into
+/// it, so the button takes over where the droplet lands.
+class GlassMenuSource extends StatefulWidget {
+  const GlassMenuSource({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<GlassMenuSource> createState() => GlassMenuSourceState();
+}
+
+class GlassMenuSourceState extends State<GlassMenuSource> {
+  static GlassMenuSourceState? _armed;
+
+  final _boundary = GlobalKey();
+  final _hidden = ValueNotifier(false);
+  Completer<void>? _landed;
+
+  /// Makes this the button of the menu about to open; call it just before
+  /// opening the menu.
+  void arm() {
+    _armed = this;
+    // A menu that did not open by the next frame takes no button.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (identical(_armed, this)) {
+        _armed = null;
+      }
+    });
+  }
+
+  /// Completes once the menu has returned into this button and it shows
+  /// again, so that a value picked in it changes in place, not under the
+  /// returning droplet.
+  Future<void> get landed => _landed?.future ?? Future.value();
+
+  static GlassMenuSourceState? _take() {
+    final source = _armed;
+    _armed = null;
+    return source != null && source.mounted ? source : null;
+  }
+
+  ui.Image? _capture() {
+    final boundary = _boundary.currentContext?.findRenderObject();
+    if (!mounted || boundary is! RenderRepaintBoundary || !boundary.hasSize) {
+      return null;
+    }
+    final image = LiquidGlass.withoutPanes(
+      () => boundary.toImageSync(
+        pixelRatio: MediaQuery.devicePixelRatioOf(context),
+      ),
+    );
+    _landed ??= Completer();
+    _hidden.value = true;
+    return image;
+  }
+
+  void _reveal() {
+    if (mounted) {
+      _hidden.value = false;
+    }
+    _landed?.complete();
+    _landed = null;
+  }
+
+  @override
+  void dispose() {
+    if (identical(_armed, this)) {
+      _armed = null;
+    }
+    _landed?.complete();
+    _landed = null;
+    _hidden.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: _hidden,
+      builder: (context, hidden, child) =>
+          Opacity(opacity: hidden ? 0 : 1, child: child),
+      child: RepaintBoundary(key: _boundary, child: widget.child),
+    );
+  }
+}
 
 /// A popup menu that grows out of [anchor], its button, as an iOS menu does:
 /// the button's capsule of glass swells into the card, its glass turning to
@@ -75,12 +174,26 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
   double? _closedFrom;
   PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>? _pressed;
   Rect? _pressedRect;
+  GlassMenuSourceState? _source;
+  ui.Image? _sourceImage;
 
   @override
   void initState() {
     super.initState();
     GlassMenuMorph._active = this;
     widget.animation.addStatusListener(_handleStatus);
+    if (widget.anchor != null) {
+      _source = GlassMenuSourceState._take();
+    }
+    // The button may still paint the press that opened the menu, so it is
+    // taken once this frame has painted.
+    if (_source != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_closing) {
+          setState(() => _sourceImage = _source?._capture());
+        }
+      });
+    }
   }
 
   @override
@@ -95,6 +208,10 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
   void _handleStatus(AnimationStatus status) {
     if (status == AnimationStatus.reverse) {
       _closedFrom ??= _linear(widget.animation);
+    } else if (status == AnimationStatus.dismissed) {
+      // Landed: the button takes over from its snapshot on the frame the
+      // menu goes.
+      _source?._reveal();
     }
   }
 
@@ -117,6 +234,8 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
       GlassMenuMorph._active = null;
     }
     widget.animation.removeStatusListener(_handleStatus);
+    _source?._reveal();
+    _sourceImage?.dispose();
     _open.dispose();
     super.dispose();
   }
@@ -228,6 +347,7 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
               .clamp(0.0, 1.0),
           pressed: _pressedRect,
           pressColor: theme.highlightColor,
+          sourceImage: _sourceImage,
           child: child,
         );
       },
@@ -251,6 +371,7 @@ class _MenuMorph extends SingleChildRenderObjectWidget {
     required this.contentOpacity,
     required this.pressed,
     required this.pressColor,
+    required this.sourceImage,
     super.child,
   });
 
@@ -267,6 +388,9 @@ class _MenuMorph extends SingleChildRenderObjectWidget {
   final double contentOpacity;
   final Rect? pressed;
   final Color pressColor;
+
+  /// The button, drawn in its place while it is hidden.
+  final ui.Image? sourceImage;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
@@ -304,7 +428,8 @@ class _RenderMenuMorph extends RenderProxyBox {
         !listEquals(old.shadows, config.shadows) ||
         old.contentOpacity != config.contentOpacity ||
         old.pressed != config.pressed ||
-        old.pressColor != config.pressColor) {
+        old.pressColor != config.pressColor ||
+        old.sourceImage != config.sourceImage) {
       markNeedsPaint();
     }
     if (config.returnTime == null) {
@@ -396,7 +521,52 @@ class _RenderMenuMorph extends RenderProxyBox {
       rim: config.rim,
     );
     config.rim.paintLine(context.canvas, placed, radius);
+    // The button, hidden meanwhile, shrinks and sinks under the card as a
+    // droplet would, blurring away.
+    if (config.sourceImage case final image? when time == null) {
+      final under = math.min(1.0, progress.clamp(0.0, 1.0) / _glyphUnderAt);
+      final extent = from.size * lerpDouble(1, glassDropletShare, progress)!;
+      final sunk = Offset.lerp(
+        from.center,
+        size.center(.zero),
+        glassDropletShare,
+      )!;
+      _paintSource(
+        context.canvas,
+        image,
+        Rect.fromCenter(
+          center: Offset.lerp(from.center, sunk, progress)!,
+          width: math.max(0.0, extent.width),
+          height: math.max(0.0, extent.height),
+        ).shift(offset),
+        1 - under,
+        blur: _glyphBlur * under,
+      );
+    }
     _paintContent(context, offset, rect, radius, config.contentOpacity);
+  }
+
+  void _paintSource(
+    Canvas canvas,
+    ui.Image image,
+    Rect rect,
+    double opacity, {
+    double blur = 0,
+  }) {
+    if (rect.isEmpty || Color.getAlphaFromOpacity(opacity) == 0) {
+      return;
+    }
+    canvas.drawImageRect(
+      image,
+      Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+      rect,
+      Paint()
+        ..color = Color.fromRGBO(0, 0, 0, opacity)
+        ..filterQuality = .medium
+        ..imageFilter = blur > 0
+            ? ImageFilter.blur(sigmaX: blur, sigmaY: blur)
+            : null,
+    );
   }
 
   void _paintContent(
@@ -468,10 +638,30 @@ class _RenderMenuMorph extends RenderProxyBox {
     final (:platter, :radius, :droplet, :blend, :progress, :absorbed) = frame;
     final outline = gooPairOutline(platter, radius, droplet, blend);
     final shape = outline.getBounds();
+    // The button comes back in the droplet, which lands on it, so the button
+    // takes over just where it was.
+    void paintSource() {
+      if (config.sourceImage case final image?) {
+        _paintSource(
+          context.canvas,
+          image,
+          droplet.shift(offset),
+          lerpDouble(
+            0.2,
+            1,
+            _dropletGlyphCurve.transform(
+              (time / _dropletGlyphIn).clamp(0.0, 1.0),
+            ),
+          )!,
+        );
+      }
+    }
+
     // Inside the button by then, the droplet dissolves into it, as the
     // button here is no glass of its own.
     if (shape.isEmpty || absorbed >= 1) {
       _clear();
+      paintSource();
       return;
     }
     final remaining = (1 - progress).clamp(0.0, 1.0);
@@ -502,6 +692,7 @@ class _RenderMenuMorph extends RenderProxyBox {
       radius,
       menuShadows(config.colorScheme, remaining),
     );
+    paintSource();
     // The rows leave at once, inside the platter as it starts to shrink.
     final reveal =
         1 -
