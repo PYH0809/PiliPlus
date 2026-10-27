@@ -77,8 +77,21 @@ class _FrameStatsState extends State<FrameStats> {
     final span =
         _timings.last.timestampInMicroseconds(FramePhase.rasterFinish) -
         _timings.first.timestampInMicroseconds(FramePhase.buildStart);
+    // Frames that came later than one and a half of the usual interval:
+    // what a viewer sees as a stutter. The raster time alone is no sign of
+    // it, as on OpenGL ES it holds the wait for a free screen buffer too.
+    final finishes = [
+      for (final timing in _timings)
+        timing.timestampInMicroseconds(FramePhase.rasterFinish),
+    ];
+    final intervals = [
+      for (var i = 1; i < finishes.length; i++) finishes[i] - finishes[i - 1],
+    ]..sort();
+    final usual = intervals.isEmpty ? 0 : intervals[intervals.length ~/ 2];
+    final dropped = intervals.where((i) => i > usual * 1.5).length;
     return {
       'frames': _timings.length,
+      'dropped': dropped,
       'rasterMean': mean(raster),
       'rasterWorst': worst(raster),
       'uiMean': mean(ui),
