@@ -10,7 +10,9 @@ turn on 显示性能浮层 in the app once, then:
 
 true or false shows danmaku or not (default false: danmaku cost frames of
 their own). A case is mode:layout[:extra...]: mode refract, frost or tint;
-layout full or portrait; extras notesoff (the small notes only tint), panel
+layout full or portrait; extras hidden (the controls out of sight), notesoff
+(the small notes only tint), trace (list the UI thread's time by
+event), panel
 (full screen, open the ⋮ side panel) and scroll (portrait, scroll the page
 under the player and switch its tabs). Each prints the raster and UI times
 of a frame drawn every vsync for 3 s, as the video's every new frame redraws
@@ -58,7 +60,10 @@ def vm_url(log):
 
 
 def call(method, **params):
-    query = urllib.parse.urlencode({"isolateId": ISOLATE, **params} if ISOLATE else params)
+    # The app's commands run in its isolate; the VM's own methods take none.
+    if ISOLATE and method.startswith("ext."):
+        params = {"isolateId": ISOLATE, **params}
+    query = urllib.parse.urlencode(params)
     try:
         with urllib.request.urlopen(f"{URL}{method}?{query}", timeout=5) as response:
             body = json.load(response)
@@ -124,6 +129,24 @@ def describe(f):
     )
 
 
+def print_ui_time(events):
+    # What the UI thread spent its time on, by event, the longest first.
+    ui = {e["tid"] for e in events if e.get("ph") == "M" and e.get("args", {}).get("name", "").startswith("1.ui")}
+    totals, open_ = {}, {}
+    for e in events:
+        if e.get("tid") not in ui:
+            continue
+        name, ph = e.get("name"), e.get("ph")
+        if ph == "X":
+            totals[name] = totals.get(name, 0) + e.get("dur", 0)
+        elif ph == "B":
+            open_.setdefault((e["tid"], name), []).append(e["ts"])
+        elif ph == "E" and open_.get((e["tid"], name)):
+            totals[name] = totals.get(name, 0) + e["ts"] - open_[(e["tid"], name)].pop()
+    for name, us in sorted(totals.items(), key=lambda kv: -kv[1])[:12]:
+        print(f"    {us / 1000:8.1f} ms  {name}", flush=True)
+
+
 def measure(case):
     mode, layout, *rest = case.split(":")
     panel = "panel" in rest
@@ -140,8 +163,9 @@ def measure(case):
     if layout == "full":
         ext("fullscreen", on="true")
         wait("full screen", lambda s: s["fullscreen"], 5)
-    ext("controls", on="true")
-    wait("the controls", lambda s: s["controls"], 5)
+    shown = "hidden" not in rest
+    ext("controls", on=json.dumps(shown))
+    wait("the controls", lambda s: s["controls"] == shown, 5)
     time.sleep(2)
     if panel:
         # The ⋮ at the top right opens the side panel: count the frames of
@@ -151,6 +175,10 @@ def measure(case):
         time.sleep(1.2)
         print(f"  opening the panel: {describe(state()['frames'])}", flush=True)
         screenshot(f"{case}_opening")
+    trace = "trace" in rest
+    if trace:
+        call("clearVMTimeline")
+        call("setVMTimelineFlags", recordedStreams="[Dart,Embedder]")
     ext("resetFrames")
     # Every vsync, as the video's every new frame redraws the screen, which
     # the overlay does not count by itself.
@@ -167,6 +195,9 @@ def measure(case):
         )
     forced.join(timeout=8)
     s = state()
+    if trace:
+        print_ui_time(call("getVMTimeline")["traceEvents"])
+        call("setVMTimelineFlags", recordedStreams="[]")
     if not s["playing"] or (s["frames"] or {}).get("frames", 0) < 120:
         raise Failed(f"counted too little: {s}")
     if layout == "full" and not s["fullscreen"]:
