@@ -10,7 +10,8 @@ import 'package:material_ui/material_ui.dart';
 /// Opens a popup menu on its button's pointer down, as iOS menus do, and
 /// carries the press on into it, so the finger can slide on into the menu and
 /// let go on an item. In a scroll view it waits a moment first, so that a
-/// drag scrolls instead.
+/// drag scrolls instead. The button is the menu's [GlassMenuSource], so the
+/// menu takes it in as it opens and gives it back as it returns.
 class GlassMenuPress extends StatefulWidget {
   const GlassMenuPress({super.key, required this.open, required this.child});
 
@@ -23,6 +24,7 @@ class GlassMenuPress extends StatefulWidget {
 }
 
 class _GlassMenuPressState extends State<GlassMenuPress> {
+  final _source = GlobalKey<GlassMenuSourceState>();
   int? _pointer;
   Offset _origin = Offset.zero;
   bool _moved = false;
@@ -31,6 +33,7 @@ class _GlassMenuPressState extends State<GlassMenuPress> {
     _pointer = event.pointer;
     _origin = event.position;
     _moved = false;
+    _source.currentState?.arm();
     widget.open();
   }
 
@@ -85,7 +88,7 @@ class _GlassMenuPressState extends State<GlassMenuPress> {
                 ..onCancel = _handleCancel,
             ),
       },
-      child: widget.child,
+      child: GlassMenuSource(key: _source, child: widget.child),
     );
   }
 }
