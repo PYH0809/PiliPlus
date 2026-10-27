@@ -198,6 +198,10 @@ vec4 sampleBehind(vec2 point) {
   if (uShape.w >= kSteadyFrost) {
     return sampleGlass(point);
   }
+  // PiliPlus: without a frost the four taps read one texel.
+  if (uShape.w <= 0.0) {
+    return sampleGlass(point);
+  }
   vec2 spread = vec2(uShape.w, -uShape.w);
   return 0.25 * (sampleGlass(point + spread.xx)
       + sampleGlass(point + spread.yy)

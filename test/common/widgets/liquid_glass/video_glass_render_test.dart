@@ -282,14 +282,13 @@ void main() {
       expect(count<BackdropFilterLayer>(drawn), 0, reason: '$mode');
       // The video's own texture, and the pane's copy of it.
       expect(count<TextureLayer>(drawn), 2, reason: '$mode');
-      // Frosting, a blur; bending, the shader, which frosts as it samples.
-      // Past its texels a dp, a frost's 1 or a bend's 2 against the test's
-      // 3, each filters a copy drawn down, which a matrix filter draws up.
+      // Frosting, a blur, past a texel a dp, as the test's 3, of a copy
+      // drawn down, which a matrix filter draws up; bending, the shader,
+      // which draws its copy up itself.
       final dpr = tester.view.devicePixelRatio;
-      final texelsPerDp = mode == VideoGlassMode.refract && bends ? 2 : 1;
       expect(
         count<ImageFilterLayer>(drawn),
-        dpr > texelsPerDp ? 2 : 1,
+        (mode == VideoGlassMode.refract && bends) || dpr <= 1 ? 1 : 2,
         reason: '$mode',
       );
     }
@@ -451,4 +450,74 @@ void main() {
       () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
     );
   });
+
+  testWidgets(
+    'a player in a page bends at a texel a dp, a full-screen one at two',
+    skip: !ui.ImageFilter.isShaderFilterSupported,
+    (tester) async {
+      final video = GlobalKey();
+      final dpr = tester.view.devicePixelRatio;
+      final screen = tester.view.physicalSize / dpr;
+      await tester.runAsync(
+        () => GStorage.setting.put(
+          SettingBoxKey.videoGlassMode,
+          VideoGlassMode.refract.index,
+        ),
+      );
+      // How far the bend draws its copy of a video [shown] so large down.
+      Future<double> drawnDown(Size shown) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            key: ValueKey(shown),
+            child: VideoGlassSource(
+              video: video,
+              child: Stack(
+                children: [
+                  RepaintBoundary(
+                    key: video,
+                    child: SizedBox.fromSize(
+                      size: shown,
+                      child: const Texture(textureId: 7),
+                    ),
+                  ),
+                  const Positioned(
+                    left: 40,
+                    top: 140,
+                    width: 220,
+                    height: 48,
+                    child: VideoGlass(radius: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        // The shader loads off the frame.
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)),
+        );
+        await tester.pump();
+        final down = tester.layers
+            .whereType<TransformLayer>()
+            .where(
+              (layer) =>
+                  layer.parent is ImageFilterLayer &&
+                  layer.firstChild is! TextureLayer,
+            )
+            .single;
+        // Its scale along x, as it draws the copy down in x and y alone.
+        return down.transform!.storage[0];
+      }
+
+      expect(await drawnDown(const Size(300, 200)), moreOrLessEquals(1 / dpr));
+      expect(
+        await drawnDown(screen),
+        moreOrLessEquals(2 / dpr < 1 ? 2 / dpr : 1),
+      );
+      await tester.runAsync(
+        () => GStorage.setting.delete(SettingBoxKey.videoGlassMode),
+      );
+    },
+  );
 }
