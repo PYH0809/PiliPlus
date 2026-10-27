@@ -34,10 +34,14 @@ const _cornersDelay = 0.07;
 const _cornersReach = 0.48;
 const _rimDepth = 8.0;
 
-// Long enough for both springs to settle. The route keeps the time, rather
-// than springs of its own, so the navigator knows when the page has opened.
-const _openDuration = Duration(milliseconds: 500);
-final _openSeconds = _openDuration.inMicroseconds / 1e6;
+// Both springs settle in half a second of their own time, which the route
+// plays in less: a little slower than they run as it starts, so the glass
+// is seen to swell, and faster through their tail, which hardly moves, so
+// the page is live sooner. The route keeps the time, rather than springs of
+// its own, so the navigator knows when the page has opened.
+const _openDuration = Duration(milliseconds: 360);
+const _openSeconds = 0.5;
+const _openPace = Cubic(1 / 3, 0.2, 2 / 3, 8 / 15);
 
 // How far into its return the page fades into the glass as it shrinks with
 // it, its fill a little behind, and how frosted it is by then.
@@ -367,7 +371,7 @@ class _PageMorphState extends State<_PageMorph> {
         final status = widget.animation.status;
         return _Morph(
           openTime: status == AnimationStatus.forward
-              ? _linear(widget.animation) * _openSeconds
+              ? _openPace.transform(_linear(widget.animation)) * _openSeconds
               : null,
           returnTime: status.isForwardOrCompleted ? null : _returnTime,
           source: _sourceBox,
@@ -652,8 +656,10 @@ class _RenderMorph extends RenderBox
     );
     _lastPlatter = platter;
     _lastRadius = radius;
-    _lastContent = Curves.easeOut.transform(_interval(0.15, 0.6, settled));
-    _lastFill = Curves.easeIn.transform(_interval(0.2, 0.85, settled));
+    // The glass swells first, and the page comes into it, quickly, as it
+    // nears its size.
+    _lastContent = Curves.easeOut.transform(_interval(0.6, 0.95, settled));
+    _lastFill = Curves.easeIn.transform(_interval(0.55, 0.9, settled));
     _paintMorph(
       context,
       offset,
