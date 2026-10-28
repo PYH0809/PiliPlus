@@ -10,9 +10,10 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:material_ui/material_ui.dart';
 
-// As the home header's: the buttons stand 14 in from the sides, and the tabs
-// leave 6 under them.
+// As the home header's: the buttons stand 14 in from the sides, 8 apart from
+// a pane beside them, and the tabs leave 6 under them.
 const double _sideInset = 14;
+const double _paneGap = 8;
 const double _tabsGap = 6;
 
 // The title reads on the fade itself, not on glass as the home header's tabs
@@ -54,6 +55,7 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
     this.title,
     this.actions,
     this.centerTitle,
+    this.expandTitle = false,
     this.tabs,
   });
 
@@ -84,6 +86,12 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
 
   /// As [AppBar.centerTitle]. On glass the title is centered unless false.
   final bool? centerTitle;
+
+  /// On glass, whether [title] is a pane of its own, as a search capsule
+  /// [buttonSize] tall, which then fills the row between the back button
+  /// and the actions, 8 dp from each, as the search page's header lays
+  /// its field out. It stands as it is, on no patch of the surface.
+  final bool expandTitle;
 
   /// A second row on glass, under the title, while glass is on. With glass
   /// off the page keeps its own [TabBar] in the body.
@@ -130,7 +138,7 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
     ];
 
     Widget? title = this.title;
-    if (title != null) {
+    if (title != null && !expandTitle) {
       title = MediaQuery.withClampedTextScaling(
         maxScaleFactor: _maxTitleTextScale,
         child: DefaultTextStyle(
@@ -167,25 +175,46 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
 
     Widget bar = SizedBox(
       height: kToolbarHeight,
-      child: NavigationToolbar(
-        leading: leading == null
-            ? null
-            : Padding(
-                padding: const EdgeInsetsDirectional.only(start: _sideInset),
-                child: Center(widthFactor: 1, child: leading),
+      child: expandTitle
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: _sideInset),
+              child: Row(
+                children: [
+                  if (leading != null) ...[
+                    leading,
+                    const SizedBox(width: _paneGap),
+                  ],
+                  Expanded(child: title ?? const SizedBox.shrink()),
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(width: _paneGap),
+                    GlassButtonGroup(glass: true, children: actions),
+                  ],
+                ],
               ),
-        middle: title,
-        trailing: actions.isEmpty
-            ? null
-            : Padding(
-                padding: const EdgeInsetsDirectional.only(end: _sideInset),
-                child: Center(
-                  widthFactor: 1,
-                  child: GlassButtonGroup(glass: true, children: actions),
-                ),
-              ),
-        centerMiddle: centerTitle ?? true,
-      ),
+            )
+          : NavigationToolbar(
+              leading: leading == null
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: _sideInset,
+                      ),
+                      child: Center(widthFactor: 1, child: leading),
+                    ),
+              middle: title,
+              trailing: actions.isEmpty
+                  ? null
+                  : Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        end: _sideInset,
+                      ),
+                      child: Center(
+                        widthFactor: 1,
+                        child: GlassButtonGroup(glass: true, children: actions),
+                      ),
+                    ),
+              centerMiddle: centerTitle ?? true,
+            ),
     );
     if (tabs case final tabs?) {
       bar = Column(

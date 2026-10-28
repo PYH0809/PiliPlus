@@ -100,6 +100,18 @@ void main() {
       expect(tester.getTopLeft(find.text('设置')).dx, 56);
     });
 
+    testWidgets('a capsule title is an AppBar title again', (tester) async {
+      await _pump(
+        tester,
+        SimpleScaffold(
+          appBar: const GlassAppBar(expandTitle: true, title: Text('设置')),
+          body: _list(),
+        ),
+      );
+      expect(tester.widget<AppBar>(find.byType(AppBar)).title, isA<Text>());
+      expect(tester.getTopLeft(find.text('设置')).dx, 56);
+    });
+
     testWidgets('the list starts below the bar, as before', (tester) async {
       await _pump(tester, _settingsPage());
       expect(tester.getTopLeft(find.byType(ListView)).dy, _belowBar);
@@ -329,6 +341,62 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('设置搜索'), findsNothing);
       expect(find.byTooltip('搜索'), findsOneWidget);
+    });
+
+    testWidgets('a capsule for a title fills the row, 8 dp from its panes', (
+      tester,
+    ) async {
+      // As 设置's floating search.
+      Widget capsule() => const SizedBox(
+        key: ValueKey('capsule'),
+        height: GlassAppBar.buttonSize,
+        child: ColoredBox(color: Colors.grey),
+      );
+      await _pump(
+        tester,
+        SimpleScaffold(
+          appBar: GlassAppBar(expandTitle: true, title: capsule()),
+          body: _list(),
+        ),
+      );
+      final back = _paneUnder(tester, find.byTooltip('Back'));
+      final rect = tester.getRect(find.byKey(const ValueKey('capsule')));
+      expect(rect.left, back.right + 8);
+      expect(rect.right, _width - 14);
+      expect(rect.height, back.height);
+      expect(rect.center.dy, back.center.dy);
+      // On no patch of the surface: it is a pane of its own.
+      expect(
+        find.ancestor(
+          of: find.byKey(const ValueKey('capsule')),
+          matching: find.byType(DecoratedBox),
+        ),
+        findsNothing,
+      );
+
+      await _pump(
+        tester,
+        SimpleScaffold(
+          appBar: GlassAppBar(
+            expandTitle: true,
+            title: capsule(),
+            actions: [
+              IconButton(
+                tooltip: '更多',
+                onPressed: () {},
+                icon: const Icon(Icons.more_vert),
+              ),
+            ],
+          ),
+          body: _list(),
+        ),
+      );
+      final more = _paneUnder(tester, find.byTooltip('更多'));
+      expect(
+        tester.getRect(find.byKey(const ValueKey('capsule'))).right,
+        more.left - 8,
+      );
+      expect(more.right, _width - 14);
     });
 
     testWidgets('a capsule whose actions all hide is not drawn', (
