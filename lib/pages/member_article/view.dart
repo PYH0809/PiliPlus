@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/space/space_article/item.dart';
@@ -47,6 +48,8 @@ class _MemberArticleState extends State<MemberArticle>
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          // Room for the 投稿 tab's glass categories, laid over the list.
+          HeaderOverlayInset.sliver(context),
           SliverPadding(
             padding: EdgeInsets.only(
               top: 7,

@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
@@ -49,6 +50,8 @@ class _SeasonSeriesPageState extends State<SeasonSeriesPage>
     return CustomScrollView(
       physics: platformAlwaysClampingPhysics,
       slivers: [
+        // Room for the 投稿 tab's glass categories, laid over the list.
+        HeaderOverlayInset.sliver(context),
         SliverPadding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
