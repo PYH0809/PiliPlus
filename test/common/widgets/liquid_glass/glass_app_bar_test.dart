@@ -1,10 +1,13 @@
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
 const _width = 412.0;
@@ -224,6 +227,64 @@ void main() {
       expect(search.size, const Size.square(GlassAppBar.buttonSize));
       expect(search.left, capsule.left);
       expect(tester.getRect(find.byType(TextButton)).right, capsule.right);
+    });
+
+    testWidgets('a lone action that opens a page grows it out of its circle', (
+      tester,
+    ) async {
+      tester.view
+        ..physicalSize = const Size(_width, 800)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(Get.reset);
+      await tester.pumpWidget(
+        GetMaterialApp(
+          getPages: [
+            GetPage(
+              name: '/settingsSearch',
+              page: () => const Scaffold(body: Text('设置搜索')),
+            ),
+          ],
+          home: SimpleScaffold(
+            appBar: GlassAppBar(
+              title: const Text('设置'),
+              actions: [
+                GlassMorphSource(
+                  builder: (context, source) => IconButton(
+                    tooltip: '搜索',
+                    onPressed: () => source.toNamed('/settingsSearch'),
+                    icon: const Icon(Icons.search),
+                  ),
+                ),
+              ],
+            ),
+            body: _list(),
+          ),
+        ),
+      );
+      final circle = _paneUnder(tester, find.byTooltip('搜索'));
+      expect(circle.size, const Size.square(GlassAppBar.buttonSize));
+      final group = GlassButtonGroup.maybeOf(
+        tester.element(find.byTooltip('搜索')),
+      )!;
+      expect(group.alone, isTrue);
+
+      await tester.tap(find.byTooltip('搜索'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      // Out of the circle, which hides whole as a GlassMorphButton does.
+      expect(
+        GlassMorphButton.deferUntilOpened(
+          tester.element(find.text('设置搜索')),
+          () {},
+        ),
+        isTrue,
+      );
+      await tester.pumpAndSettle();
+      Get.back<void>();
+      await tester.pumpAndSettle();
+      expect(find.text('设置搜索'), findsNothing);
+      expect(find.byTooltip('搜索'), findsOneWidget);
     });
 
     testWidgets('a capsule whose actions all hide is not drawn', (

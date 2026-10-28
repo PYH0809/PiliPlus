@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
@@ -57,18 +58,20 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
   /// How tall and, alone, how wide a button on the bar is, as iOS 26's.
   static const double buttonSize = 44;
 
-  /// As [AppBar.leading]. On glass it stands on a circle of glass; without
-  /// it, a route that can be popped gets a glass back button.
+  /// As [AppBar.leading]. On glass it stands on a circle of glass, a
+  /// [GlassButtonGroup] of one; without it, a route that can be popped gets a
+  /// glass back button.
   final Widget? leading;
 
   final bool automaticallyImplyLeading;
 
   final Widget? title;
 
-  /// As [AppBar.actions]. On glass they stand side by side on one capsule of
-  /// glass, each as it is, IconButtons and TextButtons 44 dp tall; a lone
-  /// one makes it a circle. Childless [SizedBox]es, which space Material's
-  /// actions from the edge, are left out there.
+  /// As [AppBar.actions]. On glass they stand together in a
+  /// [GlassButtonGroup], each as it is, a lone one on a circle. One that
+  /// opens a page does it out of itself through a `GlassMorphSource`; alone,
+  /// it is the whole circle, as a `GlassMorphButton`. Childless [SizedBox]es,
+  /// which space Material's actions from the edge, are left out there.
   final List<Widget>? actions;
 
   /// As [AppBar.centerTitle]. On glass the title is centered unless false.
@@ -105,7 +108,7 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
 
     Widget? leading = this.leading;
     if (leading != null) {
-      leading = _GlassButtons(children: [leading]);
+      leading = GlassButtonGroup(glass: true, children: [leading]);
     } else if (automaticallyImplyLeading) {
       final route = ModalRoute.of(context);
       if (route?.impliesAppBarDismissal ?? false) {
@@ -158,7 +161,7 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
                 padding: const EdgeInsetsDirectional.only(end: _sideInset),
                 child: Center(
                   widthFactor: 1,
-                  child: _GlassButtons(children: actions),
+                  child: GlassButtonGroup(glass: true, children: actions),
                 ),
               ),
         centerMiddle: centerTitle ?? true,
@@ -293,54 +296,6 @@ class SliverHeaderOverlaySpace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => HeaderOverlayInset.sliver(context);
-}
-
-/// [children] side by side on one capsule of glass, as iOS 26 groups a bar's
-/// buttons: a circle around a lone one. Each keeps its own press, a platter
-/// without a ripple.
-class _GlassButtons extends StatelessWidget {
-  const _GlassButtons({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    const size = Size.square(GlassAppBar.buttonSize);
-    return Stack(
-      children: [
-        // Sized by the buttons, so that it is empty, and not drawn, while
-        // they all hide.
-        Positioned.fill(
-          child: LiquidGlass(
-            style: LiquidGlassStyle.regular(colorScheme),
-            shadows: floatingGlassShadows(colorScheme),
-          ),
-        ),
-        Theme(
-          data: GlassSurfaces.withoutRipples(theme).copyWith(
-            iconButtonTheme: IconButtonThemeData(
-              style: IconButton.styleFrom(
-                minimumSize: size,
-                tapTargetSize: .shrinkWrap,
-              ),
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                minimumSize: size,
-                tapTargetSize: .shrinkWrap,
-              ),
-            ),
-          ),
-          child: SizedBox(
-            height: GlassAppBar.buttonSize,
-            child: Row(mainAxisSize: .min, children: children),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// The way back on a circle of glass, as [BackButton], or as [CloseButton]
