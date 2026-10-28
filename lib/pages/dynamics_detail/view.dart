@@ -7,6 +7,7 @@ import 'package:PiliPlus/common/widgets/flutter/dyn_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
 import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
@@ -320,9 +321,42 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
     return '${type.label}${count < 0 ? '' : ' ${NumUtils.numFormat(count)}'}';
   }
 
+  /// How far the tabs on glass cover the lists under them: 6 above the
+  /// pill, 40 for it, 4 below.
+  static const _glassTabsExtent = 6.0 + 40.0 + 4.0;
+
+  /// The tabs and [body] under them. On glass the tabs float over the lists,
+  /// which start below them and, once the tabs have reached the top, scroll
+  /// under them.
+  Widget _buildTabs(Widget body) {
+    if (GlassSurfaces.installed) {
+      return HeaderOverlayInset(
+        inset: _glassTabsExtent,
+        child: Stack(
+          clipBehavior: .none,
+          children: [
+            Positioned.fill(child: body),
+            // Centred at the width of its tabs, as in the column.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Align(alignment: .topCenter, child: _buildTabBar()),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        _buildTabBar(),
+        Expanded(child: body),
+      ],
+    );
+  }
+
   Widget _buildTabBar() {
     if (GlassSurfaces.installed) {
-      // Stays in place: the content doesn't scroll under it.
       return Padding(
         padding: const .fromLTRB(14, 6, 14, 4),
         child: Obx(
@@ -401,7 +435,8 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
           Positioned(
             left: 0,
             right: 0,
-            top: displacement,
+            top:
+                displacement + (GlassSurfaces.installed ? _glassTabsExtent : 0),
             child: Obx(
               () => RefreshIndicator_(isRefreshing: _isRefreshing.value),
             ),
@@ -440,12 +475,7 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [_buildDynPanel()];
         },
-        body: Column(
-          children: [
-            _buildTabBar(),
-            Expanded(child: _buildTabBody()),
-          ],
-        ),
+        body: _buildTabs(_buildTabBody()),
       ),
     );
   }
@@ -476,12 +506,7 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
           child: Padding(
             padding: EdgeInsets.only(right: padding),
             child: MiniScaffold(
-              body: Column(
-                children: [
-                  _buildTabBar(),
-                  Expanded(child: _buildTabBody(false)),
-                ],
-              ),
+              body: _buildTabs(_buildTabBody(false)),
             ),
           ),
         ),
@@ -656,6 +681,18 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
         },
       ),
     );
+    if (GlassSurfaces.installed) {
+      // Under the tabs on glass, the row floats back just below them, the
+      // room above it clear so the replies show through the tabs, and
+      // slides away under them.
+      return SliverFloatingHeaderWidget(
+        backgroundColor: Colors.transparent,
+        child: Padding(
+          padding: const .only(top: _glassTabsExtent),
+          child: ColoredBox(color: theme.colorScheme.surface, child: child),
+        ),
+      );
+    }
     return SliverFloatingHeaderWidget(
       backgroundColor: theme.colorScheme.surface,
       child: child,
