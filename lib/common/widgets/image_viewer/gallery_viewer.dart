@@ -23,6 +23,7 @@ import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/gesture/image_double_tap_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/gesture/image_horizontal_drag_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/gesture/image_tap_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/image_viewer/gallery_glass.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/image.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/loading_indicator.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/viewer.dart';
@@ -107,6 +108,26 @@ class _GalleryViewerState extends State<GalleryViewer>
   Offset _offset = Offset.zero;
   bool _dragging = false;
 
+  static final bool _glass = Pref.liquidGlass;
+  // The pages zoomed in, by index, and whether the current one is.
+  final _zoomedPages = <int>{};
+  late final _zoomed = ValueNotifier(false);
+  // Holds the pages, where the glass finds a live photo's video.
+  late final _pagesKey = GlobalKey();
+  late final _turning = ValueNotifier(0.0);
+
+  bool _isLivePhoto(int index) =>
+      index >= 0 &&
+      index < widget.sources.length &&
+      widget.sources[index].sourceType == SourceType.livePhoto;
+
+  void _onPageScroll() {
+    _turning.value = GalleryGlass.turningAway(
+      _pageController.page!,
+      _isLivePhoto,
+    );
+  }
+
   String _getActualUrl(String url) {
     return _quality != 100
         ? ImageUtils.thumbnailUrl(url, _quality)
@@ -144,6 +165,9 @@ class _GalleryViewerState extends State<GalleryViewer>
     }
 
     _pageController = PageController(initialPage: widget.initIndex);
+    if (_glass) {
+      _pageController.addListener(_onPageScroll);
+    }
 
     final gestureSettings = MediaQuery.maybeGestureSettingsOf(Get.context!);
     _tapGestureRecognizer = ImageTapGestureRecognizer()
@@ -299,6 +323,10 @@ class _GalleryViewerState extends State<GalleryViewer>
       ..onDoubleTap = null
       ..dispose();
     _longPressGestureRecognizer.dispose();
+    if (_glass) {
+      _zoomed.dispose();
+      _turning.dispose();
+    }
     if (widget.quality != _quality) {
       for (final item in widget.sources) {
         if (item.sourceType == SourceType.networkImage) {
@@ -334,6 +362,7 @@ class _GalleryViewerState extends State<GalleryViewer>
             builder: (context, constraints) {
               _containerSize = constraints.biggest;
               return MatrixTransition(
+                key: _glass ? _pagesKey : null,
                 alignment: .topLeft,
                 animation: _animateController,
                 onTransform: _onTransform,
@@ -344,18 +373,58 @@ class _GalleryViewerState extends State<GalleryViewer>
                     parent: tabBarScrollPhysics,
                   ),
                   itemCount: widget.sources.length,
-                  itemBuilder: _itemBuilder,
+                  itemBuilder: _glass ? _glassItemBuilder : _itemBuilder,
                   horizontalDragGestureRecognizer:
                       horizontalDragGestureRecognizer,
                 ),
               );
             },
           ),
-          _buildIndicator,
+          _glass ? _buildGlassIndicator : _buildIndicator,
         ],
       ),
     );
   }
+
+  Widget _glassItemBuilder(BuildContext context, int index) {
+    return NotificationListener<ViewerZoomNotification>(
+      onNotification: (notification) {
+        if (notification.zoomed) {
+          _zoomedPages.add(index);
+        } else {
+          _zoomedPages.remove(index);
+        }
+        _zoomed.value = _zoomedPages.contains(_currIndex.value);
+        return true;
+      },
+      child: _itemBuilder(context, index),
+    );
+  }
+
+  // The page count on a capsule of glass over the image, in place of the
+  // fade under it.
+  Widget get _buildGlassIndicator => Positioned(
+    left: 0,
+    right: 0,
+    bottom: _padding!.bottom + 12,
+    child: IgnorePointer(
+      child: Center(
+        child: Obx(
+          () => GalleryGlass(
+            drag: _animateController,
+            zoomed: _zoomed,
+            turning: _turning,
+            video:
+                widget.sources[_currIndex.value].sourceType ==
+                    SourceType.livePhoto
+                ? _pagesKey
+                : null,
+            child: Text("${_currIndex.value + 1}/${widget.sources.length}"),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget get _buildIndicator => Positioned(
     bottom: 0,
@@ -400,6 +469,9 @@ class _GalleryViewerState extends State<GalleryViewer>
     _player?.pause();
     _playIfNeeded(widget.sources[index]);
     _currIndex.value = index;
+    if (_glass) {
+      _zoomed.value = _zoomedPages.contains(index);
+    }
     widget.onPageChanged?.call(index);
   }
 
