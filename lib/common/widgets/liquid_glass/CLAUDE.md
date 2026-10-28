@@ -85,8 +85,9 @@ turns on every glass part. It only takes effect after a restart.
   `onSurfaceVariant`, and corners are concentric: an inner radius is the outer one less the inset. A platter only
   ever means a press: a menu's current value takes a check at the row's end.
 - **Content under an overlaid header** starts with `HeaderOverlayInset.sliver(context)`, or uses
-  `HeaderOverlayInset.below(...)` when it pins headers of its own. `RefreshIndicator` reads the inset, so the pull
-  indicator comes out from under the header.
+  `HeaderOverlayInset.below(...)` when it pins headers of its own. A `ListView` takes `HeaderOverlayInset.of(context)`
+  as its top padding, as the mine page's does. `RefreshIndicator` reads the inset, so the pull indicator comes out
+  from under the header.
 - **Motion runs on `GlassSpring`s**, retargeted mid-flight, not on fixed curves. Respect
   `MediaQuery.disableAnimationsOf` by jumping instead of springing.
 - **Interactive glass** keeps keyboard focus and activation (`FocusableActionDetector` + `ActivateIntent`), shows a

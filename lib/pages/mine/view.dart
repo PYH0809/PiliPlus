@@ -4,17 +4,20 @@ import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/mine_tab_type.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/pages/common/common_page.dart';
+import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart';
 import 'package:PiliPlus/pages/home/view.dart';
 import 'package:PiliPlus/pages/login/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/pages/mine/widgets/fav_item.dart';
+import 'package:PiliPlus/pages/mine/widgets/glass_header.dart';
 import 'package:PiliPlus/pages/mine/widgets/history_item.dart';
 import 'package:PiliPlus/pages/mine/widgets/later_item.dart';
 import 'package:PiliPlus/pages/mine/widgets/sub_item.dart';
@@ -43,6 +46,9 @@ class _MediaPageState extends CommonPageState<MinePage>
   final MineController controller = Get.putOrFind(MineController.new);
   late final MainController _mainController = Get.find<MainController>();
   late ThemeData theme;
+
+  // The header in liquid glass, laid over the list, which scrolls under it.
+  late final bool _glass = _mainController.liquidGlass;
 
   @override
   bool get wantKeepAlive => true;
@@ -76,39 +82,51 @@ class _MediaPageState extends CommonPageState<MinePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final secondary = theme.colorScheme.secondary;
+    if (_glass) {
+      return MineGlassBody(
+        showBackBtn: widget.showBackBtn,
+        actions: _glassHeaderActions,
+        content: _buildList(),
+      );
+    }
     return Column(
       children: [
         Padding(
           padding: const .symmetric(vertical: 10),
           child: _buildHeaderActions,
         ),
-        Expanded(
-          child: Material(
-            type: .transparency,
-            child: refreshIndicator(
-              onRefresh: controller.onRefresh,
-              child: onBuild(
-                ListView(
-                  padding: const .only(bottom: 150),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    _buildUserInfo(theme, secondary),
-                    _buildActions(secondary),
-                    for (final tab in controller.mineTabs)
-                      switch (tab) {
-                        .favorite => Obx(_buildFav),
-                        .history => Obx(_buildHistory),
-                        .later => Obx(_buildLater),
-                        .sub => Obx(_buildSub),
-                      },
-                  ],
-                ),
-              ),
+        Expanded(child: _buildList()),
+      ],
+    );
+  }
+
+  Widget _buildList() {
+    final secondary = theme.colorScheme.secondary;
+    return Material(
+      type: .transparency,
+      child: refreshIndicator(
+        onRefresh: controller.onRefresh,
+        child: onBuild(
+          Builder(
+            // Starts below a header laid over the list, if any.
+            builder: (context) => ListView(
+              padding: .only(top: HeaderOverlayInset.of(context), bottom: 150),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                _buildUserInfo(theme, secondary),
+                _buildActions(secondary),
+                for (final tab in controller.mineTabs)
+                  switch (tab) {
+                    .favorite => Obx(_buildFav),
+                    .history => Obx(_buildHistory),
+                    .later => Obx(_buildLater),
+                    .sub => Obx(_buildSub),
+                  },
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -226,6 +244,61 @@ class _MediaPageState extends CommonPageState<MinePage>
         ],
       ),
     );
+  }
+
+  /// [_buildHeaderActions] as glass buttons, each followed by its own gap.
+  List<Widget> get _glassHeaderActions {
+    const gap = SizedBox(width: 8);
+    return [
+      if (!_mainController.hasHome) ...[
+        GlassCircle(
+          icon: Icons.search,
+          tooltip: '搜索',
+          onTap: () => Get.toNamed('/search'),
+        ),
+        gap,
+        // With a gap of its own, as it is gone logged out.
+        msgBadge(_mainController, glass: true),
+      ],
+      if (GStorage.reply != null) ...[
+        GlassCircle(
+          icon: Icons.message_outlined,
+          tooltip: '评论记录',
+          onTap: () => Get.toNamed('/myReply'),
+        ),
+        gap,
+      ],
+      Obx(
+        () {
+          final anonymity = MineController.anonymity.value;
+          return GlassCircle(
+            icon: anonymity ? MdiIcons.incognito : MdiIcons.incognitoOff,
+            tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
+            onTap: MineController.onChangeAnonymity,
+          );
+        },
+      ),
+      gap,
+      GlassCircle(
+        icon: Icons.switch_account_outlined,
+        tooltip: '切换账号',
+        onTap: () => LoginPageController.switchAccountDialog(context),
+      ),
+      gap,
+      Obx(
+        () => GlassCircle(
+          icon: controller.themeType.value.icon.icon!,
+          tooltip: '切换至${controller.nextThemeType.label}主题',
+          onTap: controller.onChangeTheme,
+        ),
+      ),
+      gap,
+      GlassCircle(
+        icon: Icons.settings_outlined,
+        tooltip: '设置',
+        onTap: () => Get.toNamed('/setting', preventDuplicates: false),
+      ),
+    ];
   }
 
   Widget _buildUserInfo(ThemeData theme, Color secondary) {
