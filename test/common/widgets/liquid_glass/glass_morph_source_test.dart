@@ -49,8 +49,68 @@ double _opacityAbove(WidgetTester tester, Finder child) => tester
     )
     .opacity;
 
+/// Counts its paints, repainting whenever [repaint] changes.
+class _CountingPainter extends CustomPainter {
+  _CountingPainter(this.repaint, this.onPaint) : super(repaint: repaint);
+
+  final Listenable repaint;
+  final VoidCallback onPaint;
+
+  @override
+  void paint(Canvas canvas, Size size) => onPaint();
+
+  @override
+  bool shouldRepaint(_CountingPainter oldDelegate) => false;
+}
+
 void main() {
   tearDown(Get.reset);
+
+  testWidgets('the page under a morph is drawn from a picture of it', (
+    tester,
+  ) async {
+    var paints = 0;
+    final changes = ValueNotifier(0);
+    addTearDown(changes.dispose);
+    await _pump(
+      tester,
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CustomPaint(
+            size: const Size.square(40),
+            painter: _CountingPainter(changes, () => paints++),
+          ),
+          GlassButtonGroup(glass: true, children: [_search()]),
+        ],
+      ),
+    );
+    Future<bool> repaintsBelow() async {
+      final before = paints;
+      changes.value++;
+      await tester.pump(const Duration(milliseconds: 16));
+      return paints > before;
+    }
+
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pump();
+    // The button hides a frame on, and the page is taken the frame after.
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_morphing(tester), isTrue);
+    expect(await repaintsBelow(), isFalse);
+
+    await tester.pumpAndSettle();
+    Get.back<void>();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(find.text('搜索页'), findsOneWidget);
+    expect(await repaintsBelow(), isFalse);
+
+    await tester.pumpAndSettle();
+    expect(find.text('搜索页'), findsNothing);
+    expect(await repaintsBelow(), isTrue);
+  });
 
   testWidgets("a grouped button's page grows out of it, the pane staying", (
     tester,

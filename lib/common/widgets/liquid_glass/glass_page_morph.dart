@@ -320,8 +320,14 @@ mixin _MorphOpener<W extends StatefulWidget> on State<W> {
     if (redirect.isUnknown || target == null) {
       return Get.toNamed(page, parameters: parameters, arguments: arguments);
     }
+    // The page under it is the button's, if that is the top one and covers
+    // the pages under it.
+    final below = ModalRoute.of(context);
     final route = _GlassMorphRoute<T>(
       source: this,
+      belowRoute: below != null && below.isCurrent && below.opaque
+          ? below
+          : null,
       page: target.page,
       parameter: target.parameters,
       settings: redirect.settings,
@@ -339,6 +345,7 @@ mixin _MorphOpener<W extends StatefulWidget> on State<W> {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(_route, route)) {
         _setHidden(true);
+        route._coverBelowOnceDrawn();
       }
     });
     return opened;
@@ -372,6 +379,7 @@ mixin _MorphOpener<W extends StatefulWidget> on State<W> {
 class _GlassMorphRoute<T> extends GetPageRoute<T> {
   _GlassMorphRoute({
     required this.source,
+    this.belowRoute,
     super.settings,
     super.page,
     super.parameter,
@@ -382,9 +390,71 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
 
   final _MorphOpener<StatefulWidget> source;
 
+  /// The route right under this one, the button's, when it covers the ones
+  /// under it: only then does a picture of it stand in for all of them.
+  final ModalRoute<dynamic>? belowRoute;
+
+  // The page the button stands on, as it stood once the button hid, drawn
+  // under the morph in its place: the navigator then leaves the page itself
+  // unpainted, which would otherwise draw again every frame of the morph,
+  // its own glass and all, there being no raster cache to keep it.
+  _Below? _below;
+
   // The route's own animation. Its first frame, offstage for heroes to
   // measure, shows its pages a completed one in its place.
   Animation<double>? get _own => controller;
+
+  @override
+  void install() {
+    super.install();
+    // After TransitionRoute's own, which lets the page below show as the
+    // route animates.
+    animation!.addStatusListener(_keepBelowCovered);
+  }
+
+  @override
+  void dispose() {
+    _below?.image.dispose();
+    _below = null;
+    super.dispose();
+  }
+
+  void _keepBelowCovered(AnimationStatus status) {
+    if (_below != null && status.isAnimating && overlayEntries.isNotEmpty) {
+      overlayEntries.first.opaque = true;
+    }
+  }
+
+  // Once the page below has drawn without its button, a frame on, takes it,
+  // if it is the page right under this one and covers the pages under it.
+  void _coverBelowOnceDrawn() {
+    final below = belowRoute;
+    if (below == null) {
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final boundary = below.subtreeContext?.findRenderObject();
+      if (_below != null ||
+          !isCurrent ||
+          !below.isActive ||
+          !(animation?.status.isAnimating ?? false) ||
+          boundary is! RenderRepaintBoundary ||
+          !boundary.attached) {
+        return;
+      }
+      // ignore: invalid_use_of_protected_member
+      final layer = boundary.layer;
+      if (layer is! OffsetLayer || !layer.supportsRasterization()) {
+        return;
+      }
+      final view = View.of(below.subtreeContext!);
+      _below = (
+        image: boundary.toImageSync(pixelRatio: view.devicePixelRatio),
+        rect: boundary.localToGlobal(Offset.zero) & boundary.size,
+      );
+      _keepBelowCovered(animation!.status);
+    });
+  }
 
   @override
   Duration get transitionDuration => _openDuration;
@@ -405,6 +475,7 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
   ) {
     return _PageMorph(
       animation: animation,
+      route: this,
       source: source,
       // A page opened over this one moves it as the app's transition does.
       child: super.buildTransitions(
@@ -420,11 +491,13 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
 class _PageMorph extends StatefulWidget {
   const _PageMorph({
     required this.animation,
+    required this.route,
     required this.source,
     required this.child,
   });
 
   final Animation<double> animation;
+  final _GlassMorphRoute<dynamic> route;
   final _MorphOpener<StatefulWidget> source;
   final Widget child;
 
@@ -534,6 +607,7 @@ class _PageMorphState extends State<_PageMorph> {
               : null,
           returnTime: status.isForwardOrCompleted ? null : _returnTime,
           source: _sourceBox,
+          below: widget.route._below,
           faceSize: _sourceBox?.size ?? Size.zero,
           buttonStyle: source._styleOf(colorScheme),
           pageStyle: LiquidGlassStyle.menu(colorScheme),
@@ -559,6 +633,7 @@ class _Morph extends MultiChildRenderObjectWidget {
     required this.openTime,
     required this.returnTime,
     required this.source,
+    required this.below,
     required this.faceSize,
     required this.buttonStyle,
     required this.pageStyle,
@@ -574,6 +649,9 @@ class _Morph extends MultiChildRenderObjectWidget {
 
   /// The button, whose rect the page grows from and returns into.
   final RenderBox? source;
+
+  /// The page under this one, drawn in its place while it morphs.
+  final _Below? below;
   final Size faceSize;
   final LiquidGlassStyle buttonStyle;
   final LiquidGlassStyle pageStyle;
@@ -590,6 +668,9 @@ class _Morph extends MultiChildRenderObjectWidget {
     (renderObject as _RenderMorph).update(this);
   }
 }
+
+/// A picture of the page under a morphing one, and where it stands on screen.
+typedef _Below = ({ui.Image image, Rect rect});
 
 class _MorphParentData extends ContainerBoxParentData<RenderBox> {}
 
@@ -762,6 +843,15 @@ class _RenderMorph extends RenderBox
     }
     final faceWidth = _face.size.width;
     _faceScale = faceWidth > 0 ? anchor.width / faceWidth : 1;
+    if (config.below case final below?) {
+      final image = below.image;
+      context.canvas.drawImageRect(
+        image,
+        Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+        below.rect.shift(globalToLocal(Offset.zero) + offset),
+        Paint()..filterQuality = FilterQuality.low,
+      );
+    }
     if (config.returnTime case final time?) {
       _paintReturn(context, offset, anchor, time);
     } else {
