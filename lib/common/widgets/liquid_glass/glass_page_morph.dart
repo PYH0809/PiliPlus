@@ -419,8 +419,44 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
     super.dispose();
   }
 
+  // The navigator's size: the picture of the page below holds only while it
+  // stays as it was taken, as a turned screen or a resized window lays the
+  // page out anew.
+  Size? get _screen => switch (navigator?.context.findRenderObject()) {
+    final RenderBox box when box.hasSize => box.size,
+    _ => null,
+  };
+
+  /// The picture of the page below, while it still fits the screen. Once it
+  /// doesn't, it is let go a frame on, and the page itself shows again.
+  _Below? get _fittingBelow {
+    final below = _below;
+    if (below == null || _screen == below.screen) {
+      return below;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) => _dropBelow());
+    return null;
+  }
+
+  void _dropBelow() {
+    final below = _below;
+    if (below == null) {
+      return;
+    }
+    _below = null;
+    below.image.dispose();
+    if ((animation?.status.isAnimating ?? false) && overlayEntries.isNotEmpty) {
+      overlayEntries.first.opaque = false;
+    }
+  }
+
   void _keepBelowCovered(AnimationStatus status) {
-    if (_below != null && status.isAnimating && overlayEntries.isNotEmpty) {
+    if (_below == null || !status.isAnimating || overlayEntries.isEmpty) {
+      return;
+    }
+    if (_screen != _below!.screen) {
+      _dropBelow();
+    } else {
       overlayEntries.first.opaque = true;
     }
   }
@@ -447,10 +483,22 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
       if (layer is! OffsetLayer || !layer.supportsRasterization()) {
         return;
       }
-      final view = View.of(below.subtreeContext!);
+      final screen = _screen;
+      if (screen == null) {
+        return;
+      }
       _below = (
-        image: boundary.toImageSync(pixelRatio: view.devicePixelRatio),
+        // The page's own ratio, which the app's interface scale changes.
+        image: boundary.toImageSync(
+          pixelRatio:
+              below.subtreeContext!
+                  .getInheritedWidgetOfExactType<MediaQuery>()
+                  ?.data
+                  .devicePixelRatio ??
+              1,
+        ),
         rect: boundary.localToGlobal(Offset.zero) & boundary.size,
+        screen: screen,
       );
       _keepBelowCovered(animation!.status);
     });
@@ -607,7 +655,7 @@ class _PageMorphState extends State<_PageMorph> {
               : null,
           returnTime: status.isForwardOrCompleted ? null : _returnTime,
           source: _sourceBox,
-          below: widget.route._below,
+          below: widget.route._fittingBelow,
           faceSize: _sourceBox?.size ?? Size.zero,
           buttonStyle: source._styleOf(colorScheme),
           pageStyle: LiquidGlassStyle.menu(colorScheme),
@@ -670,7 +718,8 @@ class _Morph extends MultiChildRenderObjectWidget {
 }
 
 /// A picture of the page under a morphing one, and where it stands on screen.
-typedef _Below = ({ui.Image image, Rect rect});
+/// [screen] is the navigator's size as it was taken.
+typedef _Below = ({ui.Image image, Rect rect, Size screen});
 
 class _MorphParentData extends ContainerBoxParentData<RenderBox> {}
 

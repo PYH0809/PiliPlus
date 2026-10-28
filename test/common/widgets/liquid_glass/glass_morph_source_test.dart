@@ -112,6 +112,48 @@ void main() {
     expect(await repaintsBelow(), isTrue);
   });
 
+  testWidgets('the page under a morph shows itself once the screen changes', (
+    tester,
+  ) async {
+    var paints = 0;
+    final changes = ValueNotifier(0);
+    addTearDown(changes.dispose);
+    addTearDown(tester.view.reset);
+    await _pump(
+      tester,
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CustomPaint(
+            size: const Size.square(40),
+            painter: _CountingPainter(changes, () => paints++),
+          ),
+          GlassButtonGroup(glass: true, children: [_search()]),
+        ],
+      ),
+    );
+    Future<bool> repaintsBelow() async {
+      final before = paints;
+      changes.value++;
+      await tester.pump(const Duration(milliseconds: 16));
+      return paints > before;
+    }
+
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await repaintsBelow(), isFalse);
+
+    // As a screen turning: the picture no longer fits, so the page draws.
+    tester.view.physicalSize = tester.view.physicalSize.flipped;
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_morphing(tester), isTrue);
+    expect(await repaintsBelow(), isTrue);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets("a grouped button's page grows out of it, the pane staying", (
     tester,
   ) async {
