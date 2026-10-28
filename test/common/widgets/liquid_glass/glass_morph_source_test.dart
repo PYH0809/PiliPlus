@@ -1,6 +1,7 @@
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -132,6 +133,70 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(Get.currentRoute, '/search');
+  });
+
+  testWidgets("the button's face in the page takes no keyboard focus", (
+    tester,
+  ) async {
+    var presses = 0;
+    await tester.pumpWidget(
+      GetMaterialApp(
+        builder: (context, child) => LiquidGlassScope(
+          enabled: true,
+          child: LiquidGlassHost(enabled: true, child: child!),
+        ),
+        getPages: [
+          GetPage(
+            name: '/search',
+            page: () => Scaffold(
+              body: Center(
+                child: TextButton(onPressed: () {}, child: const Text('页内按钮')),
+              ),
+            ),
+          ),
+        ],
+        home: Scaffold(
+          body: Center(
+            child: GlassButtonGroup(
+              glass: true,
+              children: [
+                GlassMorphSource(
+                  builder: (context, source) => IconButton(
+                    tooltip: '搜索',
+                    onPressed: () {
+                      presses++;
+                      source.toNamed('/search');
+                    },
+                    icon: const Icon(Icons.search),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pumpAndSettle();
+    expect(find.text('页内按钮'), findsOneWidget);
+
+    // Tab goes round the page's own button alone, never the face drawn in it.
+    final faces = find.byTooltip('搜索', skipOffstage: false);
+    for (var i = 0; i < 4; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final focused = FocusManager.instance.primaryFocus!.context!;
+      expect(
+        find.ancestor(
+          of: find.byElementPredicate((e) => e == focused),
+          matching: faces,
+        ),
+        findsNothing,
+      );
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(presses, 1);
   });
 
   testWidgets('a GlassMorphButton still opens its page out of itself', (

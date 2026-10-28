@@ -482,12 +482,16 @@ class _PageMorphState extends State<_PageMorph> {
     } else {
       _insets = null;
     }
-    // The button's face, drawn in the glass as it leaves and as it returns.
+    // The button's face, drawn in the glass as it leaves and as it returns:
+    // a picture of it, out of reach of taps, the keyboard and screen readers,
+    // or the page would hold a second, unseen button.
     final face = ExcludeSemantics(
-      child: IgnorePointer(
-        child: Material(
-          type: MaterialType.transparency,
-          child: source._face(),
+      child: ExcludeFocus(
+        child: IgnorePointer(
+          child: Material(
+            type: MaterialType.transparency,
+            child: source._face(),
+          ),
         ),
       ),
     );
