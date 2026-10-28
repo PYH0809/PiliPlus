@@ -1,6 +1,7 @@
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
@@ -88,7 +89,7 @@ class _DanmakuBlockPageState extends State<DanmakuBlockPage> {
           right: kFloatingActionButtonMargin + padding.right,
           bottom: kFloatingActionButtonMargin + padding.bottom,
         ),
-        child: FloatingActionButton(
+        child: GlassFab(
           tooltip: '添加',
           onPressed: () => _showAddDialog(
             DmBlockType.values[_controller.tabController.index],

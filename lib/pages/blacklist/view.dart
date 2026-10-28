@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/dialog/export_import.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
@@ -176,14 +177,15 @@ class _BlackListPageState extends State<BlackListPage>
           spacing: kFloatingActionButtonMargin,
           mainAxisSize: .min,
           children: [
-            FloatingActionButton(
+            GlassFab(
               tooltip: '导入/导出',
               onPressed: _showImportExportDialog,
               child: const Icon(Icons.swap_vert, size: 26),
             ),
-            FloatingActionButton(
+            GlassFab(
               tooltip: '添加',
               onPressed: _showAddMidDialog,
+              shadowRoom: false,
               child: const Icon(Icons.add),
             ),
           ],

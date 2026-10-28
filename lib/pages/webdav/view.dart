@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/style.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_insets_safe_area.dart';
 import 'package:PiliPlus/pages/webdav/webdav.dart';
@@ -127,7 +128,7 @@ class _WebDavSettingPageState extends State<WebDavSettingPage> {
           bottom: kFloatingActionButtonMargin + padding.bottom,
         ),
         child: ViewInsetsSafeArea(
-          child: FloatingActionButton(
+          child: GlassFab(
             child: const Icon(Icons.save),
             onPressed: () async {
               await GStorage.setting.putAll({
