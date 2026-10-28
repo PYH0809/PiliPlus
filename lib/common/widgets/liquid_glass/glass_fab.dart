@@ -109,6 +109,8 @@ class GlassFab extends StatelessWidget {
       data: IconThemeData(color: foreground, size: 24),
       child: DefaultTextStyle(
         style: theme.textTheme.labelLarge!.copyWith(color: foreground),
+        maxLines: 1,
+        overflow: .ellipsis,
         child: switch (label) {
           // As Material pads an extended button.
           final label? => SizedBox(
@@ -118,7 +120,13 @@ class GlassFab extends StatelessWidget {
               child: Row(
                 mainAxisSize: .min,
                 spacing: 8,
-                children: [?icon, label],
+                // Squeezed, by a narrow window or large text, the label
+                // ends in an ellipsis inside the capsule rather than spill
+                // past it.
+                children: [
+                  ?icon,
+                  Flexible(child: label),
+                ],
               ),
             ),
           ),

@@ -222,6 +222,37 @@ void main() {
       expect(glass.right - label.right, 20);
     });
 
+    testWidgets('squeezed, an extended button ends its label within the '
+        'capsule', (tester) async {
+      await _pump(
+        tester,
+        SizedBox(
+          width: 120,
+          child: Align(
+            alignment: .centerRight,
+            child: GlassFab.extended(
+              onPressed: () {},
+              icon: const Icon(Icons.my_location),
+              label: const Text('定位至上次观看'),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final glass = _glass(tester);
+      expect(glass.width, lessThanOrEqualTo(120));
+      final label = tester.getRect(find.text('定位至上次观看'));
+      expect(label.right, lessThanOrEqualTo(glass.right - 20));
+      final text = tester.widget<RichText>(
+        find.descendant(
+          of: find.text('定位至上次观看'),
+          matching: find.byType(RichText),
+        ),
+      );
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
+    });
+
     testWidgets('it sits where Material\'s did, with room above for its '
         'shadow', (tester) async {
       await _pump(
