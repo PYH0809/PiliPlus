@@ -47,7 +47,10 @@ turns on every glass part. It only takes effect after a restart.
   header's search and messages buttons use it. It falls back to `Get.toNamed` with animations off. While it morphs
   the page is drawn from a snapshot taken as it starts to open or return, and keeps the keyboard insets it started
   with; a page holds back what would jank the morph, as the search page's keyboard, with
-  `GlassMorphButton.deferUntilOpened`. A button on a pane it shares, as in a `GlassButtonGroup`, opens a page the
+  `GlassMorphButton.deferUntilOpened`. The page under it, the button's, is drawn from a snapshot too, taken once the
+  button has hid: the route keeps its overlay entry opaque while it morphs, so the navigator leaves that page, its
+  own glass and all, unpainted rather than drawing it again every frame (Impeller keeps no raster cache). Only the
+  top page, covering those under it, is taken; otherwise it paints as it is. A button on a pane it shares, as in a `GlassButtonGroup`, opens a page the
   same way through `GlassMorphSource`, whose `builder` gets the source to call `toNamed` on: only its face hides
   while the page is open, and the pane stays, unless it is its group's lone button, which hides the whole group as a
   `GlassMorphButton` hides. Off glass it is `Get.toNamed`. The two share the opening through a private mixin.
