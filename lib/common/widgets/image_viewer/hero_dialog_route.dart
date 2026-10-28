@@ -1,3 +1,5 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// https://github.com/qq326646683/interactiveviewer_gallery
@@ -31,6 +33,8 @@ class HeroDialogRoute<T> extends PageRoute<T> {
   @override
   Color? get barrierColor => null;
 
+  static final bool _glass = Pref.liquidGlass;
+
   @override
   Widget buildTransitions(
     BuildContext context,
@@ -38,10 +42,13 @@ class HeroDialogRoute<T> extends PageRoute<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    return FadeTransition(
-      opacity: animation.drive(CurveTween(curve: Curves.easeOut)),
-      child: child,
-    );
+    final opacity = animation.drive(CurveTween(curve: Curves.easeOut));
+    if (_glass) {
+      // Faded as a layer, the glass on the gallery still bends what lies
+      // behind it, where under an opacity it would read only the gallery.
+      return LiquidGlassFade(opacity: opacity, child: child);
+    }
+    return FadeTransition(opacity: opacity, child: child);
   }
 
   @override
