@@ -44,6 +44,11 @@ class _SettingPageState extends State<SettingPage> {
   late SettingType _type = .privacySetting;
   final RxBool _noAccount = Accounts.account.isEmpty.obs;
   late bool _isPortrait;
+
+  // The floating search moves between the bar and the list pane's as the
+  // screen turns, and keeps the page open out of it as it goes, so that the
+  // page returns to where it stands now.
+  final _glassSearchKey = GlobalKey();
   late ThemeData theme;
 
   static const List<_SettingsModel> _items = [
@@ -363,6 +368,7 @@ class _SettingPageState extends State<SettingPage> {
     return SizedBox(
       height: GlassAppBar.buttonSize,
       child: GlassMorphButton(
+        key: _glassSearchKey,
         shadows: floatingGlassShadows(colorScheme),
         onTap: (button) => button.toNamed('/settingsSearch'),
         child: Row(
