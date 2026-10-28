@@ -1,13 +1,13 @@
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
-import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The mine page's header in liquid glass, laid over [content], whose list
-/// starts below it and scrolls under it: [actions], usually [GlassCircle]s
-/// each followed by its own gap, at its end, and with [showBackBtn] a glass
-/// back button at its start.
+/// starts below it and scrolls under it: [actions] on one
+/// [GlassButtonGroup] at its end, and with [showBackBtn] a back button on a
+/// glass circle of its own at its start.
 class MineGlassBody extends StatelessWidget {
   const MineGlassBody({
     super.key,
@@ -17,7 +17,7 @@ class MineGlassBody extends StatelessWidget {
   });
 
   /// How far the header covers the content under it.
-  static const extent = 6.0 + 40.0 + 4.0;
+  static const extent = 6.0 + GlassButtonGroup.thickness + 4.0;
 
   final List<Widget> actions;
   final Widget content;
@@ -40,31 +40,14 @@ class MineGlassBody extends StatelessWidget {
               // Scales the buttons down together where they don't fit.
               child: PlayerBar(
                 left: showBackBtn
-                    ? const _GlassBackButton()
+                    ? const GlassButtonGroup(children: [BackButton()])
                     : const SizedBox.shrink(),
-                right: Row(mainAxisSize: .min, children: actions),
+                right: GlassButtonGroup(children: actions),
               ),
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-/// [BackButton] as a [GlassCircle].
-class _GlassBackButton extends StatelessWidget {
-  const _GlassBackButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCircle(
-      icon: switch (Theme.of(context).platform) {
-        .iOS || .macOS => Icons.arrow_back_ios_new_rounded,
-        _ => Icons.arrow_back,
-      },
-      tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-      onTap: () => Navigator.maybePop(context),
     );
   }
 }

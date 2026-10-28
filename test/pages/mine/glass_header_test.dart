@@ -2,12 +2,17 @@ import 'dart:io';
 
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
-import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/pages/mine/widgets/glass_header.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
+
+const _side = GlassButtonGroup.thickness;
+const _extent = 6 + _side + 4;
 
 /// The page's list, as the mine page lays it out: starting below the header,
 /// with room at the end for the navigation bar.
@@ -36,12 +41,24 @@ class _List extends StatelessWidget {
   }
 }
 
+/// The header's buttons, as the mine page's: with the padding and icon size
+/// they have without glass.
 List<Widget> _actions(int count) => [
-  for (var i = 0; i < count; i++) ...[
-    if (i > 0) const SizedBox(width: 8),
-    GlassCircle(icon: Icons.settings_outlined, tooltip: 'a$i', onTap: () {}),
-  ],
+  for (var i = 0; i < count; i++)
+    IconButton(
+      iconSize: 22,
+      padding: const EdgeInsets.all(8),
+      style: const ButtonStyle(tapTargetSize: .shrinkWrap),
+      tooltip: 'a$i',
+      onPressed: () {},
+      icon: const Icon(Icons.settings_outlined),
+    ),
 ];
+
+Finder _actionGroup() => find.ancestor(
+  of: find.byTooltip('a0'),
+  matching: find.byType(GlassButtonGroup),
+);
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -70,11 +87,14 @@ Future<void> _pump(
 void main() {
   late Directory tempDir;
 
-  // The refresh indicator reads its displacement from the settings.
+  // The refresh indicator reads its displacement from the settings, and the
+  // groups stand on glass once it is installed, as main() does with the
+  // switch on.
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('piliplus-mine-header-');
     Hive.init(tempDir.path);
     GStorage.setting = await Hive.openBox('setting');
+    GlassSurfaces.install();
   });
 
   tearDownAll(() async {
@@ -82,41 +102,50 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  testWidgets('the buttons are 40 dp circles 8 apart, the last 14 in', (
+  testWidgets('the buttons share one pane of glass, 14 in from the end', (
     tester,
   ) async {
     await _pump(tester);
-    final circles = find.byType(GlassCircle);
-    expect(circles, findsNWidgets(4));
-    final rects = [for (var i = 0; i < 4; i++) tester.getRect(circles.at(i))];
-    for (final rect in rects) {
-      expect(rect.size, const Size(40, 40));
-      expect(rect.top, 6);
+    final group = _actionGroup();
+    expect(group, findsOneWidget);
+    expect(
+      find.descendant(of: group, matching: find.byType(LiquidGlass)),
+      findsOneWidget,
+    );
+    expect(
+      tester.getRect(group),
+      const Rect.fromLTRB(412 - 14 - 4 * _side, 6, 412 - 14, 6 + _side),
+    );
+    // Side by side, each as tall as the pane, without gaps.
+    for (var i = 0; i < 4; i++) {
+      expect(
+        tester.getRect(find.byTooltip('a$i')),
+        Rect.fromLTWH(412 - 14 - (4 - i) * _side, 6, _side, _side),
+      );
     }
-    for (var i = 1; i < 4; i++) {
-      expect(rects[i].left - rects[i - 1].right, 8);
-    }
-    expect(rects.last.right, 412 - 14);
   });
 
   testWidgets('the list starts below the header and scrolls under it', (
     tester,
   ) async {
     await _pump(tester);
-    expect(tester.getTopLeft(find.byKey(const ValueKey('item0'))).dy, 50);
+    expect(tester.getTopLeft(find.byKey(const ValueKey('item0'))).dy, _extent);
     await tester.drag(find.byType(ListView), const Offset(0, -30));
     await tester.pump();
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('item0'))).dy,
-      lessThan(50),
+      lessThan(_extent),
     );
     // Still under the header's buttons, which stay put.
-    expect(tester.getRect(find.byType(GlassCircle).first).top, 6);
+    expect(tester.getRect(_actionGroup()).top, 6);
   });
 
   testWidgets('a refresh comes out from under the header', (tester) async {
     await _pump(tester);
-    expect(HeaderOverlayInset.of(tester.element(find.byType(ListView))), 50);
+    expect(
+      HeaderOverlayInset.of(tester.element(find.byType(ListView))),
+      _extent,
+    );
     final gesture = await tester.startGesture(const Offset(200, 300));
     for (var i = 0; i < 10; i++) {
       await gesture.moveBy(const Offset(0, 20));
@@ -124,7 +153,7 @@ void main() {
     }
     final indicator = find.byType(RefreshProgressIndicator);
     expect(indicator, findsOneWidget);
-    expect(tester.getRect(indicator).top, greaterThanOrEqualTo(50));
+    expect(tester.getRect(indicator).top, greaterThanOrEqualTo(_extent));
     await gesture.up();
     await tester.pumpAndSettle();
   });
@@ -139,28 +168,24 @@ void main() {
     );
   });
 
-  testWidgets('touches between the buttons and on the fade reach the list', (
+  testWidgets('touches beside the buttons and on the fade reach the list', (
     tester,
   ) async {
     int? tapped;
     await _pump(tester, onTap: (i) => tapped = i);
     // Left of the buttons, and in the fade below them.
-    await tester.tapAt(const Offset(60, 60));
+    await tester.tapAt(const Offset(60, _extent + 6));
     expect(tapped, 0);
   });
 
   testWidgets('in the tab, no back button', (tester) async {
     await _pump(tester);
-    expect(find.byTooltip('Back'), findsNothing);
-    expect(
-      tester.getRect(find.byType(GlassCircle).first).left,
-      greaterThan(14),
-    );
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.byType(GlassButtonGroup), findsOneWidget);
   });
 
-  testWidgets('opened as a page, a glass back button 14 in pops it', (
-    tester,
-  ) async {
+  testWidgets('opened as a page, the back button stands on a circle of its '
+      'own, 14 in, and pops it', (tester) async {
     tester.view
       ..physicalSize = const Size(412, 800)
       ..devicePixelRatio = 1;
@@ -181,12 +206,18 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final back = find.byTooltip('Back');
+    final back = find.byType(BackButton);
     expect(back, findsOneWidget);
-    final rect = tester.getRect(
-      find.ancestor(of: back, matching: find.byType(GlassCircle)),
+    final group = find.ancestor(
+      of: back,
+      matching: find.byType(GlassButtonGroup),
     );
-    expect(rect, const Rect.fromLTWH(14, 6, 40, 40));
+    expect(tester.getRect(group), const Rect.fromLTWH(14, 6, _side, _side));
+    // Apart from the others' pane.
+    expect(
+      find.descendant(of: group, matching: find.byTooltip('a0')),
+      findsNothing,
+    );
     await tester.tap(back);
     await tester.pumpAndSettle();
     expect(find.byType(MineGlassBody), findsNothing);
@@ -195,10 +226,11 @@ void main() {
   testWidgets('a narrow window shrinks the buttons to fit', (tester) async {
     await _pump(tester, actions: 7, showBackBtn: true, width: 320);
     expect(tester.takeException(), isNull);
-    final circles = find.byType(GlassCircle);
-    expect(circles, findsNWidgets(8));
-    for (var i = 0; i < 8; i++) {
-      final rect = tester.getRect(circles.at(i));
+    for (final finder in [
+      find.byType(BackButton),
+      for (var i = 0; i < 7; i++) find.byTooltip('a$i'),
+    ]) {
+      final rect = tester.getRect(finder);
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.right, lessThanOrEqualTo(320));
     }

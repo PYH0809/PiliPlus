@@ -11,7 +11,6 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/mine_tab_type.dart';
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/pages/common/common_page.dart';
-import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart';
 import 'package:PiliPlus/pages/home/view.dart';
 import 'package:PiliPlus/pages/login/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
@@ -85,7 +84,7 @@ class _MediaPageState extends CommonPageState<MinePage>
     if (_glass) {
       return MineGlassBody(
         showBackBtn: widget.showBackBtn,
-        actions: _glassHeaderActions,
+        actions: _headerButtons,
         content: _buildList(),
       );
     }
@@ -165,9 +164,6 @@ class _MediaPageState extends CommonPageState<MinePage>
   }
 
   Widget get _buildHeaderActions {
-    const iconSize = 22.0;
-    const padding = EdgeInsets.all(8);
-    const style = ButtonStyle(tapTargetSize: .shrinkWrap);
     return PlayerBar(
       left: widget.showBackBtn
           ? const Padding(
@@ -178,125 +174,77 @@ class _MediaPageState extends CommonPageState<MinePage>
       right: Row(
         spacing: 5,
         mainAxisSize: .min,
-        children: [
-          if (!_mainController.hasHome) ...[
-            IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '搜索',
-              onPressed: () => Get.toNamed('/search'),
-              icon: const Icon(Icons.search),
-            ),
-            msgBadge(_mainController),
-          ],
-          if (GStorage.reply != null)
-            IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '评论记录',
-              onPressed: () => Get.toNamed('/myReply'),
-              icon: const Icon(Icons.message_outlined),
-            ),
-          Obx(
-            () {
-              final anonymity = MineController.anonymity.value;
-              return IconButton(
-                iconSize: iconSize,
-                padding: padding,
-                style: style,
-                tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
-                onPressed: MineController.onChangeAnonymity,
-                icon: anonymity
-                    ? const Icon(MdiIcons.incognito)
-                    : const Icon(MdiIcons.incognitoOff),
-              );
-            },
-          ),
-          IconButton(
-            iconSize: iconSize,
-            padding: padding,
-            style: style,
-            tooltip: '切换账号',
-            onPressed: () => LoginPageController.switchAccountDialog(context),
-            icon: const Icon(Icons.switch_account_outlined),
-          ),
-          Obx(
-            () => IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '切换至${controller.nextThemeType.label}主题',
-              onPressed: controller.onChangeTheme,
-              icon: controller.themeType.value.icon,
-            ),
-          ),
-          IconButton(
-            iconSize: iconSize,
-            padding: padding,
-            style: style,
-            tooltip: '设置',
-            onPressed: () => Get.toNamed('/setting', preventDuplicates: false),
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          const SizedBox(width: 16),
-        ],
+        children: [..._headerButtons, const SizedBox(width: 16)],
       ),
     );
   }
 
-  /// [_buildHeaderActions] as glass buttons, each followed by its own gap.
-  List<Widget> get _glassHeaderActions {
-    const gap = SizedBox(width: 8);
+  /// The header's buttons, in a row, or with glass on one pane of it.
+  List<Widget> get _headerButtons {
+    const iconSize = 22.0;
+    const padding = EdgeInsets.all(8);
+    const style = ButtonStyle(tapTargetSize: .shrinkWrap);
     return [
       if (!_mainController.hasHome) ...[
-        GlassCircle(
-          icon: Icons.search,
+        IconButton(
+          iconSize: iconSize,
+          padding: padding,
+          style: style,
           tooltip: '搜索',
-          onTap: () => Get.toNamed('/search'),
+          onPressed: () => Get.toNamed('/search'),
+          icon: const Icon(Icons.search),
         ),
-        gap,
-        // With a gap of its own, as it is gone logged out.
-        msgBadge(_mainController, glass: true),
+        msgBadge(_mainController),
       ],
-      if (GStorage.reply != null) ...[
-        GlassCircle(
-          icon: Icons.message_outlined,
+      if (GStorage.reply != null)
+        IconButton(
+          iconSize: iconSize,
+          padding: padding,
+          style: style,
           tooltip: '评论记录',
-          onTap: () => Get.toNamed('/myReply'),
+          onPressed: () => Get.toNamed('/myReply'),
+          icon: const Icon(Icons.message_outlined),
         ),
-        gap,
-      ],
       Obx(
         () {
           final anonymity = MineController.anonymity.value;
-          return GlassCircle(
-            icon: anonymity ? MdiIcons.incognito : MdiIcons.incognitoOff,
+          return IconButton(
+            iconSize: iconSize,
+            padding: padding,
+            style: style,
             tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
-            onTap: MineController.onChangeAnonymity,
+            onPressed: MineController.onChangeAnonymity,
+            icon: anonymity
+                ? const Icon(MdiIcons.incognito)
+                : const Icon(MdiIcons.incognitoOff),
           );
         },
       ),
-      gap,
-      GlassCircle(
-        icon: Icons.switch_account_outlined,
+      IconButton(
+        iconSize: iconSize,
+        padding: padding,
+        style: style,
         tooltip: '切换账号',
-        onTap: () => LoginPageController.switchAccountDialog(context),
+        onPressed: () => LoginPageController.switchAccountDialog(context),
+        icon: const Icon(Icons.switch_account_outlined),
       ),
-      gap,
       Obx(
-        () => GlassCircle(
-          icon: controller.themeType.value.icon.icon!,
+        () => IconButton(
+          iconSize: iconSize,
+          padding: padding,
+          style: style,
           tooltip: '切换至${controller.nextThemeType.label}主题',
-          onTap: controller.onChangeTheme,
+          onPressed: controller.onChangeTheme,
+          icon: controller.themeType.value.icon,
         ),
       ),
-      gap,
-      GlassCircle(
-        icon: Icons.settings_outlined,
+      IconButton(
+        iconSize: iconSize,
+        padding: padding,
+        style: style,
         tooltip: '设置',
-        onTap: () => Get.toNamed('/setting', preventDuplicates: false),
+        onPressed: () => Get.toNamed('/setting', preventDuplicates: false),
+        icon: const Icon(Icons.settings_outlined),
       ),
     ];
   }
