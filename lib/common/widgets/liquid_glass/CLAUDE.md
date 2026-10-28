@@ -104,7 +104,15 @@ read below the scaffold: a page that builds its list in its own `build` holds a 
   设置's landscape panes with `showAppBar: false`) reads `HeaderOverlayInset.of(context)` or `.sliver(context)` there;
   `refreshIndicator` already does;
 - fixed content that would sit under the bar takes the space above it (`display_mode.dart`, the sliders in
-  `fullscreen_sc.dart`); centered content, as an error, can stay.
+  `fullscreen_sc.dart`); centered content, as an error, can stay;
+- content with glass of its own, as the live home page previewed in `color_select.dart`, lies below the bar in
+  `HeaderOverlayInset.below`, since glass never passes under glass.
+
+A page split into panes on glass gives each its own `SimpleScaffold` and bar, as iPad's split views do (设置 in
+landscape, `_buildGlassPanes`): each title stands over its own pane, the divider runs between the bars, and the
+detail pane, shown with `showAppBar: false`, makes room for its pane's bar. With glass off it keeps its one
+Material bar. The title stands on a soft patch of the surface of its own, since it reads on the fade, not on glass;
+the buttons' glass sees the content as the home header's does.
 
 **Pages with tabs** pass them as `tabs: LiquidGlassTabBar(controller: ..., labels: ..., onTap: ...)`: with glass on
 they are a second row of glass under the title, and the inset covers them. With glass off the argument is ignored and
