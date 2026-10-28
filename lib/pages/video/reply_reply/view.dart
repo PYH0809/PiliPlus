@@ -330,6 +330,7 @@ class _VideoReplyReplyPanelState extends State<VideoReplyReplyPanel>
       upMid: _controller.upMid,
       showDialogue: () => MiniScaffold.of(context).showBottomSheet(
         constraints: const BoxConstraints(),
+        opaque: true,
         (context) => VideoReplyReplyPanel(
           oid: replyItem.oid.toInt(),
           rpid: replyItem.root.toInt(),

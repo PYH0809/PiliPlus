@@ -66,6 +66,7 @@ class VideoReplyController extends ReplyController<MainListReply>
   void replyReply(ReplyInfo replyItem, int? id) {
     videoCtr.childKey.currentState?.showBottomSheet(
       constraints: const BoxConstraints(),
+      opaque: true,
       (context) => VideoReplyReplyPanel(
         id: id,
         oid: replyItem.oid.toInt(),

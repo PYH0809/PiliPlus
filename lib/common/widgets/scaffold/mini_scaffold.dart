@@ -29,6 +29,7 @@ class MiniScaffold extends StatefulWidget {
 class MiniScaffoldState extends State<MiniScaffold>
     with TickerProviderStateMixin {
   PersistentBottomSheetController? _currentBottomSheet;
+  Animation<double>? _opaqueSheet;
 
   void _closeCurrentBottomSheet() {
     if (_currentBottomSheet != null) {
@@ -104,6 +105,7 @@ class MiniScaffoldState extends State<MiniScaffold>
       onDismissed: () {
         if (bottomSheet == _currentBottomSheet?.widget) {
           _currentBottomSheet = null;
+          _opaqueSheet = null;
           if (mounted) {
             setState(() {});
           }
@@ -134,10 +136,13 @@ class MiniScaffoldState extends State<MiniScaffold>
     );
   }
 
+  /// Give [opaque] when the sheet paints all of its area: once it is up over
+  /// the whole body, the body is not painted under it.
   PersistentBottomSheetController showBottomSheet(
     WidgetBuilder builder, {
     BoxConstraints? constraints,
     bool? enableDrag,
+    bool opaque = false,
     AnimationController? transitionAnimationController,
     AnimationStyle? sheetAnimationStyle,
     double dragHeight = kBottomSheetDragHeight,
@@ -151,6 +156,7 @@ class MiniScaffoldState extends State<MiniScaffold>
               ))
           ..forward();
     setState(() {
+      _opaqueSheet = opaque ? controller : null;
       _currentBottomSheet = _buildBottomSheet(
         builder,
         animationController: controller,
@@ -168,6 +174,7 @@ class MiniScaffoldState extends State<MiniScaffold>
     return BottomSheetLayout(
       body: widget.body,
       bottomSheet: _currentBottomSheet?.widget,
+      opaqueSheet: _opaqueSheet,
     );
   }
 }
