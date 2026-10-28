@@ -316,8 +316,11 @@ void main() {
     expect(group.alone, isTrue);
     expect(group.box!.size, const Size.square(_side));
 
+    final button = tester.element(find.byType(IconButton));
     group.hidden = true;
     await tester.pump();
+    // Hidden, not built again: what it holds stays.
+    expect(tester.element(find.byType(IconButton)), same(button));
     expect(
       tester
           .widget<Opacity>(
