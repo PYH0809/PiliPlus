@@ -4,7 +4,7 @@ import 'dart:convert' show jsonDecode;
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
-import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/selection_text.dart';
 import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
@@ -189,7 +189,10 @@ class _LogsPageState extends State<LogsPage> {
                   ],
                 ),
               )
-            : scrollableError,
+            // scrollableError, below the bar.
+            : const CustomScrollView(
+                slivers: [SliverHeaderOverlaySpace(), HttpError()],
+              ),
       ),
     );
   }

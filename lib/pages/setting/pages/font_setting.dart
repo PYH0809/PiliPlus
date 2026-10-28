@@ -176,23 +176,32 @@ class _FontSettingPageState extends State<FontSettingPage> {
             if (isPortrait) const HeaderOverlaySpace(),
             Expanded(
               flex: isPortrait ? 1 : 2,
-              child: Center(
-                child: Text(
-                  'abcdefghijklmnopqrstuvwxyz\n'
-                  'ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
-                  '1234567890.:,;\'"(!?)+-*/=\n'
-                  '${Platform.isWindows
-                      ? "中国智造，惠及全球"
-                      : Platform.isMacOS || Platform.isIOS
-                      ? "汉体书写信息技术标准相容"
-                      : "我能吞下玻璃而不伤身体"}\n\n'
-                  '注：部分字体可能无法应用',
-                  style: TextStyle(
-                    fontFamily: _selectedFont ?? '',
-                    fontWeight: .values[_selectedWeight],
-                    fontSize: 14 * _selectedScale,
+              // Below the bar beside the font list too, however tall the
+              // preview grows.
+              child: Column(
+                children: [
+                  if (!isPortrait) const HeaderOverlaySpace(),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'abcdefghijklmnopqrstuvwxyz\n'
+                        'ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
+                        '1234567890.:,;\'"(!?)+-*/=\n'
+                        '${Platform.isWindows
+                            ? "中国智造，惠及全球"
+                            : Platform.isMacOS || Platform.isIOS
+                            ? "汉体书写信息技术标准相容"
+                            : "我能吞下玻璃而不伤身体"}\n\n'
+                        '注：部分字体可能无法应用',
+                        style: TextStyle(
+                          fontFamily: _selectedFont ?? '',
+                          fontWeight: .values[_selectedWeight],
+                          fontSize: 14 * _selectedScale,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
             isPortrait
