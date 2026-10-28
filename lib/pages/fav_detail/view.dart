@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/http/fav.dart';
@@ -82,7 +83,7 @@ class _FavDetailPageState extends State<FavDetailPage> with GridMixin {
                                 details.localPosition.dx <
                                     _favDetailController.dx,
                               ),
-                          child: FloatingActionButton.extended(
+                          child: GlassFab.extended(
                             onPressed: () {
                               if (_favDetailController.isPlayAll.value) {
                                 _favDetailController.toViewPlayAll();

@@ -1,6 +1,7 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
@@ -172,7 +173,7 @@ class _MemberVideoState extends State<MemberVideo>
                       right: kFloatingActionButtonMargin,
                       bottom: kFloatingActionButtonMargin + padding.bottom,
                     ),
-                    child: FloatingActionButton.extended(
+                    child: GlassFab.extended(
                       onPressed: () {
                         final fromViewAid = _controller.fromViewAid;
                         final locatedIndex =

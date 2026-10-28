@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
@@ -75,7 +76,7 @@ class _FollowPageState extends State<FollowPage>
                   right: kFloatingActionButtonMargin + padding.right,
                   bottom: kFloatingActionButtonMargin + padding.bottom,
                 ),
-                child: FloatingActionButton.extended(
+                child: GlassFab.extended(
                   onPressed: _followController.toggleOrderType,
                   icon: const Icon(Icons.format_list_bulleted, size: 20),
                   label: Obx(
