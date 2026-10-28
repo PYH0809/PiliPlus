@@ -6,6 +6,7 @@ import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/mine_tab_type.dart';
@@ -186,24 +187,30 @@ class _MediaPageState extends CommonPageState<MinePage>
     const style = ButtonStyle(tapTargetSize: .shrinkWrap);
     return [
       if (!_mainController.hasHome) ...[
-        IconButton(
-          iconSize: iconSize,
-          padding: padding,
-          style: style,
-          tooltip: '搜索',
-          onPressed: () => Get.toNamed('/search'),
-          icon: const Icon(Icons.search),
+        _opening(
+          '/search',
+          (onPressed) => IconButton(
+            iconSize: iconSize,
+            padding: padding,
+            style: style,
+            tooltip: '搜索',
+            onPressed: onPressed,
+            icon: const Icon(Icons.search),
+          ),
         ),
-        msgBadge(_mainController),
+        msgBadge(_mainController, grouped: _glass),
       ],
       if (GStorage.reply != null)
-        IconButton(
-          iconSize: iconSize,
-          padding: padding,
-          style: style,
-          tooltip: '评论记录',
-          onPressed: () => Get.toNamed('/myReply'),
-          icon: const Icon(Icons.message_outlined),
+        _opening(
+          '/myReply',
+          (onPressed) => IconButton(
+            iconSize: iconSize,
+            padding: padding,
+            style: style,
+            tooltip: '评论记录',
+            onPressed: onPressed,
+            icon: const Icon(Icons.message_outlined),
+          ),
         ),
       Obx(
         () {
@@ -238,15 +245,36 @@ class _MediaPageState extends CommonPageState<MinePage>
           icon: controller.themeType.value.icon,
         ),
       ),
-      IconButton(
-        iconSize: iconSize,
-        padding: padding,
-        style: style,
-        tooltip: '设置',
-        onPressed: () => Get.toNamed('/setting', preventDuplicates: false),
-        icon: const Icon(Icons.settings_outlined),
+      _opening(
+        '/setting',
+        (onPressed) => IconButton(
+          iconSize: iconSize,
+          padding: padding,
+          style: style,
+          tooltip: '设置',
+          onPressed: onPressed,
+          icon: const Icon(Icons.settings_outlined),
+        ),
+        preventDuplicates: false,
       ),
     ];
+  }
+
+  /// [button], which opens [page]: with glass, the page grows out of it and
+  /// returns into it.
+  Widget _opening(
+    String page,
+    Widget Function(VoidCallback onPressed) button, {
+    bool preventDuplicates = true,
+  }) {
+    if (!_glass) {
+      return button(
+        () => Get.toNamed(page, preventDuplicates: preventDuplicates),
+      );
+    }
+    return GlassMorphSource(
+      builder: (context, source) => button(() => source.toNamed(page)),
+    );
   }
 
   Widget _buildUserInfo(ThemeData theme, Color secondary) {

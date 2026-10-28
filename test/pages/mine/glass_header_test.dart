@@ -3,11 +3,13 @@ import 'dart:io';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/pages/mine/widgets/glass_header.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -233,6 +235,73 @@ void main() {
       final rect = tester.getRect(finder);
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.right, lessThanOrEqualTo(320));
+    }
+  });
+
+  testWidgets('设置 opens out of its button on the pane and returns into it, '
+      'scaled down too', (tester) async {
+    for (final width in [412.0, 320.0]) {
+      tester.view
+        ..physicalSize = Size(width, 800)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        GetMaterialApp(
+          // As main.dart's builder.
+          builder: (context, child) => LiquidGlassScope(
+            enabled: true,
+            child: LiquidGlassHost(enabled: true, child: child!),
+          ),
+          getPages: [
+            GetPage(
+              name: '/setting',
+              page: () => const Scaffold(body: Center(child: Text('设置页'))),
+            ),
+          ],
+          home: Scaffold(
+            body: MineGlassBody(
+              showBackBtn: true,
+              actions: [
+                ..._actions(6),
+                GlassMorphSource(
+                  builder: (context, source) => IconButton(
+                    tooltip: '设置',
+                    onPressed: () => source.toNamed('/setting'),
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+                ),
+              ],
+              content: const _List(),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('设置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.text('设置页'), findsOneWidget);
+      expect(
+        GlassMorphButton.deferUntilOpened(
+          tester.element(find.text('设置页')),
+          () {},
+        ),
+        isTrue,
+        reason: 'growing out of the button at $width',
+      );
+      await tester.pumpAndSettle();
+      Get.back<void>();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('设置页'), findsNothing);
+      // Back in its place, shown again.
+      final shown = tester.widget<Opacity>(
+        find
+            .ancestor(of: find.byTooltip('设置'), matching: find.byType(Opacity))
+            .first,
+      );
+      expect(shown.opacity, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+      Get.reset();
     }
   });
 }
