@@ -75,6 +75,42 @@ class SearchGlassBar extends StatelessWidget {
   }
 }
 
+/// [field] with [buttons] at its end, 40 dp each, for a [SearchGlassBar]'s
+/// capsule. Where the capsule is too narrow to leave [field] [fieldMinWidth]
+/// beside them all, as with the app's interface scaled up, the buttons give
+/// way, the first ones first.
+class SearchGlassFieldRow extends StatelessWidget {
+  const SearchGlassFieldRow({
+    super.key,
+    required this.field,
+    required this.buttons,
+  });
+
+  /// Room for a few characters.
+  static const fieldMinWidth = 64.0;
+  static const buttonWidth = 40.0;
+
+  final Widget field;
+  final List<Widget> buttons;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fit = ((constraints.maxWidth - fieldMinWidth) / buttonWidth)
+            .floor()
+            .clamp(0, buttons.length);
+        return Row(
+          children: [
+            Expanded(child: field),
+            ...buttons.skip(buttons.length - fit),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Lays [header], a [SearchGlassBar] and what goes below it, over [content]
 /// below the status bar, as the home page lays out its own: [content] starts
 /// [extent] down and scrolls under it, as it reads [HeaderOverlayInset].

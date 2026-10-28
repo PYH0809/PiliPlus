@@ -161,6 +161,55 @@ void main() {
     expect(taps, [tester.state<GlassMorphButtonState>(button)]);
   });
 
+  group('the field keeps room beside its buttons', () {
+    Future<void> pumpRow(WidgetTester tester, double width) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: width,
+              height: 40,
+              child: const SearchGlassFieldRow(
+                field: SizedBox.expand(key: ValueKey('field')),
+                buttons: [
+                  SizedBox.square(key: ValueKey('uid'), dimension: 40),
+                  SizedBox.square(key: ValueKey('clear'), dimension: 40),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    double fieldWidth(WidgetTester tester) =>
+        tester.getSize(find.byKey(const ValueKey('field'))).width;
+
+    testWidgets('on a phone, both buttons', (tester) async {
+      await pumpRow(tester, 260);
+      expect(find.byKey(const ValueKey('uid')), findsOneWidget);
+      expect(find.byKey(const ValueKey('clear')), findsOneWidget);
+      expect(fieldWidth(tester), 260 - 80);
+    });
+
+    testWidgets('narrower, the first button gives way', (tester) async {
+      await pumpRow(tester, 132);
+      expect(find.byKey(const ValueKey('uid')), findsNothing);
+      expect(find.byKey(const ValueKey('clear')), findsOneWidget);
+      expect(fieldWidth(tester), 92);
+    });
+
+    testWidgets('at twice the scale, the field alone, without overflow', (
+      tester,
+    ) async {
+      await pumpRow(tester, 68);
+      expect(find.byKey(const ValueKey('uid')), findsNothing);
+      expect(find.byKey(const ValueKey('clear')), findsNothing);
+      expect(fieldWidth(tester), 68);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('the status bar reads as over the surface', (tester) async {
     await _pump(tester);
     final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(

@@ -146,18 +146,16 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _buildField(
-                InputDecoration(
-                  isDense: true,
-                  hintText: _searchController.hintText ?? '搜索',
-                  border: InputBorder.none,
-                  contentPadding: const .symmetric(horizontal: 16),
-                ),
-              ),
+        child: SearchGlassFieldRow(
+          field: _buildField(
+            InputDecoration(
+              isDense: true,
+              hintText: _searchController.hintText ?? '搜索',
+              border: InputBorder.none,
+              contentPadding: const .symmetric(horizontal: 16),
             ),
+          ),
+          buttons: [
             _uidBtn,
             ValueListenableBuilder(
               valueListenable: _searchController.controller,
