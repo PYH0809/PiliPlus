@@ -155,6 +155,7 @@ lays it over the body. The two are as tall, so the content stays put as they swa
 | `glass_page_morph.dart` | `GlassMorphButton`: a page growing out of its button and returning into it, on the route's own time, drawn from a snapshot; `GlassMorphSource`, the same out of a button in a `GlassButtonGroup` | Yes |
 | `glass_button_group.dart` | `GlassButtonGroup`: buttons side by side on one pane of glass, each pressed on a platter of its own | Yes |
 | `glass_menu_press.dart` | `GlassMenuPress`: a `PopupMenuButton` opens on press and carries the press on into its menu | Yes |
+| `glass_fab.dart` | `GlassFab` (and `.extended`), a page's floating action button: a drop of glass in the theme's color with the switch on, Material's `FloatingActionButton` with it off. It keeps Material's footprint, and room above for its shadow so a `SlideTransition` by its own height hides that too. Already on glass (`GlassSurfaces.onGlass`, or a `VideoGlass` panel over the video) it takes no pane, only a fill, as an alert's default action. `GlassFabGroup` stacks round ones, as the blacklist's: on one `GlassButtonGroup` pane down the page with the switch on, Material's a margin apart with it off | Yes |
 | `../liquid_glass_navigation_bar.dart` | The nav bar: a lens you can press, drag and fling | Yes |
 | `../header_overlay_inset.dart` | Tells content how much a header laid over it covers | Yes |
 
@@ -168,10 +169,11 @@ lays it over the body. The two are as tall, so the content stays put as they swa
   `onSurfaceVariant`, and corners are concentric: an inner radius is the outer one less the inset. A platter only
   ever means a press: a menu's current value takes a check at the row's end.
 - **Content under an overlaid header** starts with `HeaderOverlayInset.sliver(context)`, or uses
-  `HeaderOverlayInset.below(...)` when it pins headers of its own. `RefreshIndicator` reads the inset, so the pull
-  indicator comes out from under the header. A bar at the bottom that the keyboard moves, as a chat's input bar, lays
-  out through `GlassChatLayout` (`lib/pages/whisper_detail/widget/glass_chat_layout.dart`), which hands the list
-  under it the bar's height in the same frame, so the newest message moves with the bar.
+  `HeaderOverlayInset.below(...)` when it pins headers of its own. A `ListView` takes `HeaderOverlayInset.of(context)`
+  as its top padding, as the mine page's does. `RefreshIndicator` reads the inset, so the pull indicator comes out
+  from under the header. A bar at the bottom that the keyboard moves, as a chat's input bar, lays out through
+  `GlassChatLayout` (`lib/pages/whisper_detail/widget/glass_chat_layout.dart`), which hands the list under it the
+  bar's height in the same frame, so the newest message moves with the bar.
 - **Motion runs on `GlassSpring`s**, retargeted mid-flight, not on fixed curves. Respect
   `MediaQuery.disableAnimationsOf` by jumping instead of springing.
 - **Interactive glass** keeps keyboard focus and activation (`FocusableActionDetector` + `ActivateIntent`), shows a

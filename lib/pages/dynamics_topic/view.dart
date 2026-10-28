@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/dynamic_sliver_app_bar/dynamic_sliver_app_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -147,7 +148,7 @@ class _DynTopicPageState extends State<DynTopicPage>
             right: kFloatingActionButtonMargin + padding.right,
             bottom: kFloatingActionButtonMargin + padding.bottom,
           ),
-          child: FloatingActionButton.extended(
+          child: GlassFab.extended(
             onPressed: () {
               if (_controller.isLogin) {
                 CreateDynPanel.onCreateDyn(
