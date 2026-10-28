@@ -113,7 +113,7 @@ class GlassButtonGroupState extends State<GlassButtonGroup> {
     );
     const size = Size.square(GlassButtonGroup.thickness);
     const shape = WidgetStatePropertyAll<OutlinedBorder>(_PlatterBorder());
-    Widget group = Stack(
+    final group = Stack(
       children: [
         // Sized by the buttons, so that it is empty, and not drawn, while
         // they all hide.
@@ -161,10 +161,11 @@ class GlassButtonGroupState extends State<GlassButtonGroup> {
         ),
       ],
     );
-    if (_hidden) {
-      group = IgnorePointer(child: Opacity(opacity: 0, child: group));
-    }
-    return group;
+    // Always there, so that hiding keeps the buttons' state.
+    return IgnorePointer(
+      ignoring: _hidden,
+      child: Opacity(opacity: _hidden ? 0 : 1, child: group),
+    );
   }
 }
 
