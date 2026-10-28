@@ -21,6 +21,7 @@ import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recogniz
     show touchSlopH;
 import 'package:PiliPlus/common/widgets/gesture/image_horizontal_drag_gesture_recognizer.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/foundation.dart' show clampDouble;
 import 'package:flutter/gestures.dart'
     show
@@ -477,9 +478,14 @@ class _ViewerState extends State<Viewer> with SingleTickerProviderStateMixin {
     _gestureType = null;
   }
 
+  // Only the glass over the gallery listens.
+  static final bool _glass = Pref.liquidGlass;
+
   @override
   Widget build(BuildContext context) {
-    _reportZoom();
+    if (_glass) {
+      _reportZoom();
+    }
     return Listener(
       behavior: .opaque,
       onPointerDown: _onPointerDown,

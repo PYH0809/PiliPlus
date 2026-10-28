@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/widgets/image_viewer/gallery_glass.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero_dialog_route.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/viewer.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -89,6 +90,28 @@ void main() {
       zoomed.value = false;
       await tester.pumpAndSettle();
       expect(find.byType(LiquidGlass), findsOneWidget);
+    });
+
+    testWidgets('over a video, filters the screen, which holds it', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          GalleryGlass(
+            drag: drag,
+            zoomed: zoomed,
+            overVideo: true,
+            child: const Text('2/4'),
+          ),
+        ),
+      );
+      expect(find.byType(VideoGlass), findsOneWidget);
+      expect(find.byType(LiquidGlass), findsNothing);
+      expect(find.text('2/4'), findsOneWidget);
+
+      drag.value = 0.1;
+      await tester.pump();
+      expect(find.byType(VideoGlass), findsNothing);
     });
 
     testWidgets('jumps with animations off', (tester) async {

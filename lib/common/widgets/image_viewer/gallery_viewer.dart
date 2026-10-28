@@ -389,11 +389,14 @@ class _GalleryViewerState extends State<GalleryViewer>
     bottom: _padding!.bottom + 12,
     child: IgnorePointer(
       child: Center(
-        child: GalleryGlass(
-          drag: _animateController,
-          zoomed: _zoomed,
-          child: Obx(
-            () => Text("${_currIndex.value + 1}/${widget.sources.length}"),
+        child: Obx(
+          () => GalleryGlass(
+            drag: _animateController,
+            zoomed: _zoomed,
+            overVideo:
+                widget.sources[_currIndex.value].sourceType ==
+                SourceType.livePhoto,
+            child: Text("${_currIndex.value + 1}/${widget.sources.length}"),
           ),
         ),
       ),

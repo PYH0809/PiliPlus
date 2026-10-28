@@ -25,12 +25,17 @@ class GalleryGlass extends StatefulWidget {
     super.key,
     required this.drag,
     required this.zoomed,
+    this.overVideo = false,
     required this.child,
   });
 
   /// How far the image is pulled away, as a share of the screen's height.
   final Animation<double> drag;
   final ValueListenable<bool> zoomed;
+
+  /// Whether a video plays under it, as a live photo's: a texture, which the
+  /// host cannot capture, so the pane is then a [VideoGlass], which sees it.
+  final bool overVideo;
   final Widget child;
 
   @override
@@ -92,28 +97,33 @@ class _GalleryGlassState extends State<GalleryGlass>
           return const SizedBox.shrink();
         }
         final colorScheme = _colorScheme;
+        final content = Padding(
+          padding: const .symmetric(horizontal: 14, vertical: 6),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(
+              fontSize: 14,
+              height: 20 / 14,
+              fontWeight: .w500,
+              // So that the capsule keeps its width as the page turns.
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: colorScheme.onSurface.withValues(alpha: t),
+            ),
+            child: child!,
+          ),
+        );
+        if (widget.overVideo) {
+          // As the player's notes over the video.
+          return VideoGlass.capsule(note: true, t: t, child: content);
+        }
         return LiquidGlass(
-          style: LiquidGlassStyle.pill(colorScheme).scale(t),
+          style: LiquidGlassStyle.regular(colorScheme).scale(t),
           shadows: [
             for (final shadow in floatingGlassShadows(colorScheme))
               shadow.copyWith(
                 color: shadow.color.withValues(alpha: shadow.color.a * t),
               ),
           ],
-          child: Padding(
-            padding: const .symmetric(horizontal: 14, vertical: 6),
-            child: DefaultTextStyle.merge(
-              style: TextStyle(
-                fontSize: 14,
-                height: 20 / 14,
-                fontWeight: .w500,
-                // So that the capsule keeps its width as the page turns.
-                fontFeatures: const [FontFeature.tabularFigures()],
-                color: colorScheme.onSurface.withValues(alpha: t),
-              ),
-              child: child!,
-            ),
-          ),
+          child: content,
         );
       },
       child: widget.child,
