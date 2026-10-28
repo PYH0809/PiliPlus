@@ -49,7 +49,7 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
     final ts = DateTime.now().millisecondsSinceEpoch;
     // Says why the captcha did not come up, rather than leaving the page blank.
     const showError =
-        'E=m=>{document.getElementById("E").textContent="验证码加载失败"+(m?"："+m:"");R("error",m||"geetest script load failed")}';
+        'E=m=>{m=m||"脚本加载失败";document.getElementById("E").textContent="验证码加载失败："+m;R("error",m)}';
     final js = v4
         ? 'onerror=m=>E(m);'
               'G=()=>initGeetest4({captchaId:"$gt",product:"bind",language:"zho",https:true,protocol:"https://"},c=>c.onReady(()=>c.showCaptcha()).onSuccess(()=>R("success",c.getValidate())).onError(o=>E(o&&o.msg)).onClose(o=>R("close",o)));'
