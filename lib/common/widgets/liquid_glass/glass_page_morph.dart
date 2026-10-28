@@ -153,8 +153,9 @@ class GlassMorphButtonState extends State<GlassMorphButton>
 /// unless the button stands alone in its group, which is then the whole
 /// button and hides as a [GlassMorphButton] does. [builder] builds the
 /// button, which opens the page with [GlassMorphSourceState.toNamed]; it is
-/// built in the morph too, so it holds no [GlobalKey]. Off glass, [toNamed]
-/// is [Get.toNamed].
+/// built in the morph too, under the button's themes but none of its other
+/// ancestors, so it holds no [GlobalKey] and looks nothing up, as
+/// `Scaffold.of`, as it builds. Off glass, [toNamed] is [Get.toNamed].
 ///
 /// ```dart
 /// GlassButtonGroup(
@@ -511,7 +512,11 @@ class _PageMorphState extends State<_PageMorph> {
         child: IgnorePointer(
           child: Material(
             type: MaterialType.transparency,
-            child: source._face(),
+            // Built again here, in the page's route: under the button's own
+            // themes, so that it looks as the button does.
+            child: source.mounted
+                ? InheritedTheme.captureAll(source.context, source._face())
+                : source._face(),
           ),
         ),
       ),

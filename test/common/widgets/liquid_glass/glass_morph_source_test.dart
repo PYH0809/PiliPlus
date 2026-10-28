@@ -390,6 +390,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets("the face in the morph wears its button's themes", (
+    tester,
+  ) async {
+    // A local theme above the button, as a header tints its icons.
+    await _pump(
+      tester,
+      Theme(
+        data: ThemeData(iconTheme: const IconThemeData(color: Colors.pink)),
+        child: GlassButtonGroup(
+          glass: true,
+          children: [
+            GlassMorphSource(
+              builder: (context, source) => IconButton(
+                tooltip: '搜索',
+                color: IconTheme.of(context).color,
+                onPressed: () => source.toNamed('/search'),
+                icon: const Icon(Icons.search),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final copies = find.byTooltip('搜索', skipOffstage: false).evaluate();
+    expect(copies.length, 2);
+    for (final copy in copies) {
+      expect(IconTheme.of(copy).color, Colors.pink);
+      // Sized by the group's theme, as the button is.
+      expect(copy.size, const Size.square(GlassButtonGroup.thickness));
+    }
+    await tester.pumpAndSettle();
+    Get.back<void>();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('a GlassMorphButton still opens its page out of itself', (
     tester,
   ) async {
