@@ -51,6 +51,62 @@ turns on every glass part. It only takes effect after a restart.
 - **Switches are near iOS's size on glass.** The app shrinks every `Switch` with `Transform.scale`; a new one takes
   `scale: GlassSurfaces.switchScale`, which keeps Material's at 0.8 and the glass one at 0.9.
 
+## Secondary pages' title bars
+
+`GlassAppBar` (`glass_app_bar.dart`) is the title bar of a page pushed over another: 设置 and its pages, and the
+favourites, history, messages, follows and other pages whose `SimpleScaffold` or `Scaffold` has an
+`appBar: AppBar(...)` with a title, a way back and a few actions. With glass on it is iOS 26's navigation bar: the
+back button a 44 dp circle of glass, the title centered, the actions together on one capsule of glass, all over
+`LiquidGlassHeader`'s fade and laid over the content, which scrolls under it. With glass off it builds the very
+`AppBar` it replaces, so the page is as before. A bar that is something else, as a search field for a title, a
+collapsing `SliverAppBar` or a bar over the video, is not for it.
+
+**Adopting it** takes two edits, as `lib/pages/setting/` shows:
+
+1. Rename `AppBar(` to `GlassAppBar(` in `SimpleScaffold.appBar`. It takes `title`, `leading`,
+   `automaticallyImplyLeading`, `actions` and `centerTitle` as `AppBar` does; a page that needs another adds it,
+   passed on to `AppBar` too. Actions stay as they are: `IconButton`s, `PopupMenuButton`s and `TextButton`s stand 44
+   dp tall on the capsule (a lone one makes it a circle), an `Obx` that hides its button shrinks it, and the
+   childless `SizedBox` that spaces Material's actions from the edge is left out on glass.
+2. Make room at the top of the content, below.
+
+`SimpleScaffold` sees an `OverlaidAppBar` and, with glass on, lays the body under it at full height through
+`GlassAppBarBody`. A page that keeps a Material `Scaffold`, for snack bars or a drawer, does it by hand, as
+`setting/pages/logs.dart`:
+
+```dart
+final appBar = GlassAppBar(title: const Text('日志'), actions: [...]);
+return Scaffold(
+  appBar: GlassAppBar.enabled ? null : appBar,
+  body: GlassAppBarBody(appBar: appBar, body: body),
+);
+```
+
+**Making room.** The body's `HeaderOverlayInset` is the status bar + 56 dp (+ 46 with tabs), and the status bar is
+taken out of its `MediaQuery` padding; with glass off the inset is 0, so the room costs nothing there. It can only be
+read below the scaffold: a page that builds its list in its own `build` holds a context above it, where
+`HeaderOverlayInset.of(context)` is 0. So:
+
+- a `ListView` or `Column` built there starts with `const HeaderOverlaySpace()`, a `CustomScrollView` with
+  `const SliverHeaderOverlaySpace()`, and a `ReorderableListView` takes it as its `header`;
+- `ListView.builder`, `.separated` or anything that needs the number reads it in a `Builder`, as `CommonSetting`;
+- a widget with a build of its own (a tab's page, a list widget, a page shown without its bar beside another, as
+  设置's landscape panes with `showAppBar: false`) reads `HeaderOverlayInset.of(context)` or `.sliver(context)` there;
+  `refreshIndicator` already does;
+- fixed content that would sit under the bar takes the space above it (`display_mode.dart`, the sliders in
+  `fullscreen_sc.dart`); centered content, as an error, can stay.
+
+**Pages with tabs** pass them as `tabs: LiquidGlassTabBar(controller: ..., labels: ..., onTap: ...)`: with glass on
+they are a second row of glass under the title, and the inset covers them. With glass off the argument is ignored and
+the page keeps its own `TabBar` in the body, which it leaves out on glass: `if (!GlassAppBar.enabled) TabBar(...)`.
+Each tab's list makes room as above; the inset reaches through `TabBarView`. Something between the bar and the tabs,
+as history's pause tip, moves below the bar on glass, in `HeaderOverlayInset.below`.
+
+**Multi-select.** `MultiSelectAppBarWidget` swaps the page's bar for a selection bar. To bring it on glass, let it
+take a `GlassAppBar` and build a `GlassAppBar` while selecting too (取消 as `leading`, on a circle; 全选 and 移除 as
+`TextButton` actions, on one capsule; the page bar's `tabs`), and implement `OverlaidAppBar`, so that `SimpleScaffold`
+lays it over the body. The two are as tall, so the content stays put as they swap.
+
 ## Files
 
 | File | Role | Edit? |
@@ -63,6 +119,7 @@ turns on every glass part. It only takes effect after a restart.
 | `liquid_glass_button.dart` | A pressable pane: swells and glows under the finger, keyboard focusable | Yes |
 | `liquid_glass_tab_bar.dart` | Tabs on a glass pill, with a platter that slides with the pages | Yes |
 | `liquid_glass_header.dart` | A header over a soft fade, for content that scrolls under it | Yes |
+| `glass_app_bar.dart` | `GlassAppBar`, a secondary page's title bar, Material's `AppBar` with glass off; `GlassAppBarBody` lays it over a body; `HeaderOverlaySpace` and `SliverHeaderOverlaySpace` read the room for it where they are built | Yes |
 | `glass_panel.dart` | `GlassPanel`: glass with a rim and a wide shadow, clipping its child, as a menu or alert | Yes |
 | `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled, 取消 at the bottom | Yes |
 | `glass_switch.dart` | `GlassSwitch`, iOS 26's switch (a 63×28 track, a white capsule thumb) with FlClash's motion: a press lifts the thumb into a lens over the track. A `Switch`'s own `thumbIcon` (a lock) stays on the thumb; the theme's tick doesn't | Yes |
@@ -103,6 +160,9 @@ Glass only refracts under Impeller, so render tests run with `flutter test --ena
 - Wrap the tree in `LiquidGlassScope(enabled: true)` + `LiquidGlassHost(enabled: true)`.
 
 Code that calls `feedBack()` needs `enableFeedback = false` in the test.
+
+Pages read `GlassAppBar.enabled` as they build, so a test sets `GlassAppBar.debugEnabled` in `setUp`, before it builds
+the page, and clears it in `tearDown`: `test/common/widgets/liquid_glass/glass_app_bar_test.dart`.
 
 `VideoGlass` is a backdrop filter, which `toImage()` renders headless without the host:
 `test/common/widgets/liquid_glass/video_glass_render_test.dart` passes both with and without `--enable-impeller`.

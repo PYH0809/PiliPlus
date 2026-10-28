@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/slotted_layout_helper.dart';
 import 'package:flutter/rendering.dart' show ChildLayoutHelper;
 import 'package:material_ui/material_ui.dart';
@@ -20,6 +21,13 @@ class SimpleScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget? appBar = this.appBar;
+    Widget body = this.body;
+    // A glass bar floats over the body, which scrolls under it.
+    if (appBar is OverlaidAppBar && GlassAppBar.enabled) {
+      body = GlassAppBarBody(appBar: appBar, body: body);
+      appBar = null;
+    }
     return Material(
       color: backgroundColor,
       child: ScaffoldLayout(
