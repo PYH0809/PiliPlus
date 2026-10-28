@@ -2,6 +2,8 @@ import 'dart:io' show Platform;
 
 import 'package:PiliPlus/common/widgets/animated_height.dart';
 import 'package:PiliPlus/common/widgets/color_palette.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/main.dart' show MyApp;
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
@@ -80,107 +82,121 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
       context,
     ).copyWith(top: 0, bottom: 0);
     return SimpleScaffold(
-      appBar: AppBar(title: const Text('选择应用主题')),
-      body: ListView(
-        padding: .only(
-          bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
-        ),
-        children: [
-          ListTile(
-            onTap: () async {
-              final result = await showDialog<ThemeType>(
-                context: context,
-                builder: (context) => SelectDialog<ThemeType>(
-                  title: '主题模式',
-                  value: ctr.themeType.value,
-                  values: ThemeType.values.map((e) => (e, e.label)).toList(),
-                ),
-              );
-              if (result != null) {
-                try {
-                  Get.find<MineController>().themeType.value = result;
-                } catch (_) {}
-                ctr.themeType.value = result;
-                GStorage.setting.put(SettingBoxKey.themeMode, result.index);
-                Get.changeThemeMode(ThemeUtils.themeMode = result.toThemeMode);
-              }
-            },
-            leading: const Icon(Icons.flashlight_on_outlined),
-            title: Text('主题模式', style: titleStyle),
-            subtitle: Obx(
-              () => Text(
-                '当前模式：${ctr.themeType.value.label}',
-                style: subTitleStyle,
-              ),
+      appBar: const GlassAppBar(title: Text('选择应用主题')),
+      // The preview is the home page, glass header and all, which must not
+      // pass under the bar's glass: the list lies below the bar instead.
+      body: Builder(
+        builder: (context) => HeaderOverlayInset.below(
+          context,
+          child: ListView(
+            padding: .only(
+              bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
             ),
-          ),
-          Obx(
-            () => PopupListTile<FlexSchemeVariant>(
-              enabled: !ctr.dynamicColor.value,
-              leading: const Icon(Icons.palette_outlined),
-              title: const Text('调色板风格'),
-              value: () =>
-                  (_dynamicSchemeVariant, _dynamicSchemeVariant.variantName),
-              itemBuilder: (_) => FlexSchemeVariant.values
-                  .map(
-                    (e) => PopupMenuItem(value: e, child: Text(e.variantName)),
-                  )
-                  .toList(),
-              onSelected: (value, setState) {
-                _dynamicSchemeVariant = value;
-                GStorage.setting
-                    .put(SettingBoxKey.schemeVariant, value.index)
-                    .whenComplete(Get.updateMyAppTheme);
-              },
-            ),
-          ),
-          if (!Platform.isIOS)
-            Obx(
-              () => ListTile(
-                title: const Text('动态取色'),
-                leading: ExcludeFocus(
-                  child: Checkbox(
-                    value: ctr.dynamicColor.value,
-                    onChanged: _onChanged,
-                    materialTapTargetSize: .shrinkWrap,
-                    visualDensity: const .new(horizontal: -4, vertical: -4),
+            children: [
+              ListTile(
+                onTap: () async {
+                  final result = await showDialog<ThemeType>(
+                    context: context,
+                    builder: (context) => SelectDialog<ThemeType>(
+                      title: '主题模式',
+                      value: ctr.themeType.value,
+                      values: ThemeType.values
+                          .map((e) => (e, e.label))
+                          .toList(),
+                    ),
+                  );
+                  if (result != null) {
+                    try {
+                      Get.find<MineController>().themeType.value = result;
+                    } catch (_) {}
+                    ctr.themeType.value = result;
+                    GStorage.setting.put(SettingBoxKey.themeMode, result.index);
+                    Get.changeThemeMode(
+                      ThemeUtils.themeMode = result.toThemeMode,
+                    );
+                  }
+                },
+                leading: const Icon(Icons.flashlight_on_outlined),
+                title: Text('主题模式', style: titleStyle),
+                subtitle: Obx(
+                  () => Text(
+                    '当前模式：${ctr.themeType.value.label}',
+                    style: subTitleStyle,
                   ),
                 ),
-                onTap: _onChanged,
               ),
-            ),
-          Padding(
-            padding: padding + const .all(12),
-            child: Obx(_buildColorPanel),
-          ),
-          Padding(
-            padding: padding,
-            child: ExcludeFocus(
-              child: IgnorePointer(
-                child: Container(
-                  height: size.height / 2,
-                  width: size.width,
-                  color: theme.colorScheme.surface,
-                  child: const HomePage(),
+              Obx(
+                () => PopupListTile<FlexSchemeVariant>(
+                  enabled: !ctr.dynamicColor.value,
+                  leading: const Icon(Icons.palette_outlined),
+                  title: const Text('调色板风格'),
+                  value: () => (
+                    _dynamicSchemeVariant,
+                    _dynamicSchemeVariant.variantName,
+                  ),
+                  itemBuilder: (_) => FlexSchemeVariant.values
+                      .map(
+                        (e) =>
+                            PopupMenuItem(value: e, child: Text(e.variantName)),
+                      )
+                      .toList(),
+                  onSelected: (value, setState) {
+                    _dynamicSchemeVariant = value;
+                    GStorage.setting
+                        .put(SettingBoxKey.schemeVariant, value.index)
+                        .whenComplete(Get.updateMyAppTheme);
+                  },
                 ),
               ),
-            ),
-          ),
-          ExcludeFocus(
-            child: IgnorePointer(
-              child: NavigationBar(
-                destinations: NavigationBarType.values
-                    .map(
-                      (item) => NavigationDestination(
-                        icon: item.icon,
-                        label: item.label,
+              if (!Platform.isIOS)
+                Obx(
+                  () => ListTile(
+                    title: const Text('动态取色'),
+                    leading: ExcludeFocus(
+                      child: Checkbox(
+                        value: ctr.dynamicColor.value,
+                        onChanged: _onChanged,
+                        materialTapTargetSize: .shrinkWrap,
+                        visualDensity: const .new(horizontal: -4, vertical: -4),
                       ),
-                    )
-                    .toList(),
+                    ),
+                    onTap: _onChanged,
+                  ),
+                ),
+              Padding(
+                padding: padding + const .all(12),
+                child: Obx(_buildColorPanel),
               ),
-            ),
+              Padding(
+                padding: padding,
+                child: ExcludeFocus(
+                  child: IgnorePointer(
+                    child: Container(
+                      height: size.height / 2,
+                      width: size.width,
+                      color: theme.colorScheme.surface,
+                      child: const HomePage(),
+                    ),
+                  ),
+                ),
+              ),
+              ExcludeFocus(
+                child: IgnorePointer(
+                  child: NavigationBar(
+                    destinations: NavigationBarType.values
+                        .map(
+                          (item) => NavigationDestination(
+                            icon: item.icon,
+                            label: item.label,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

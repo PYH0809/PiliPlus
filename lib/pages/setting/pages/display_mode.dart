@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
@@ -63,10 +64,11 @@ class _SetDisplayModeState extends State<SetDisplayMode> {
   @override
   Widget build(BuildContext context) {
     return SimpleScaffold(
-      appBar: AppBar(title: const Text('屏幕帧率设置')),
+      appBar: const GlassAppBar(title: Text('屏幕帧率设置')),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const HeaderOverlaySpace(),
           Padding(
             padding:
                 MediaQuery.viewPaddingOf(context).copyWith(top: 0, bottom: 0) +

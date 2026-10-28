@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/style.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_insets_safe_area.dart';
@@ -42,7 +43,7 @@ class _WebDavSettingPageState extends State<WebDavSettingPage> {
     final showAppBar = widget.showAppBar;
     final padding = MediaQuery.viewPaddingOf(context);
     return SimpleScaffold(
-      appBar: showAppBar ? AppBar(title: const Text('WebDAV 设置')) : null,
+      appBar: showAppBar ? const GlassAppBar(title: Text('WebDAV 设置')) : null,
       body: ViewInsetsSafeArea(
         child: ListView(
           padding: padding.copyWith(
@@ -52,6 +53,7 @@ class _WebDavSettingPageState extends State<WebDavSettingPage> {
             bottom: padding.bottom + 100,
           ),
           children: [
+            const HeaderOverlaySpace(),
             TextField(
               controller: _uriCtr,
               decoration: const InputDecoration(

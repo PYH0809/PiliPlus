@@ -3,7 +3,8 @@ import 'dart:convert' show jsonDecode;
 
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
-import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/selection_text.dart';
 import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
@@ -106,85 +107,93 @@ class _LogsPageState extends State<LogsPage> {
   @override
   Widget build(BuildContext context) {
     final padding = MediaQuery.viewPaddingOf(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('日志'),
-        actions: [
-          PopupMenuButton(
-            itemBuilder: (_) => [
-              if (kDebugMode)
-                PopupMenuItem(
-                  onTap: () => Timer.periodic(
-                    const Duration(milliseconds: 3500),
-                    (timer) {
-                      Utils.reportError('Manual', StackTrace.current);
-                      if (timer.tick > 3) {
-                        timer.cancel();
-                        if (mounted) getLog();
-                      }
-                    },
-                  ),
-                  child: const Text('引发错误'),
+    final appBar = GlassAppBar(
+      title: const Text('日志'),
+      actions: [
+        PopupMenuButton(
+          itemBuilder: (_) => [
+            if (kDebugMode)
+              PopupMenuItem(
+                onTap: () => Timer.periodic(
+                  const Duration(milliseconds: 3500),
+                  (timer) {
+                    Utils.reportError('Manual', StackTrace.current);
+                    if (timer.tick > 3) {
+                      timer.cancel();
+                      if (mounted) getLog();
+                    }
+                  },
                 ),
-              PopupMenuItem(
-                onTap: () {
-                  enableLog = !enableLog;
-                  GStorage.setting.put(SettingBoxKey.enableLog, enableLog);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('已${enableLog ? '开启' : '关闭'}，重启生效'),
-                      duration: _snackBarDisplayDuration,
-                    ),
-                  );
-                },
-                child: Text('${enableLog ? '关闭' : '开启'}日志'),
+                child: const Text('引发错误'),
               ),
-              PopupMenuItem(
-                onTap: copyLogs,
-                child: const Text('复制日志'),
-              ),
-              PopupMenuItem(
-                onTap: () =>
-                    PageUtils.launchURL('${Constants.sourceCodeUrl}/issues'),
-                child: const Text('错误反馈'),
-              ),
-              PopupMenuItem(
-                onTap: clearLogs,
-                child: const Text('清空日志'),
-              ),
-            ],
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-      body: logsContent.isNotEmpty || _deviceInfo != null
-          ? Padding(
-              padding: EdgeInsets.only(
-                left: padding.left + 12,
-                right: padding.right + 12,
-              ),
-              child: CustomScrollView(
-                slivers: [
-                  if (_deviceInfo != null)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const .only(bottom: 12),
-                        child: _InfoCard(info: _deviceInfo!),
+            PopupMenuItem(
+              onTap: () {
+                enableLog = !enableLog;
+                GStorage.setting.put(SettingBoxKey.enableLog, enableLog);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('已${enableLog ? '开启' : '关闭'}，重启生效'),
+                    duration: _snackBarDisplayDuration,
+                  ),
+                );
+              },
+              child: Text('${enableLog ? '关闭' : '开启'}日志'),
+            ),
+            PopupMenuItem(
+              onTap: copyLogs,
+              child: const Text('复制日志'),
+            ),
+            PopupMenuItem(
+              onTap: () =>
+                  PageUtils.launchURL('${Constants.sourceCodeUrl}/issues'),
+              child: const Text('错误反馈'),
+            ),
+            PopupMenuItem(
+              onTap: clearLogs,
+              child: const Text('清空日志'),
+            ),
+          ],
+        ),
+        const SizedBox(width: 6),
+      ],
+    );
+    return Scaffold(
+      appBar: GlassAppBar.enabled ? null : appBar,
+      body: GlassAppBarBody(
+        appBar: appBar,
+        body: logsContent.isNotEmpty || _deviceInfo != null
+            ? Padding(
+                padding: EdgeInsets.only(
+                  left: padding.left + 12,
+                  right: padding.right + 12,
+                ),
+                child: CustomScrollView(
+                  slivers: [
+                    const SliverHeaderOverlaySpace(),
+                    if (_deviceInfo != null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const .only(bottom: 12),
+                          child: _InfoCard(info: _deviceInfo!),
+                        ),
+                      ),
+                    SliverPadding(
+                      padding: EdgeInsets.only(bottom: padding.bottom + 100),
+                      sliver: SliverList.separated(
+                        itemCount: logsContent.length,
+                        itemBuilder: (context, index) =>
+                            _ReportCard(report: logsContent[index]),
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
                       ),
                     ),
-                  SliverPadding(
-                    padding: EdgeInsets.only(bottom: padding.bottom + 100),
-                    sliver: SliverList.separated(
-                      itemCount: logsContent.length,
-                      itemBuilder: (context, index) =>
-                          _ReportCard(report: logsContent[index]),
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
+              )
+            // scrollableError, below the bar.
+            : const CustomScrollView(
+                slivers: [SliverHeaderOverlaySpace(), HttpError()],
               ),
-            )
-          : scrollableError,
+      ),
     );
   }
 }

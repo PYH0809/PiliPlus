@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/utils/extension/box_ext.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
@@ -149,7 +150,7 @@ class _FontSettingPageState extends State<FontSettingPage> {
       customFonts = null;
     }
     return SimpleScaffold(
-      appBar: AppBar(
+      appBar: GlassAppBar(
         title: const Text('App字体设置'),
         actions: [
           TextButton(
@@ -172,25 +173,35 @@ class _FontSettingPageState extends State<FontSettingPage> {
         child: Flex(
           direction: isPortrait ? .vertical : .horizontal,
           children: [
+            if (isPortrait) const HeaderOverlaySpace(),
             Expanded(
               flex: isPortrait ? 1 : 2,
-              child: Center(
-                child: Text(
-                  'abcdefghijklmnopqrstuvwxyz\n'
-                  'ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
-                  '1234567890.:,;\'"(!?)+-*/=\n'
-                  '${Platform.isWindows
-                      ? "中国智造，惠及全球"
-                      : Platform.isMacOS || Platform.isIOS
-                      ? "汉体书写信息技术标准相容"
-                      : "我能吞下玻璃而不伤身体"}\n\n'
-                  '注：部分字体可能无法应用',
-                  style: TextStyle(
-                    fontFamily: _selectedFont ?? '',
-                    fontWeight: .values[_selectedWeight],
-                    fontSize: 14 * _selectedScale,
+              // Below the bar beside the font list too, however tall the
+              // preview grows.
+              child: Column(
+                children: [
+                  if (!isPortrait) const HeaderOverlaySpace(),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'abcdefghijklmnopqrstuvwxyz\n'
+                        'ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
+                        '1234567890.:,;\'"(!?)+-*/=\n'
+                        '${Platform.isWindows
+                            ? "中国智造，惠及全球"
+                            : Platform.isMacOS || Platform.isIOS
+                            ? "汉体书写信息技术标准相容"
+                            : "我能吞下玻璃而不伤身体"}\n\n'
+                        '注：部分字体可能无法应用',
+                        style: TextStyle(
+                          fontFamily: _selectedFont ?? '',
+                          fontWeight: .values[_selectedWeight],
+                          fontSize: 14 * _selectedScale,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
             isPortrait
@@ -205,6 +216,7 @@ class _FontSettingPageState extends State<FontSettingPage> {
             Expanded(
               child: Column(
                 children: [
+                  if (!isPortrait) const HeaderOverlaySpace(),
                   Padding(
                     padding: const .symmetric(horizontal: 16, vertical: 5),
                     child: GestureDetector(

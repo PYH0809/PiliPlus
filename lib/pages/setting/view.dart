@@ -1,5 +1,8 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/http/login.dart';
@@ -41,6 +44,11 @@ class _SettingPageState extends State<SettingPage> {
   late SettingType _type = .privacySetting;
   final RxBool _noAccount = Accounts.account.isEmpty.obs;
   late bool _isPortrait;
+
+  // The floating search moves between the bar and the list pane's as the
+  // screen turns, and keeps the page open out of it as it goes, so that the
+  // page returns to where it stands now.
+  final _glassSearchKey = GlobalKey();
   late ThemeData theme;
 
   static const List<_SettingsModel> _items = [
@@ -109,9 +117,18 @@ class _SettingPageState extends State<SettingPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isPortrait && GlassAppBar.enabled) {
+      return _buildGlassPanes();
+    }
+    final glass = GlassAppBar.enabled;
     return SimpleScaffold(
-      appBar: AppBar(
-        title: _isPortrait ? const Text('设置') : Text(_type.title),
+      appBar: GlassAppBar(
+        expandTitle: glass,
+        title: glass
+            ? _glassSearch()
+            : _isPortrait
+            ? const Text('设置')
+            : Text(_type.title),
       ),
       body: ViewSafeArea(
         child: _isPortrait
@@ -129,16 +146,58 @@ class _SettingPageState extends State<SettingPage> {
                   ),
                   Expanded(
                     flex: 6,
-                    child: switch (_type) {
-                      .webdavSetting => const WebDavSettingPage(
-                        showAppBar: false,
-                      ),
-                      .about => const AboutPage(showAppBar: false),
-                      _ => CommonSetting(settingType: _type, showAppBar: false),
-                    },
+                    child: _detail,
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget get _detail => switch (_type) {
+    .webdavSetting => const WebDavSettingPage(showAppBar: false),
+    .about => const AboutPage(showAppBar: false),
+    _ => CommonSetting(settingType: _type, showAppBar: false),
+  };
+
+  // On glass each pane has a bar of its own, as iPad's split views have, so
+  // that each title stands over its own pane and the divider runs between
+  // the bars rather than through one.
+  Widget _buildGlassPanes() {
+    return Material(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 4,
+            child: MediaQuery.removePadding(
+              context: context,
+              removeRight: true,
+              child: SimpleScaffold(
+                appBar: GlassAppBar(expandTitle: true, title: _glassSearch()),
+                body: ViewSafeArea(child: _buildList(theme)),
+              ),
+            ),
+          ),
+          VerticalDivider(
+            width: 1,
+            color: theme.colorScheme.outline.withValues(alpha: 0.1),
+          ),
+          Expanded(
+            flex: 6,
+            child: MediaQuery.removePadding(
+              context: context,
+              removeLeft: true,
+              child: SimpleScaffold(
+                appBar: GlassAppBar(
+                  automaticallyImplyLeading: false,
+                  title: Text(_type.title),
+                ),
+                body: ViewSafeArea(child: _detail),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -181,7 +240,8 @@ class _SettingPageState extends State<SettingPage> {
     return ListView(
       padding: EdgeInsets.only(bottom: padding.bottom + 100),
       children: [
-        _buildSearchItem(theme),
+        const HeaderOverlaySpace(),
+        if (!GlassAppBar.enabled) _buildSearchItem(theme),
         ..._items
             .take(_items.length - 1)
             .map(
@@ -297,6 +357,43 @@ class _SettingPageState extends State<SettingPage> {
           ],
         );
       },
+    );
+  }
+
+  // On glass the search floats in the bar beside the back button, on a pane
+  // of its own, and its page grows out of it. Its hint names the page in
+  // place of a title: 设置 on its own would only crowd the row.
+  Widget _glassSearch() {
+    final colorScheme = theme.colorScheme;
+    return SizedBox(
+      height: GlassAppBar.buttonSize,
+      child: GlassMorphButton(
+        key: _glassSearchKey,
+        shadows: floatingGlassShadows(colorScheme),
+        onTap: (button) => button.toNamed('/settingsSearch'),
+        child: Row(
+          children: [
+            const SizedBox(width: 14),
+            Icon(
+              Icons.search,
+              size: 20,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              // As the hint of 设置搜索's field, which takes its place.
+              child: Text(
+                '搜索设置',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
