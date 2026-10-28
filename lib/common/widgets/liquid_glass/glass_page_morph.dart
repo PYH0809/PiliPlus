@@ -935,6 +935,13 @@ class _RenderMorph extends RenderBox
     final card = Offset.zero & size;
     // Under a full fill the glass would not show: most of the opening.
     if (fill < 1) {
+      // The glass keeps the lighter glass's frost, the button's, all the
+      // way: one capture held at it as it grows, and no frost past it. The
+      // shader frosting the rest of the way to the page's ran every pixel
+      // of a pane growing to the screen through a wide blur, 90 ms a frame
+      // on a phone; the page's fill covers the glass as it nears its size,
+      // so the frost it would have reached hardly shows.
+      final frost = math.min(config.buttonStyle.blur, config.pageStyle.blur);
       _pane.paint(
         context,
         shape.shift(offset),
@@ -944,16 +951,14 @@ class _RenderMorph extends RenderBox
           [blend],
           firstRadius: math.max(radius, 1e-3),
         ),
-        style: style,
-        // One capture as it grows, at the lighter glass's frost, which the
-        // shader frosts past: the glass thickens from the button's to the
-        // page's, and a capture taken at each would redraw what lies
-        // behind, the whole screen, frame after frame.
+        style: style.copyWith(blur: math.min(style.blur, frost)),
+        // A capture taken at each frame would redraw what lies behind, the
+        // whole screen, frame after frame.
         hold: card
             .expandToInclude(anchor.inflate(anchor.longestSide))
             .inflate(size.longestSide * 0.1)
             .shift(offset),
-        holdFrost: math.min(config.buttonStyle.blur, config.pageStyle.blur),
+        holdFrost: frost,
       );
     } else {
       _pane.clear();
