@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/flutter/chat_list_view.dart';
+import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart';
 import 'package:PiliPlus/pages/whisper_detail/widget/glass_chat_layout.dart';
 import 'package:PiliPlus/pages/whisper_detail/widget/glass_input_bar.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,19 +8,22 @@ import 'package:material_ui/material_ui.dart';
 const _width = 412.0;
 const _height = 800.0;
 
+// The input bar's height, its gap under it included.
+const _barHeight = GlassInputBar.height + GlassInputBar.gap;
+
 /// A chat as the whisper page lays it out on glass: [count] messages 60 tall
-/// under a bar [barHeight] tall, the keyboard's room under it included.
+/// under the input bar and, [panelHeight] tall, the emotes under it.
 class _Chat extends StatelessWidget {
   const _Chat({
     required this.inset,
-    required this.barHeight,
+    this.panelHeight = 0,
     this.count = 30,
     this.controller,
     this.onMessagesTouched,
   });
 
   final ChatBarInset inset;
-  final double barHeight;
+  final double panelHeight;
   final int count;
   final ScrollController? controller;
   final VoidCallback? onMessagesTouched;
@@ -42,16 +46,35 @@ class _Chat extends StatelessWidget {
           separatorBuilder: (context, index) => const SizedBox(height: 12),
         ),
       ),
-      bar: SizedBox(
+      bar: Column(
         key: const ValueKey('bar'),
-        height: barHeight,
-        child: const Row(
-          children: [
-            SizedBox(width: 40),
-            Spacer(),
-            SizedBox(width: 40),
-          ],
-        ),
+        mainAxisSize: .min,
+        children: [
+          GlassInputBar(
+            leading: GlassCircle(
+              icon: Icons.emoji_emotions_outlined,
+              tooltip: '表情',
+              onTap: () {},
+            ),
+            field: const SizedBox(height: GlassInputBar.height),
+            trailing: GlassInputButton(
+              icon: Icons.add_photo_alternate_outlined,
+              tooltip: '图片',
+              onPressed: () {},
+            ),
+          ),
+          // The emotes, opaque, in the keyboard's place.
+          SizedBox(
+            width: double.infinity,
+            height: panelHeight,
+            child: const DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: .vertical(top: .circular(16)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -73,12 +96,12 @@ void main() {
   ) async {
     final inset = ChatBarInset();
     addTearDown(inset.dispose);
-    for (final barHeight in [56.0, 400.0, 230.0, 56.0]) {
+    for (final panelHeight in [0.0, 344.0, 174.0, 0.0]) {
       // One frame, as when the keyboard moves the bar.
-      await _pump(tester, _Chat(inset: inset, barHeight: barHeight));
-      expect(inset.value, barHeight);
+      await _pump(tester, _Chat(inset: inset, panelHeight: panelHeight));
+      expect(inset.value, _barHeight + panelHeight);
       final barTop = tester.getTopLeft(find.byKey(const ValueKey('bar'))).dy;
-      expect(barTop, _height - barHeight);
+      expect(barTop, _height - _barHeight - panelHeight);
       expect(
         tester.getBottomLeft(find.byKey(const ValueKey(0))).dy,
         barTop - kChatListPadding,
@@ -93,7 +116,7 @@ void main() {
     addTearDown(controller.dispose);
     await _pump(
       tester,
-      _Chat(inset: inset, barHeight: 56, controller: controller),
+      _Chat(inset: inset, controller: controller),
     );
     controller.jumpTo(200);
     await tester.pump();
@@ -101,34 +124,68 @@ void main() {
     // is still laid out there, for the glass to show through it.
     expect(tester.getSize(find.byType(Scrollable)).height, _height);
     final message = tester.getRect(find.byKey(const ValueKey(2)));
-    expect(message.bottom, greaterThan(_height - 56));
+    expect(message.bottom, greaterThan(_height - _barHeight));
     expect(message.top, lessThan(_height));
   });
 
   testWidgets('a short chat still starts at the top', (tester) async {
     final inset = ChatBarInset();
     addTearDown(inset.dispose);
-    await _pump(tester, _Chat(inset: inset, barHeight: 56, count: 2));
+    await _pump(tester, _Chat(inset: inset, count: 2));
     expect(
       tester.getTopLeft(find.byKey(const ValueKey(1))).dy,
       kChatListPadding,
     );
   });
 
-  testWidgets('touches on the bar, between its panes too, stay its own', (
+  testWidgets('the panes and the panel take touches, the rest go through', (
     tester,
   ) async {
     final inset = ChatBarInset();
     addTearDown(inset.dispose);
+    const panelHeight = 200.0;
     var touched = 0;
     await _pump(
       tester,
-      _Chat(inset: inset, barHeight: 56, onMessagesTouched: () => touched++),
+      _Chat(
+        inset: inset,
+        panelHeight: panelHeight,
+        onMessagesTouched: () => touched++,
+      ),
     );
-    await tester.tapAt(const Offset(_width / 2, _height - 28));
-    expect(touched, 0);
-    await tester.tapAt(const Offset(_width / 2, _height / 2));
-    expect(touched, 1);
+    const panesY =
+        _height - panelHeight - _barHeight + GlassInputBar.height / 2;
+    Future<bool> reachesMessages(Offset position) async {
+      final before = touched;
+      await tester.tapAt(position);
+      return touched > before;
+    }
+
+    // The circle, the capsule round its button, and the emotes.
+    const circle = Offset(GlassInputBar.margin + 20, panesY);
+    expect(await reachesMessages(circle), isFalse);
+    final button = tester.getRect(find.byTooltip('图片'));
+    expect(await reachesMessages(button.center), isFalse);
+    expect(await reachesMessages(button.topLeft + const Offset(1, 1)), isFalse);
+    expect(await reachesMessages(const Offset(_width / 2, panesY)), isFalse);
+    expect(
+      await reachesMessages(
+        const Offset(_width / 2, _height - panelHeight / 2),
+      ),
+      isFalse,
+    );
+
+    // Beside the panes, between them and in the gap under them, the
+    // messages under the bar take touches and drags.
+    const between = GlassInputBar.margin + GlassInputBar.height + 4;
+    for (final position in [
+      const Offset(GlassInputBar.margin / 2, panesY),
+      const Offset(between, panesY),
+      const Offset(_width / 2, _height - panelHeight - GlassInputBar.gap / 2),
+      const Offset(_width / 2, _height / 3),
+    ]) {
+      expect(await reachesMessages(position), isTrue, reason: '$position');
+    }
   });
 
   testWidgets('the capsule grows with the text, bottoms level', (

@@ -37,18 +37,23 @@ class GlassInputBar extends StatelessWidget {
             leading,
             const SizedBox(width: 8),
             Expanded(
-              child: LiquidGlass(
-                style: LiquidGlassStyle.regular(colorScheme),
-                borderRadius: const .all(.circular(height / 2)),
-                shadows: floatingGlassShadows(colorScheme),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: height),
-                  child: Row(
-                    crossAxisAlignment: .end,
-                    children: [
-                      Expanded(child: field),
-                      trailing,
-                    ],
+              // A touch anywhere on the capsule is the bar's, round its
+              // button too, not the messages' under the glass.
+              child: Listener(
+                behavior: .opaque,
+                child: LiquidGlass(
+                  style: LiquidGlassStyle.regular(colorScheme),
+                  borderRadius: const .all(.circular(height / 2)),
+                  shadows: floatingGlassShadows(colorScheme),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: height),
+                    child: Row(
+                      crossAxisAlignment: .end,
+                      children: [
+                        Expanded(child: field),
+                        trailing,
+                      ],
+                    ),
                   ),
                 ),
               ),

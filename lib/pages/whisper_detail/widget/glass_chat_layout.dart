@@ -27,8 +27,8 @@ class ChatBarInset extends ChangeNotifier {
 enum GlassChatSlot { bar, messages }
 
 /// Lays [bar] over the bottom of [messages], which fill the space and scroll
-/// under it, and tells [inset] how tall it is. [bar] spans the width and
-/// takes every touch on it.
+/// under it, and tells [inset] how tall it is. [bar] spans the width; only
+/// what in it takes a touch keeps it from the messages.
 class GlassChatLayout
     extends SlottedMultiChildRenderObjectWidget<GlassChatSlot, RenderBox> {
   const GlassChatLayout({
@@ -101,26 +101,20 @@ class RenderGlassChatLayout extends RenderBox
     setOffset(_messages, .zero);
   }
 
+  // The bar first, as it lies on top. Where nothing of it takes the touch,
+  // beside or between its panes, the messages under it do.
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
-    final barOffset = getOffset(_bar);
-    if ((barOffset & _bar.size).contains(position)) {
-      // Every touch on the bar is its own, between its panes too, rather than
-      // the messages' under it.
-      result.addWithPaintOffset(
-        offset: barOffset,
+    for (final child in [_bar, _messages]) {
+      final isHit = result.addWithPaintOffset(
+        offset: getOffset(child),
         position: position,
         hitTest: (result, transformed) =>
-            _bar.hitTest(result, position: transformed),
+            child.hitTest(result, position: transformed),
       );
-      return true;
+      if (isHit) return true;
     }
-    return result.addWithPaintOffset(
-      offset: getOffset(_messages),
-      position: position,
-      hitTest: (result, transformed) =>
-          _messages.hitTest(result, position: transformed),
-    );
+    return false;
   }
 
   @override
