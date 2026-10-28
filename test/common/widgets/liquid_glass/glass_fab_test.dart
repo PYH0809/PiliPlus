@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
 const _width = 400.0;
@@ -83,6 +89,40 @@ void main() {
       expect(tester.getSize(find.byType(GlassFab)).height, 56);
     });
 
+    testWidgets('Material\'s keeps its own hero tag, or the one given', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        Column(
+          mainAxisSize: .min,
+          children: [
+            GlassFab(onPressed: () {}, child: const Icon(Icons.add)),
+            GlassFab(
+              onPressed: () {},
+              heroTag: null,
+              child: const Icon(Icons.reply),
+            ),
+            GlassFab.extended(
+              onPressed: () {},
+              heroTag: 'tag',
+              label: const Text('播放全部'),
+            ),
+          ],
+        ),
+      );
+      final fabs = tester
+          .widgetList<FloatingActionButton>(find.byType(FloatingActionButton))
+          .toList();
+      expect(
+        fabs[0].heroTag,
+        const FloatingActionButton(onPressed: null).heroTag,
+      );
+      expect(fabs[0].heroTag, isNotNull);
+      expect(fabs[1].heroTag, isNull);
+      expect(fabs[2].heroTag, 'tag');
+    });
+
     testWidgets('stacked buttons are Material\'s, a margin apart, as before', (
       tester,
     ) async {
@@ -110,7 +150,20 @@ void main() {
   });
 
   group('on glass', () {
-    setUpAll(GlassSurfaces.install);
+    // VideoGlass reads its mode through Pref.
+    late Directory tempDir;
+
+    setUpAll(() async {
+      tempDir = await Directory.systemTemp.createTemp('piliplus-glass-fab-');
+      Hive.init(tempDir.path);
+      GStorage.setting = await Hive.openBox('setting');
+      GlassSurfaces.install();
+    });
+
+    tearDownAll(() async {
+      await Hive.close();
+      await tempDir.delete(recursive: true);
+    });
 
     testWidgets('a button is a 56 dp drop of glass, without Material\'s or '
         'its ripples', (tester) async {
@@ -334,6 +387,76 @@ void main() {
         ),
       );
       handle.dispose();
+    });
+
+    testWidgets('on a glass panel it takes no pane of its own, but a fill '
+        'in the theme\'s color', (tester) async {
+      var taps = 0;
+      await _pump(
+        tester,
+        Builder(
+          builder: (context) => GlassSurfaces.panel(
+            context,
+            radius: 24,
+            child: Padding(
+              padding: const .all(16),
+              child: GlassFab(
+                tooltip: '提交',
+                onPressed: () => taps++,
+                child: const Icon(Icons.check),
+              ),
+            ),
+          ),
+        ),
+      );
+      final fab = find.byType(GlassFab);
+      expect(
+        find.descendant(of: fab, matching: find.byType(LiquidGlassButton)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: fab, matching: find.byType(LiquidGlass)),
+        findsNothing,
+      );
+      expect(tester.getSize(fab), const Size.square(GlassFab.size));
+      final colorScheme = Theme.of(tester.element(fab)).colorScheme;
+      final material = tester.widget<Material>(
+        find.descendant(of: fab, matching: find.byType(Material)).first,
+      );
+      expect(material.color, colorScheme.primary);
+      expect(find.byTooltip('提交'), findsOneWidget);
+
+      await tester.tap(fab);
+      expect(taps, 1);
+    });
+
+    testWidgets('on a panel over the video it takes no pane of its own '
+        'either', (tester) async {
+      await _pump(
+        tester,
+        VideoGlass(
+          radius: 24,
+          refract: false,
+          child: Padding(
+            padding: const .all(16),
+            child: GlassFab.extended(
+              onPressed: () {},
+              icon: const Icon(Icons.check),
+              label: const Text('提交'),
+            ),
+          ),
+        ),
+      );
+      final fab = find.byType(GlassFab);
+      expect(
+        find.descendant(of: fab, matching: find.byType(LiquidGlassButton)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: fab, matching: find.byType(TextButton)),
+        findsOneWidget,
+      );
+      expect(tester.getSize(fab).height, GlassFab.size);
     });
 
     testWidgets('a press swells it rather than ripple', (tester) async {

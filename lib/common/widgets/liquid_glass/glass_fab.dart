@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// A page's floating action button. With the liquid glass switch on, a drop
@@ -14,12 +15,17 @@ import 'package:material_ui/material_ui.dart';
 /// just as it did the Material one, and keeps [shadowReach] free above it,
 /// so that a [SlideTransition] by its own height takes the shadow out of
 /// sight with it. Buttons stacked one over another go in a [GlassFabGroup].
+///
+/// Already on glass, as on a panel over the full-screen video, it takes no
+/// pane of its own, as glass never sits on glass, and is filled instead, as
+/// an alert's default action is.
 class GlassFab extends StatelessWidget {
   /// A round button holding [child], as [FloatingActionButton.new].
   const GlassFab({
     super.key,
     required this.onPressed,
     this.tooltip,
+    this.heroTag = _materialHeroTag,
     required Widget this.child,
   }) : icon = null,
        label = null;
@@ -30,6 +36,7 @@ class GlassFab extends StatelessWidget {
     super.key,
     required this.onPressed,
     this.tooltip,
+    this.heroTag = _materialHeroTag,
     this.icon,
     required Widget this.label,
   }) : child = null;
@@ -39,52 +46,93 @@ class GlassFab extends StatelessWidget {
   /// How far the shadow on glass reaches above the button.
   static const shadowReach = 24.0;
 
+  // Stands for Material's own default hero tag, which is private.
+  static const Object _materialHeroTag = Object();
+
+  // As an alert's default action, the fill on glass shows this much of
+  // itself while pressed.
+  static const _pressedFillShare = 0.4;
+  static const _pressedDarkFillShare = 0.5;
+
   final VoidCallback? onPressed;
   final String? tooltip;
+
+  /// Material's [FloatingActionButton.heroTag], with the switch off; its own
+  /// default unless given.
+  final Object? heroTag;
   final Widget? child;
   final Widget? icon;
   final Widget? label;
 
+  Widget _material() {
+    final materialTag = identical(heroTag, _materialHeroTag);
+    if (label case final label?) {
+      return materialTag
+          ? FloatingActionButton.extended(
+              onPressed: onPressed,
+              tooltip: tooltip,
+              icon: icon,
+              label: label,
+            )
+          : FloatingActionButton.extended(
+              onPressed: onPressed,
+              tooltip: tooltip,
+              heroTag: heroTag,
+              icon: icon,
+              label: label,
+            );
+    }
+    return materialTag
+        ? FloatingActionButton(
+            onPressed: onPressed,
+            tooltip: tooltip,
+            child: child,
+          )
+        : FloatingActionButton(
+            onPressed: onPressed,
+            tooltip: tooltip,
+            heroTag: heroTag,
+            child: child,
+          );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!GlassSurfaces.installed) {
-      if (label case final label?) {
-        return FloatingActionButton.extended(
-          onPressed: onPressed,
-          tooltip: tooltip,
-          icon: icon,
-          label: label,
-        );
-      }
-      return FloatingActionButton(
-        onPressed: onPressed,
-        tooltip: tooltip,
-        child: child,
-      );
+      return _material();
     }
 
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final foreground = colorScheme.onPrimary;
-    Widget content;
-    if (label case final label?) {
-      // As Material pads an extended button.
-      content = SizedBox(
-        height: size,
-        child: Padding(
-          padding: .directional(start: icon == null ? 20 : 16, end: 20),
-          child: Row(
-            mainAxisSize: .min,
-            spacing: 8,
-            children: [?icon, label],
+    final Widget content = IconTheme.merge(
+      data: IconThemeData(color: foreground, size: 24),
+      child: DefaultTextStyle(
+        style: theme.textTheme.labelLarge!.copyWith(color: foreground),
+        child: switch (label) {
+          // As Material pads an extended button.
+          final label? => SizedBox(
+            height: size,
+            child: Padding(
+              padding: .directional(start: icon == null ? 20 : 16, end: 20),
+              child: Row(
+                mainAxisSize: .min,
+                spacing: 8,
+                children: [?icon, label],
+              ),
+            ),
           ),
-        ),
-      );
-    } else {
-      content = SizedBox.square(
-        dimension: size,
-        child: Center(child: child),
-      );
+          null => SizedBox.square(
+            dimension: size,
+            child: Center(child: child),
+          ),
+        },
+      ),
+    );
+
+    if (GlassSurfaces.onGlass(context) ||
+        context.findAncestorWidgetOfExactType<VideoGlass>() != null) {
+      return MergeSemantics(child: _filled(colorScheme, content));
     }
 
     Widget button = LiquidGlassButton(
@@ -92,13 +140,7 @@ class GlassFab extends StatelessWidget {
       onTap: onPressed,
       styleOf: (_) => LiquidGlassStyle.tinted(colorScheme, colorScheme.primary),
       shadows: floatingGlassShadows(colorScheme),
-      child: IconTheme.merge(
-        data: IconThemeData(color: foreground, size: 24),
-        child: DefaultTextStyle(
-          style: theme.textTheme.labelLarge!.copyWith(color: foreground),
-          child: content,
-        ),
-      ),
+      child: content,
     );
     // The focus ring is drawn in the primary color, which the tint would
     // swallow; in the content's color it shows.
@@ -114,6 +156,43 @@ class GlassFab extends StatelessWidget {
         child: button,
       ),
     );
+  }
+
+  Widget _filled(ColorScheme colorScheme, Widget content) {
+    final fill = colorScheme.primary;
+    final foreground = colorScheme.onPrimary;
+    final pressedShare = colorScheme.brightness == Brightness.dark
+        ? _pressedDarkFillShare
+        : _pressedFillShare;
+    final Widget button = TextButton(
+      onPressed: onPressed,
+      style:
+          TextButton.styleFrom(
+            foregroundColor: foreground,
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: .shrinkWrap,
+            shape: label == null ? const CircleBorder() : const StadiumBorder(),
+            splashFactory: NoSplash.splashFactory,
+          ).copyWith(
+            backgroundColor: WidgetStateProperty<Color?>.fromMap({
+              WidgetState.pressed: fill.withValues(
+                alpha: fill.a * pressedShare,
+              ),
+              WidgetState.any: fill,
+            }),
+            overlayColor: WidgetStateProperty<Color?>.fromMap({
+              WidgetState.focused: foreground.withValues(alpha: 0.1),
+              WidgetState.pressed: Colors.transparent,
+              WidgetState.hovered: foreground.withValues(alpha: 0.08),
+            }),
+          ),
+      child: content,
+    );
+    if (tooltip case final tooltip?) {
+      return Tooltip(message: tooltip, child: button);
+    }
+    return button;
   }
 }
 

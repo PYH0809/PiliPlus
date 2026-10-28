@@ -89,6 +89,7 @@ class _MainReplyPageState extends State<MainReplyPage>
             bottom: kFloatingActionButtonMargin + padding.bottom,
           ),
           child: GlassFab(
+            heroTag: null,
             onPressed: () {
               try {
                 feedBack();
