@@ -199,6 +199,106 @@ void main() {
     expect(presses, 1);
   });
 
+  testWidgets('a lone button whose group grows under its page shows again', (
+    tester,
+  ) async {
+    final more = ValueNotifier(false);
+    addTearDown(more.dispose);
+    await _pump(
+      tester,
+      ValueListenableBuilder(
+        valueListenable: more,
+        builder: (_, more, _) => GlassButtonGroup(
+          glass: true,
+          children: [
+            _search(),
+            if (more)
+              IconButton(
+                tooltip: '更多',
+                onPressed: () {},
+                icon: const Icon(Icons.more_vert),
+              ),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pumpAndSettle();
+    // Alone, it hid the whole group; then the group gains a button.
+    more.value = true;
+    await tester.pump();
+
+    Get.back<void>();
+    await tester.pumpAndSettle();
+    expect(_opacityAbove(tester, find.byType(LiquidGlass).first), 1);
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pumpAndSettle();
+    expect(find.text('搜索页'), findsOneWidget);
+  });
+
+  testWidgets('a group its lone button leaves under its page shows again', (
+    tester,
+  ) async {
+    final gone = ValueNotifier(false);
+    addTearDown(gone.dispose);
+    await _pump(
+      tester,
+      ValueListenableBuilder(
+        valueListenable: gone,
+        builder: (_, gone, _) => GlassButtonGroup(
+          glass: true,
+          children: [
+            if (gone)
+              IconButton(
+                tooltip: '更多',
+                onPressed: () {},
+                icon: const Icon(Icons.more_vert),
+              )
+            else
+              _search(),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pumpAndSettle();
+    gone.value = true;
+    await tester.pump();
+    await tester.pump();
+
+    Get.back<void>();
+    await tester.pumpAndSettle();
+    expect(_opacityAbove(tester, find.byType(LiquidGlass).first), 1);
+    expect(find.byTooltip('更多'), findsOneWidget);
+  });
+
+  testWidgets('a page outlives the button it grew out of', (tester) async {
+    // As 设置 turning to landscape under its open search: the button is
+    // built again elsewhere.
+    final moved = ValueNotifier(false);
+    addTearDown(moved.dispose);
+    await _pump(
+      tester,
+      ValueListenableBuilder(
+        valueListenable: moved,
+        builder: (_, moved, _) {
+          final group = GlassButtonGroup(glass: true, children: [_search()]);
+          return moved ? Padding(padding: .zero, child: group) : group;
+        },
+      ),
+    );
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pumpAndSettle();
+    moved.value = true;
+    await tester.pump();
+
+    Get.back<void>();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('搜索页'), findsNothing);
+    expect(_opacityAbove(tester, find.byType(LiquidGlass).first), 1);
+  });
+
   testWidgets('a GlassMorphButton still opens its page out of itself', (
     tester,
   ) async {

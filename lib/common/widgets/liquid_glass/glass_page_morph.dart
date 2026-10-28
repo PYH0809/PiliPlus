@@ -210,12 +210,33 @@ class GlassMorphSourceState extends State<GlassMorphSource>
   @override
   RenderBox? get _box => _whole?.box ?? super._box;
 
+  // The group hidden whole while this stood alone in it, which shows again
+  // however it has changed meanwhile.
+  GlassButtonGroupState? _hiddenGroup;
+
   @override
   void _setHidden(bool hidden) {
-    if (_whole case final group?) {
-      group.hidden = hidden;
+    if (hidden) {
+      final group = _whole;
+      group?.hidden = true;
+      _hiddenGroup = group;
+    } else {
+      _hiddenGroup?.hidden = false;
+      _hiddenGroup = null;
     }
     setState(() => _hidden = hidden);
+  }
+
+  @override
+  void dispose() {
+    // Gone before its page closed: the group shows again once the tree is
+    // no longer coming down.
+    if (_hiddenGroup case final group?) {
+      SchedulerBinding.instance.addPostFrameCallback(
+        (_) => group.hidden = false,
+      );
+    }
+    super.dispose();
   }
 
   @override
