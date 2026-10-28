@@ -122,13 +122,30 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
     final colorScheme = theme.colorScheme;
     final appBarTheme = AppBarTheme.of(context);
 
+    // As AppBar picks them: a drawer's button before the way back, and an
+    // end drawer's where no actions stand.
+    final scaffold = Scaffold.maybeOf(context);
+    final localizations = MaterialLocalizations.of(context);
     Widget? leading = this.leading;
     if (leading != null) {
       leading = GlassButtonGroup(glass: true, children: [leading]);
     } else if (automaticallyImplyLeading) {
       final route = ModalRoute.of(context);
-      if (route?.impliesAppBarDismissal ?? false) {
-        leading = _GlassBackButton(close: route!.fullscreenDialog);
+      if (scaffold?.hasDrawer ?? false) {
+        leading = _GlassLeadingButton(
+          icon: Icons.menu,
+          tooltip: localizations.openAppDrawerTooltip,
+          onTap: scaffold!.openDrawer,
+        );
+      } else if (route?.impliesAppBarDismissal ?? false) {
+        final close = route!.fullscreenDialog;
+        leading = _GlassLeadingButton(
+          icon: close ? Icons.close_rounded : Icons.arrow_back_ios_new_rounded,
+          tooltip: close
+              ? localizations.closeButtonTooltip
+              : localizations.backButtonTooltip,
+          onTap: () => Navigator.maybePop(context),
+        );
       }
     }
 
@@ -136,6 +153,15 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
       for (final action in this.actions ?? const <Widget>[])
         if (action is! SizedBox || action.child != null) action,
     ];
+    if (this.actions == null && (scaffold?.hasEndDrawer ?? false)) {
+      actions.add(
+        IconButton(
+          tooltip: localizations.openAppDrawerTooltip,
+          onPressed: scaffold!.openEndDrawer,
+          icon: const Icon(Icons.menu),
+        ),
+      );
+    }
 
     Widget? title = this.title;
     if (title != null && !expandTitle) {
@@ -331,30 +357,29 @@ class SliverHeaderOverlaySpace extends StatelessWidget {
 }
 
 /// The way back on a circle of glass, as [BackButton], or as [CloseButton]
-/// for a full-screen dialog.
-class _GlassBackButton extends StatelessWidget {
-  const _GlassBackButton({required this.close});
+/// for a full-screen dialog, or a drawer's button, as [DrawerButton].
+class _GlassLeadingButton extends StatelessWidget {
+  const _GlassLeadingButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
-  final bool close;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
-    final localizations = MaterialLocalizations.of(context);
     return SizedBox.square(
       dimension: GlassAppBar.buttonSize,
       child: LiquidGlassButton(
-        tooltip: close
-            ? localizations.closeButtonTooltip
-            : localizations.backButtonTooltip,
-        onTap: () => Navigator.maybePop(context),
+        tooltip: tooltip,
+        onTap: onTap,
         shadows: floatingGlassShadows(colorScheme),
         child: Center(
-          child: Icon(
-            close ? Icons.close_rounded : Icons.arrow_back_ios_new_rounded,
-            size: 20,
-            color: colorScheme.onSurface,
-          ),
+          child: Icon(icon, size: 20, color: colorScheme.onSurface),
         ),
       ),
     );

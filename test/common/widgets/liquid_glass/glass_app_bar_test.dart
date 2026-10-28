@@ -513,6 +513,63 @@ void main() {
       expect(find.byTooltip('Back'), findsOneWidget);
     });
 
+    testWidgets("a Scaffold's drawers get their glass buttons, as AppBar's", (
+      tester,
+    ) async {
+      const appBar = GlassAppBar(title: Text('动态'));
+      await _pump(
+        tester,
+        Scaffold(
+          drawer: const Drawer(child: Text('抽屉')),
+          endDrawer: const Drawer(child: Text('右抽屉')),
+          body: GlassAppBarBody(appBar: appBar, body: _list()),
+        ),
+      );
+      // The drawer's button in place of the way back.
+      expect(find.byTooltip('Back'), findsNothing);
+      final menu = find.byTooltip('Open navigation menu');
+      expect(menu, findsNWidgets(2));
+      final leading = _paneUnder(tester, menu.first);
+      expect(leading.size, const Size.square(GlassAppBar.buttonSize));
+      expect(leading.left, 14);
+      expect(_paneUnder(tester, menu.last).right, _width - 14);
+
+      await tester.tap(menu.first);
+      await tester.pumpAndSettle();
+      expect(find.text('抽屉'), findsOneWidget);
+      Navigator.of(tester.element(find.text('抽屉'))).pop();
+      await tester.pumpAndSettle();
+
+      await tester.tap(menu.last);
+      await tester.pumpAndSettle();
+      expect(find.text('右抽屉'), findsOneWidget);
+    });
+
+    testWidgets("actions of a page's own take an end drawer's place", (
+      tester,
+    ) async {
+      final appBar = GlassAppBar(
+        title: const Text('动态'),
+        actions: [
+          IconButton(
+            tooltip: '搜索',
+            onPressed: () {},
+            icon: const Icon(Icons.search),
+          ),
+        ],
+      );
+      await _pump(
+        tester,
+        Scaffold(
+          endDrawer: const Drawer(child: Text('右抽屉')),
+          body: GlassAppBarBody(appBar: appBar, body: _list()),
+        ),
+      );
+      expect(find.byTooltip('Open navigation menu'), findsNothing);
+      expect(find.byTooltip('搜索'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsOneWidget);
+    });
+
     testWidgets("the status bar's icons read on the fade", (tester) async {
       await _pump(tester, _settingsPage());
       final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
