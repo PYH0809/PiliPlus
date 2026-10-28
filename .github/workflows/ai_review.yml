@@ -278,6 +278,7 @@ jobs:
                           usage.cacheWrite += total.cache_write_input_tokens ?? 0;
                           usage.output += total.output_tokens ?? 0;
                         }
+                        if (!counted) throw new Error(`no token_count in ${sessions}`);
                       } catch (error) {
                         core.warning(`No token usage: ${error.message}`);
                       }
@@ -288,14 +289,13 @@ jobs:
                             signal: AbortSignal.timeout(10000),
                           });
                           const price = (await response.json()).data.find((m) => m.id === process.env.MODEL)?.pricing;
-                          if (price) {
-                            const rate = (key) => Number(price[key] || price.prompt);
-                            cost =
-                              (usage.input - usage.cached - usage.cacheWrite) * Number(price.prompt) +
-                              usage.cached * rate('input_cache_read') +
-                              usage.cacheWrite * rate('input_cache_write') +
-                              usage.output * Number(price.completion);
-                          }
+                          if (!price) throw new Error("not in OpenRouter's model list");
+                          const rate = (key) => Number(price[key] || price.prompt);
+                          cost =
+                            (usage.input - usage.cached - usage.cacheWrite) * Number(price.prompt) +
+                            usage.cached * rate('input_cache_read') +
+                            usage.cacheWrite * rate('input_cache_write') +
+                            usage.output * Number(price.completion);
                         } catch (error) {
                           core.warning(`No price for ${process.env.MODEL}: ${error.message}`);
                         }
