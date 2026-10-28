@@ -599,6 +599,7 @@ class _RenderMorph extends RenderBox
   final _transform = LayerHandle<TransformLayer>();
   final _filter = LayerHandle<ImageFilterLayer>();
   final _faceOpacity = LayerHandle<OpacityLayer>();
+  final _faceTransform = LayerHandle<TransformLayer>();
 
   _Morph? _config;
 
@@ -612,6 +613,10 @@ class _RenderMorph extends RenderBox
   bool _morphing = false;
   bool _opening = false;
   Offset _faceOffset = Offset.zero;
+
+  // How far the button is scaled on screen, as a header shrunk to fit
+  // scales it: the face, laid out at the button's own size, is drawn so.
+  double _faceScale = 1;
 
   // Where the button last was, and the page as it began to return.
   Rect? _lastAnchor;
@@ -718,6 +723,7 @@ class _RenderMorph extends RenderBox
     _transform.layer = null;
     _filter.layer = null;
     _faceOpacity.layer = null;
+    _faceTransform.layer = null;
   }
 
   /// The button's rect in this box, or where it last was.
@@ -749,6 +755,8 @@ class _RenderMorph extends RenderBox
       context.paintChild(_page, offset);
       return;
     }
+    final faceWidth = _face.size.width;
+    _faceScale = faceWidth > 0 ? anchor.width / faceWidth : 1;
     if (config.returnTime case final time?) {
       _paintReturn(context, offset, anchor, time);
     } else {
@@ -978,16 +986,31 @@ class _RenderMorph extends RenderBox
     Rect at,
     double opacity,
   ) {
-    _faceOffset =
-        at.center - Offset(_face.size.width / 2, _face.size.height / 2);
+    final scale = _faceScale;
+    final size = _face.size * scale;
+    _faceOffset = at.center - Offset(size.width / 2, size.height / 2);
     if (opacity <= 0) {
       _faceOpacity.layer = null;
+      _faceTransform.layer = null;
       return;
     }
     _faceOpacity.layer = context.pushOpacity(
       offset + _faceOffset,
       (opacity * 255).round(),
-      (context, offset) => context.paintChild(_face, offset),
+      (context, offset) {
+        if (scale == 1) {
+          _faceTransform.layer = null;
+          context.paintChild(_face, offset);
+          return;
+        }
+        _faceTransform.layer = context.pushTransform(
+          needsCompositing,
+          offset,
+          Matrix4.diagonal3Values(scale, scale, 1),
+          (context, offset) => context.paintChild(_face, offset),
+          oldLayer: _faceTransform.layer,
+        );
+      },
       oldLayer: _faceOpacity.layer,
     );
   }
@@ -1099,7 +1122,9 @@ class _RenderMorph extends RenderBox
   @override
   void applyPaintTransform(RenderBox child, Matrix4 transform) {
     if (identical(child, _face)) {
-      transform.translateByDouble(_faceOffset.dx, _faceOffset.dy, 0, 1);
+      transform
+        ..translateByDouble(_faceOffset.dx, _faceOffset.dy, 0, 1)
+        ..scaleByDouble(_faceScale, _faceScale, 1, 1);
     } else if (_pageTransform case final page?) {
       transform.multiply(page);
     }

@@ -299,6 +299,44 @@ void main() {
     expect(_opacityAbove(tester, find.byType(LiquidGlass).first), 1);
   });
 
+  testWidgets('the face of a button scaled down is drawn at its size', (
+    tester,
+  ) async {
+    // As 我的's header, scaled down to fit beside the player bar.
+    await _pump(
+      tester,
+      Transform.scale(
+        scale: 0.8,
+        child: GlassButtonGroup(glass: true, children: [_search()]),
+      ),
+    );
+    final button = tester.getRect(find.byTooltip('搜索'));
+    expect(button.width, closeTo(GlassButtonGroup.thickness * 0.8, 0.01));
+
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pump();
+    for (final ms in [16, 100, 200]) {
+      await tester.pump(Duration(milliseconds: ms));
+      // Every copy of it, the face drawn in the morph too, as big as the
+      // button stands on screen.
+      final copies = find.byTooltip('搜索', skipOffstage: false).evaluate();
+      expect(copies.length, 2);
+      for (final copy in copies) {
+        final box = copy.renderObject! as RenderBox;
+        final rect = MatrixUtils.transformRect(
+          box.getTransformTo(null),
+          Offset.zero & box.size,
+        );
+        expect(rect.width, closeTo(button.width, 0.01));
+        expect(rect.height, closeTo(button.height, 0.01));
+      }
+    }
+    await tester.pumpAndSettle();
+    Get.back<void>();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a GlassMorphButton still opens its page out of itself', (
     tester,
   ) async {
