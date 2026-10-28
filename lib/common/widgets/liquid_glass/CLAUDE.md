@@ -47,7 +47,16 @@ turns on every glass part. It only takes effect after a restart.
   header's search and messages buttons use it. It falls back to `Get.toNamed` with animations off. While it morphs
   the page is drawn from a snapshot taken as it starts to open or return, and keeps the keyboard insets it started
   with; a page holds back what would jank the morph, as the search page's keyboard, with
-  `GlassMorphButton.deferUntilOpened`.
+  `GlassMorphButton.deferUntilOpened`. A button on a pane it shares, as in a `GlassButtonGroup`, opens a page the
+  same way through `GlassMorphSource`, whose `builder` gets the source to call `toNamed` on: only its face hides
+  while the page is open, and the pane stays, unless it is its group's lone button, which hides the whole group as a
+  `GlassMorphButton` hides. Off glass it is `Get.toNamed`. The two share the opening through a private mixin.
+- **Buttons in a row share one pane**, as iOS 26's toolbars group theirs: `GlassButtonGroup` sets its `children`
+  (`IconButton`s, `PopupMenuButton`s, `TextButton`s, kept as they are) side by side, or along `Axis.vertical`, on
+  one capsule, a circle around a lone one. On it a button is 44 dp a side; a pressed one alone stands on a platter
+  inset 2 dp, concentric with the pane, without a ripple; a focused one takes a ring; a disabled one keeps
+  Material's grey; a `PopupMenuButton`'s menu grows out of its button. While every button hides the pane is not
+  drawn. Off glass (`glass`, the switch when null) it is a plain `Flex` of the same buttons.
 - **Switches are near iOS's size on glass.** The app shrinks every `Switch` with `Transform.scale`; a new one takes
   `scale: GlassSurfaces.switchScale`, which keeps Material's at 0.8 and the glass one at 0.9.
 
@@ -65,9 +74,10 @@ collapsing `SliverAppBar` or a bar over the video, is not for it.
 
 1. Rename `AppBar(` to `GlassAppBar(` in `SimpleScaffold.appBar`. It takes `title`, `leading`,
    `automaticallyImplyLeading`, `actions` and `centerTitle` as `AppBar` does; a page that needs another adds it,
-   passed on to `AppBar` too. Actions stay as they are: `IconButton`s, `PopupMenuButton`s and `TextButton`s stand 44
-   dp tall on the capsule (a lone one makes it a circle), an `Obx` that hides its button shrinks it, and the
-   childless `SizedBox` that spaces Material's actions from the edge is left out on glass.
+   passed on to `AppBar` too. Actions stay as they are, together in a `GlassButtonGroup` (a lone one on a circle):
+   an `Obx` that hides its button shrinks it, and the childless `SizedBox` that spaces Material's actions from the
+   edge is left out on glass. An action that opens a page wraps its button in a `GlassMorphSource` and calls
+   `source.toNamed(...)` in place of `Get.toNamed`; alone, its circle opens as a `GlassMorphButton` does.
 2. Make room at the top of the content, below.
 
 `SimpleScaffold` sees an `OverlaidAppBar` and, with glass on, lays the body under it at full height through
@@ -127,7 +137,8 @@ lays it over the body. The two are as tall, so the content stays put as they swa
 | `video_glass.dart` | `VideoGlass`: a backdrop filter pane over the video, which the host cannot replay; the player's and live room's controls, notes and full-screen panels | Yes |
 | `glass_droplet.dart` | The return into a button as a drop of glass, shared by menus and pages: where the platter and droplet stand at a time, their shadows | Yes |
 | `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass. `GlassMenuSource`, the button it takes in and gives back | Yes |
-| `glass_page_morph.dart` | `GlassMorphButton`: a page growing out of its button and returning into it, on the route's own time, drawn from a snapshot | Yes |
+| `glass_page_morph.dart` | `GlassMorphButton`: a page growing out of its button and returning into it, on the route's own time, drawn from a snapshot; `GlassMorphSource`, the same out of a button in a `GlassButtonGroup` | Yes |
+| `glass_button_group.dart` | `GlassButtonGroup`: buttons side by side on one pane of glass, each pressed on a platter of its own | Yes |
 | `glass_menu_press.dart` | `GlassMenuPress`: a `PopupMenuButton` opens on press and carries the press on into its menu | Yes |
 | `../liquid_glass_navigation_bar.dart` | The nav bar: a lens you can press, drag and fling | Yes |
 | `../header_overlay_inset.dart` | Tells content how much a header laid over it covers | Yes |
