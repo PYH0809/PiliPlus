@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
@@ -81,6 +82,31 @@ void main() {
       expect(find.text('播放全部'), findsOneWidget);
       expect(tester.getSize(find.byType(GlassFab)).height, 56);
     });
+
+    testWidgets('stacked buttons are Material\'s, a margin apart, as before', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        GlassFabGroup(
+          children: [
+            GlassFab(onPressed: () {}, child: const Icon(Icons.swap_vert)),
+            GlassFab(onPressed: () {}, child: const Icon(Icons.add)),
+          ],
+        ),
+      );
+      expect(find.byType(LiquidGlass), findsNothing);
+      final fabs = find.byType(FloatingActionButton);
+      expect(fabs, findsNWidgets(2));
+      expect(
+        tester.getRect(fabs.last).top - tester.getRect(fabs.first).bottom,
+        _margin,
+      );
+      expect(
+        tester.getRect(fabs.last).bottomRight,
+        const Offset(_width - _margin, _height - _margin),
+      );
+    });
   });
 
   group('on glass', () {
@@ -122,7 +148,6 @@ void main() {
               onPressed: () {},
               icon: icon(),
               label: label(),
-              shadowRoom: false,
             ),
           ],
         ),
@@ -178,24 +203,47 @@ void main() {
       expect(_glass(tester).top, _height + GlassFab.shadowReach);
     });
 
-    testWidgets('a button stacked under another without the room keeps '
-        'Material\'s gap', (tester) async {
+    testWidgets('stacked buttons stand on one pane, the add under the '
+        'import, each pressed alone', (tester) async {
+      final taps = <String>[];
       await _pump(
         tester,
-        Column(
-          mainAxisSize: .min,
-          spacing: _margin,
+        GlassFabGroup(
           children: [
-            GlassFab(onPressed: () {}, child: const Icon(Icons.swap_vert)),
             GlassFab(
-              onPressed: () {},
-              shadowRoom: false,
+              tooltip: '导入/导出',
+              onPressed: () => taps.add('导入/导出'),
+              child: const Icon(Icons.swap_vert, size: 26),
+            ),
+            GlassFab(
+              tooltip: '添加',
+              onPressed: () => taps.add('添加'),
               child: const Icon(Icons.add),
             ),
           ],
         ),
       );
-      expect(_glass(tester, 1).top - _glass(tester).bottom, _margin);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byType(LiquidGlass), findsOneWidget);
+      const thickness = GlassButtonGroup.thickness;
+      final pane = _glass(tester);
+      expect(pane.size, const Size(thickness, thickness * 2));
+      expect(
+        pane.bottomRight,
+        const Offset(_width - _margin, _height - _margin),
+      );
+      expect(
+        tester.getSize(find.byType(GlassFabGroup)).height,
+        thickness * 2 + GlassFab.shadowReach,
+      );
+      expect(
+        tester.getCenter(find.byTooltip('导入/导出')).dy,
+        lessThan(tester.getCenter(find.byTooltip('添加')).dy),
+      );
+
+      await tester.tap(find.byTooltip('添加'));
+      await tester.tap(find.byTooltip('导入/导出'));
+      expect(taps, ['添加', '导入/导出']);
     });
 
     testWidgets('a tap, Enter and Space press it', (tester) async {

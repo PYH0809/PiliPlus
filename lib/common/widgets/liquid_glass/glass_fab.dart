@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
@@ -10,7 +11,9 @@ import 'package:material_ui/material_ui.dart';
 ///
 /// On glass it keeps Material's footprint, 56 dp high and padded as Material
 /// pads it, a circle or a capsule, so a page lays it out and slides it away
-/// just as it did the Material one.
+/// just as it did the Material one, and keeps [shadowReach] free above it,
+/// so that a [SlideTransition] by its own height takes the shadow out of
+/// sight with it. Buttons stacked one over another go in a [GlassFabGroup].
 class GlassFab extends StatelessWidget {
   /// A round button holding [child], as [FloatingActionButton.new].
   const GlassFab({
@@ -18,7 +21,6 @@ class GlassFab extends StatelessWidget {
     required this.onPressed,
     this.tooltip,
     required Widget this.child,
-    this.shadowRoom = true,
   }) : icon = null,
        label = null;
 
@@ -30,7 +32,6 @@ class GlassFab extends StatelessWidget {
     this.tooltip,
     this.icon,
     required Widget this.label,
-    this.shadowRoom = true,
   }) : child = null;
 
   static const size = 56.0;
@@ -43,12 +44,6 @@ class GlassFab extends StatelessWidget {
   final Widget? child;
   final Widget? icon;
   final Widget? label;
-
-  /// Whether, on glass, the button keeps [shadowReach] free above it, so that
-  /// a [SlideTransition] by its own height takes the shadow out of sight with
-  /// it. A button stacked right under another leaves it out, as it would
-  /// widen the gap between them.
-  final bool shadowRoom;
 
   @override
   Widget build(BuildContext context) {
@@ -113,12 +108,47 @@ class GlassFab extends StatelessWidget {
       ),
       child: button,
     );
-    if (shadowRoom) {
-      button = Padding(
+    return MergeSemantics(
+      child: Padding(
         padding: const .only(top: shadowReach),
         child: button,
+      ),
+    );
+  }
+}
+
+/// Round floating buttons stacked at a page's end, as the blacklist's import
+/// and add. On glass they stand on one pane, as iOS 26 groups a toolbar's
+/// buttons, a [GlassButtonGroup] down the page; without it, Material's
+/// buttons a margin apart, as before.
+class GlassFabGroup extends StatelessWidget {
+  const GlassFabGroup({super.key, required this.children});
+
+  /// The buttons, top to bottom, each a [GlassFab.new].
+  final List<GlassFab> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!GlassSurfaces.installed) {
+      return Column(
+        spacing: kFloatingActionButtonMargin,
+        mainAxisSize: .min,
+        children: children,
       );
     }
-    return MergeSemantics(child: button);
+    return Padding(
+      padding: const .only(top: GlassFab.shadowReach),
+      child: GlassButtonGroup(
+        direction: .vertical,
+        children: [
+          for (final fab in children)
+            IconButton(
+              tooltip: fab.tooltip,
+              onPressed: fab.onPressed,
+              icon: fab.child!,
+            ),
+        ],
+      ),
+    );
   }
 }

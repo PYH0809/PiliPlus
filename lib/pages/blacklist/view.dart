@@ -173,9 +173,7 @@ class _BlackListPageState extends State<BlackListPage>
           right: kFloatingActionButtonMargin + padding.right,
           bottom: kFloatingActionButtonMargin + padding.bottom,
         ),
-        child: Column(
-          spacing: kFloatingActionButtonMargin,
-          mainAxisSize: .min,
+        child: GlassFabGroup(
           children: [
             GlassFab(
               tooltip: '导入/导出',
@@ -185,7 +183,6 @@ class _BlackListPageState extends State<BlackListPage>
             GlassFab(
               tooltip: '添加',
               onPressed: _showAddMidDialog,
-              shadowRoom: false,
               child: const Icon(Icons.add),
             ),
           ],

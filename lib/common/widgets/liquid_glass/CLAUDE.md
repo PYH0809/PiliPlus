@@ -72,7 +72,7 @@ turns on every glass part. It only takes effect after a restart.
 | `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass. `GlassMenuSource`, the button it takes in and gives back | Yes |
 | `glass_page_morph.dart` | `GlassMorphButton`: a page growing out of its button and returning into it, on the route's own time, drawn from a snapshot | Yes |
 | `glass_menu_press.dart` | `GlassMenuPress`: a `PopupMenuButton` opens on press and carries the press on into its menu | Yes |
-| `glass_fab.dart` | `GlassFab` (and `.extended`), a page's floating action button: a drop of glass in the theme's color with the switch on, Material's `FloatingActionButton` with it off. It keeps Material's footprint, and room above for its shadow so a `SlideTransition` by its own height hides that too; a button stacked under another passes `shadowRoom: false` | Yes |
+| `glass_fab.dart` | `GlassFab` (and `.extended`), a page's floating action button: a drop of glass in the theme's color with the switch on, Material's `FloatingActionButton` with it off. It keeps Material's footprint, and room above for its shadow so a `SlideTransition` by its own height hides that too. `GlassFabGroup` stacks round ones, as the blacklist's: on one `GlassButtonGroup` pane down the page with the switch on, Material's a margin apart with it off | Yes |
 | `../liquid_glass_navigation_bar.dart` | The nav bar: a lens you can press, drag and fling | Yes |
 | `../header_overlay_inset.dart` | Tells content how much a header laid over it covers | Yes |
 
