@@ -23,24 +23,49 @@ class GeetestWebviewDialog extends StatefulWidget {
       builder: (context) => GeetestWebviewDialog(gt, challenge),
     );
   }
+
+  /// Geetest v4, which the app's SMS login hands out when its `recaptcha_url`
+  /// has `ct=geetest4`: [captchaId] is that url's `gee_gt`. It returns
+  /// `lot_number`, `captcha_output`, `pass_token` and `gen_time`.
+  static Future<Map<String, dynamic>?> geetest4(String captchaId) {
+    return showDialog<Map<String, dynamic>>(
+      context: Get.context!,
+      builder: (context) => _Geetest4WebviewDialog(captchaId),
+    );
+  }
+}
+
+class _Geetest4WebviewDialog extends GeetestWebviewDialog {
+  const _Geetest4WebviewDialog(String captchaId) : super(captchaId, '');
 }
 
 class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
   static const _geetestJsUri =
       'https://static.geetest.com/static/js/fullpage.0.0.0.js';
   static const _geetestConfigUri = 'https://api.geetest.com/gettype.php';
+  static const _geetest4JsUri = 'https://static.geetest.com/v4/gt4.js';
 
-  static String _buildHtml(String gt, String challenge) {
+  static String _buildHtml(String gt, String challenge, {bool v4 = false}) {
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final js =
-        'var C,S,T,t;'
-        'T=()=>{if(C&&S&&!t){t=Geetest(C).onSuccess(()=>R("success",t.getValidate())).onError(o=>R("error",o)).onClose(o=>R("close",o));t.onReady(()=>t.verify())}};'
-        'geetest_$ts=(d)=>{'
-        'if(!d||d.status!="success"){R("error",JSON.stringify(d));return};'
-        'C=Object.assign({gt:"$gt",challenge:"$challenge",offline:false,new_captcha:true,product:"bind",width:"100%",https:true,protocol:"https://"},d.data);T()'
-        '};'
-        'G=()=>{S=1;T()};'
-        'E=()=>{document.getElementById("E").textContent="验证码加载失败";R("error","geetest script load failed")}';
+    // Says why the captcha did not come up, rather than leaving the page blank.
+    const showError =
+        'E=m=>{document.getElementById("E").textContent="验证码加载失败"+(m?"："+m:"");R("error",m||"geetest script load failed")}';
+    final js = v4
+        ? 'onerror=m=>E(m);'
+              'G=()=>initGeetest4({captchaId:"$gt",product:"bind",language:"zho",https:true,protocol:"https://"},c=>c.onReady(()=>c.showCaptcha()).onSuccess(()=>R("success",c.getValidate())).onError(o=>E(o&&o.msg)).onClose(o=>R("close",o)));'
+              '$showError'
+        : 'var C,S,T,t;'
+              'T=()=>{if(C&&S&&!t){t=Geetest(C).onSuccess(()=>R("success",t.getValidate())).onError(o=>E(o&&(o.user_error||o.msg))).onClose(o=>R("close",o));t.onReady(()=>t.verify())}};'
+              'geetest_$ts=(d)=>{'
+              'if(!d||d.status!="success"){E(d&&d.error);return};'
+              'C=Object.assign({gt:"$gt",challenge:"$challenge",offline:false,new_captcha:true,product:"bind",width:"100%",https:true,protocol:"https://"},d.data);T()'
+              '};'
+              'G=()=>{S=1;T()};'
+              '$showError';
+    final scripts = v4
+        ? '<script src="$_geetest4JsUri" onload="G()" onerror="E()"></script>'
+        : '<script src="$_geetestJsUri" onload="G()" onerror="E()"></script>'
+              '<script src="$_geetestConfigUri?gt=$gt&callback=geetest_$ts" onerror="E()"></script>';
 
     return '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head>'
         '<style>#E{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:red}</style>'
@@ -48,14 +73,17 @@ class _GeetestWebviewDialogState extends State<GeetestWebviewDialog> {
         '<script>'
         '${Platform.isLinux ? "R=(n,o)=>window.webkit.messageHandlers.msgToNative.postMessage(n+':'+JSON.stringify(o))" : "R=(n,o)=>window.flutter_inappwebview?.callHandler(n,o)"};$js'
         '</script>'
-        '<script src="$_geetestJsUri" onload="G()" onerror="E()"></script>'
-        '<script src="$_geetestConfigUri?gt=$gt&callback=geetest_$ts" onerror="E()"></script>'
+        '$scripts'
         '</body></html>';
   }
 
   @override
   Widget build(BuildContext context) {
-    final html = _buildHtml(widget.gt, widget.challenge);
+    final html = _buildHtml(
+      widget.gt,
+      widget.challenge,
+      v4: widget is _Geetest4WebviewDialog,
+    );
 
     if (Platform.isLinux) {
       return AlertDialog(
