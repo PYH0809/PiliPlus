@@ -375,11 +375,14 @@ class _SettingPageState extends State<SettingPage> {
             ),
             const SizedBox(width: 8),
             Expanded(
+              // As the hint of 设置搜索's field, which takes its place.
               child: Text(
                 '搜索设置',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: colorScheme.outline),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
