@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_floating_header.dart';
@@ -7,6 +8,7 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/space/space_audio/item.dart';
 import 'package:PiliPlus/pages/member_audio/controller.dart';
 import 'package:PiliPlus/pages/member_audio/widgets/item.dart';
+import 'package:PiliPlus/pages/member_contribute/widgets/glass_category_tabs.dart';
 import 'package:PiliPlus/utils/grid.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -48,6 +50,15 @@ class _MemberAudioState extends State<MemberAudio>
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          // Room for the 投稿 tab's glass categories, laid over the list,
+          // which the sort row leaves itself once the tracks show.
+          Obx(
+            () => switch (_controller.loadingState.value) {
+              Success(:final response?) when response.isNotEmpty =>
+                const SliverToBoxAdapter(),
+              _ => HeaderOverlayInset.sliver(context),
+            },
+          ),
           SliverPadding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
@@ -74,36 +85,38 @@ class _MemberAudioState extends State<MemberAudio>
         response != null && response.isNotEmpty
             ? SliverMainAxisGroup(
                 slivers: [
-                  SliverFloatingHeaderWidget(
-                    backgroundColor: colorScheme.surface,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 2.5, 8, 2.5),
-                      child: Row(
-                        children: [
-                          Text(
-                            '共${_controller.totalSize ?? 0}首',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: TextButton.icon(
-                              style: Style.buttonStyle,
-                              onPressed: _controller.toViewPlayAll,
-                              icon: Icon(
-                                Icons.play_circle_outline_rounded,
-                                size: 16,
-                                color: colorScheme.secondary,
-                              ),
-                              label: Text(
-                                '播放全部',
-                                style: TextStyle(
-                                  fontSize: 13,
+                  FloatingUnderOverlay(
+                    header: SliverFloatingHeaderWidget(
+                      backgroundColor: colorScheme.surface,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 2.5, 8, 2.5),
+                        child: Row(
+                          children: [
+                            Text(
+                              '共${_controller.totalSize ?? 0}首',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: TextButton.icon(
+                                style: Style.buttonStyle,
+                                onPressed: _controller.toViewPlayAll,
+                                icon: Icon(
+                                  Icons.play_circle_outline_rounded,
+                                  size: 16,
                                   color: colorScheme.secondary,
+                                ),
+                                label: Text(
+                                  '播放全部',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: colorScheme.secondary,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
