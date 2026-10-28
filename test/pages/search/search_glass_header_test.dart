@@ -34,6 +34,7 @@ Future<void> _pump(
   Widget? trailing,
   double extent = SearchGlassBar.extent,
   Widget? below,
+  Widget field = const Center(child: Text('原神')),
 }) async {
   tester.view
     ..physicalSize = const Size(412, 800)
@@ -49,7 +50,7 @@ Future<void> _pump(
         SearchGlassBar(
           onFieldTap: onFieldTap,
           trailing: trailing,
-          field: const Center(child: Text('原神')),
+          field: field,
         ),
         ?below,
       ],
@@ -76,6 +77,30 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('the capsule stays as tall as the buttons beside a short field', (
+    tester,
+  ) async {
+    // The search page's field: a dense one-line field, with its buttons
+    // hidden while it is empty.
+    await _pump(
+      tester,
+      field: const SearchGlassFieldRow(
+        field: TextField(
+          decoration: InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            hintText: '搜索',
+          ),
+        ),
+        buttons: [SizedBox.shrink(), SizedBox.shrink()],
+      ),
+    );
+    final back = tester.getRect(find.byTooltip('返回'));
+    final capsule = tester.getRect(find.byType(LiquidGlass).at(1));
+    expect(capsule.top, back.top);
+    expect(capsule.height, 40);
+  });
+
   testWidgets('a round back button, then the capsule to the end', (
     tester,
   ) async {
