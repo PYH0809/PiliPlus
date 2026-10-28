@@ -25,7 +25,7 @@ class GalleryGlass extends StatefulWidget {
     super.key,
     required this.drag,
     required this.zoomed,
-    this.overVideo = false,
+    this.video,
     required this.child,
   });
 
@@ -33,9 +33,10 @@ class GalleryGlass extends StatefulWidget {
   final Animation<double> drag;
   final ValueListenable<bool> zoomed;
 
-  /// Whether a video plays under it, as a live photo's: a texture, which the
-  /// host cannot capture, so the pane is then a [VideoGlass], which sees it.
-  final bool overVideo;
+  /// Keys a box holding the video under it while one plays, as a live
+  /// photo's: a texture, which the host cannot capture, so the pane is then
+  /// a [VideoGlass], which draws the video again itself.
+  final GlobalKey? video;
   final Widget child;
 
   @override
@@ -111,12 +112,23 @@ class _GalleryGlassState extends State<GalleryGlass>
             child: child!,
           ),
         );
-        if (widget.overVideo) {
-          // As the player's notes over the video.
-          return VideoGlass.capsule(note: true, t: t, child: content);
+        final style = LiquidGlassStyle.regular(colorScheme);
+        if (widget.video case final video?) {
+          // As the player's notes over the video, but as thick as the glass
+          // over an image, which the player's clear glass is not over the
+          // black around the video.
+          return VideoGlassSource(
+            video: video,
+            child: VideoGlass.capsule(
+              note: true,
+              t: t,
+              style: style,
+              child: content,
+            ),
+          );
         }
         return LiquidGlass(
-          style: LiquidGlassStyle.regular(colorScheme).scale(t),
+          style: style.scale(t),
           shadows: [
             for (final shadow in floatingGlassShadows(colorScheme))
               shadow.copyWith(

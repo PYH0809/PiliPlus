@@ -112,6 +112,8 @@ class _GalleryViewerState extends State<GalleryViewer>
   // The pages zoomed in, by index, and whether the current one is.
   final _zoomedPages = <int>{};
   late final _zoomed = ValueNotifier(false);
+  // Holds the pages, where the glass finds a live photo's video.
+  late final _pagesKey = GlobalKey();
 
   String _getActualUrl(String url) {
     return _quality != 100
@@ -343,6 +345,7 @@ class _GalleryViewerState extends State<GalleryViewer>
             builder: (context, constraints) {
               _containerSize = constraints.biggest;
               return MatrixTransition(
+                key: _glass ? _pagesKey : null,
                 alignment: .topLeft,
                 animation: _animateController,
                 onTransform: _onTransform,
@@ -393,9 +396,11 @@ class _GalleryViewerState extends State<GalleryViewer>
           () => GalleryGlass(
             drag: _animateController,
             zoomed: _zoomed,
-            overVideo:
+            video:
                 widget.sources[_currIndex.value].sourceType ==
-                SourceType.livePhoto,
+                    SourceType.livePhoto
+                ? _pagesKey
+                : null,
             child: Text("${_currIndex.value + 1}/${widget.sources.length}"),
           ),
         ),

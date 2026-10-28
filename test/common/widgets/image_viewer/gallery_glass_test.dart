@@ -92,7 +92,7 @@ void main() {
       expect(find.byType(LiquidGlass), findsOneWidget);
     });
 
-    testWidgets('over a video, filters the screen, which holds it', (
+    testWidgets('over a video, draws it again on its own glass', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -100,11 +100,12 @@ void main() {
           GalleryGlass(
             drag: drag,
             zoomed: zoomed,
-            overVideo: true,
+            video: GlobalKey(),
             child: const Text('2/4'),
           ),
         ),
       );
+      expect(find.byType(VideoGlassSource), findsOneWidget);
       expect(find.byType(VideoGlass), findsOneWidget);
       expect(find.byType(LiquidGlass), findsNothing);
       expect(find.text('2/4'), findsOneWidget);
