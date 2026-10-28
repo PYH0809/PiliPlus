@@ -86,6 +86,9 @@ class _SettingsSearchPageState
   void _clear() {
     _textEditingController.clear();
     _list.clear();
+    // In place of a search still waiting out its debounce, which would
+    // bring its results back under the empty field.
+    ctr?.add('');
   }
 
   // On glass, the field on a capsule where 设置's search stood, which this
