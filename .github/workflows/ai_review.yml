@@ -5,7 +5,8 @@ name: AI Review
 # submitted review, in Chinese. An OpenAI model reads the code in Codex, its
 # own agent, through OpenRouter, so the job needs the repository secret
 # OPENROUTER_API_KEY and skips without it. The repository variable
-# AI_REVIEW_MODEL picks another OpenRouter model.
+# AI_REVIEW_MODEL picks another OpenRouter model. The review's footer gives the
+# tokens Codex logged and what they cost at OpenRouter's list price.
 #
 # It reviews on its own only the pull requests the repository owner opens, so
 # no one else's PR, or flood of them, spends the key. Anyone else's is reviewed
@@ -45,7 +46,7 @@ jobs:
             pull-requests: write
         env:
             HAS_KEY: ${{ secrets.OPENROUTER_API_KEY != '' }}
-            MODEL: ${{ inputs.model || vars.AI_REVIEW_MODEL || 'openai/gpt-6-luna' }}
+            MODEL: ${{ inputs.model || vars.AI_REVIEW_MODEL || 'openai/gpt-6.1-terra' }}
             PR: ${{ github.event.pull_request.number || inputs.pr }}
         steps:
             - name: Skip without an OpenRouter key
@@ -200,6 +201,8 @@ jobs:
               with:
                   script: |
                       const fs = require('fs');
+                      const { homedir } = require('os');
+                      const { join } = require('path');
                       const raw = (process.env.FINAL_MESSAGE ?? '').trim();
                       let result = null;
                       try {
@@ -253,7 +256,55 @@ jobs:
                         ? [heading[result.verdict] ?? '### AI 审查', '', result.summary]
                         : ['### AI 审查', '', '模型没有按格式返回，下面是它的原话：', '', raw || '（空）'];
                       if (loose.length) lines.push('', '**不在改动行上的问题**', '', ...listed(loose));
-                      const footer = ['', '---', `_由 \`${process.env.MODEL}\` 经 OpenRouter 审查_`];
+
+                      // Codex keeps a running token count in its session log;
+                      // the last one covers the whole review. OpenRouter's
+                      // public model list prices it, as an estimate.
+                      const usage = { input: 0, cached: 0, cacheWrite: 0, output: 0 };
+                      let counted = false;
+                      try {
+                        const sessions = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions');
+                        for (const file of fs.readdirSync(sessions, { recursive: true })) {
+                          if (!/rollout-[^/]*\.jsonl$/.test(file)) continue;
+                          let total = null;
+                          for (const text of fs.readFileSync(join(sessions, file), 'utf8').split('\n')) {
+                            if (!text.includes('"token_count"')) continue;
+                            total = JSON.parse(text).payload?.info?.total_token_usage ?? total;
+                          }
+                          if (!total) continue;
+                          counted = true;
+                          usage.input += total.input_tokens ?? 0;
+                          usage.cached += total.cached_input_tokens ?? 0;
+                          usage.cacheWrite += total.cache_write_input_tokens ?? 0;
+                          usage.output += total.output_tokens ?? 0;
+                        }
+                        if (!counted) throw new Error(`no token_count in ${sessions}`);
+                      } catch (error) {
+                        core.warning(`No token usage: ${error.message}`);
+                      }
+                      let cost = null;
+                      if (counted) {
+                        try {
+                          const response = await fetch('https://openrouter.ai/api/v1/models', {
+                            signal: AbortSignal.timeout(10000),
+                          });
+                          const price = (await response.json()).data.find((m) => m.id === process.env.MODEL)?.pricing;
+                          if (!price) throw new Error("not in OpenRouter's model list");
+                          const rate = (key) => Number(price[key] || price.prompt);
+                          cost =
+                            (usage.input - usage.cached - usage.cacheWrite) * Number(price.prompt) +
+                            usage.cached * rate('input_cache_read') +
+                            usage.cacheWrite * rate('input_cache_write') +
+                            usage.output * Number(price.completion);
+                        } catch (error) {
+                          core.warning(`No price for ${process.env.MODEL}: ${error.message}`);
+                        }
+                      }
+                      const tokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${n}`);
+                      const credit = [`由 \`${process.env.MODEL}\` 经 OpenRouter 审查`];
+                      if (counted) credit.push(`输入 ${tokens(usage.input)}（缓存 ${tokens(usage.cached)}）/ 输出 ${tokens(usage.output)} token`);
+                      if (cost != null && Number.isFinite(cost)) credit.push(`约 $${cost.toFixed(cost < 0.1 ? 4 : 2)}`);
+                      const footer = ['', '---', `_${credit.join(' · ')}_`];
 
                       const review = {
                         owner: context.repo.owner,
