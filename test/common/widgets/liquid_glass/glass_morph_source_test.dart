@@ -112,6 +112,40 @@ void main() {
     expect(await repaintsBelow(), isTrue);
   });
 
+  testWidgets('a page under a morph with the keyboard up draws as it is', (
+    tester,
+  ) async {
+    var paints = 0;
+    final changes = ValueNotifier(0);
+    addTearDown(changes.dispose);
+    addTearDown(tester.view.reset);
+    // As the search page, its keyboard leaving as it opens its results.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await _pump(
+      tester,
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CustomPaint(
+            size: const Size.square(40),
+            painter: _CountingPainter(changes, () => paints++),
+          ),
+          GlassButtonGroup(glass: true, children: [_search()]),
+        ],
+      ),
+    );
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_morphing(tester), isTrue);
+    final before = paints;
+    changes.value++;
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(paints, greaterThan(before));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('the page under a morph shows itself once the screen changes', (
     tester,
   ) async {

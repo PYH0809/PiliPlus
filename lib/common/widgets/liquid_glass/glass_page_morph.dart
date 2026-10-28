@@ -484,19 +484,18 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
         return;
       }
       final screen = _screen;
-      if (screen == null) {
+      final media = below.subtreeContext!
+          .getInheritedWidgetOfExactType<MediaQuery>()
+          ?.data;
+      // A page with the keyboard up, or leaving, is laid out again as it
+      // goes: as the search page, left for its results, a picture would
+      // keep the room it made for the keyboard. It draws as it is.
+      if (screen == null || media == null || media.viewInsets != .zero) {
         return;
       }
       _below = (
         // The page's own ratio, which the app's interface scale changes.
-        image: boundary.toImageSync(
-          pixelRatio:
-              below.subtreeContext!
-                  .getInheritedWidgetOfExactType<MediaQuery>()
-                  ?.data
-                  .devicePixelRatio ??
-              1,
-        ),
+        image: boundary.toImageSync(pixelRatio: media.devicePixelRatio),
         rect: boundary.localToGlobal(Offset.zero) & boundary.size,
         screen: screen,
       );
