@@ -114,6 +114,13 @@ detail pane, shown with `showAppBar: false`, makes room for its pane's bar. With
 Material bar. The title stands on a soft patch of the surface of its own, since it reads on the fade, not on glass;
 the buttons' glass sees the content as the home header's does.
 
+**A search in the bar**, as 设置's: `expandTitle: true` makes the title a pane of its own, 44 dp tall, filling the row
+8 dp from the back circle and the actions (14 dp from the sides, as the home header's rhythm). 设置 passes a
+`GlassMorphButton` capsule with the hint 搜索设置 in place of its title, and drops the list's search row on glass; the
+page it opens, 设置搜索, lays its field on a capsule in the same place, so the morph lands where it left, and holds
+its keyboard back with `GlassMorphButton.deferUntilOpened` until it has opened. With glass off both pages keep their
+Material bars.
+
 **Pages with tabs** pass them as `tabs: LiquidGlassTabBar(controller: ..., labels: ..., onTap: ...)`: with glass on
 they are a second row of glass under the title, and the inset covers them. With glass off the argument is ignored and
 the page keeps its own `TabBar` in the body, which it leaves out on glass: `if (!GlassAppBar.enabled) TabBar(...)`.
