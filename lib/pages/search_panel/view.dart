@@ -1,9 +1,12 @@
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
+import 'package:PiliPlus/common/widgets/sliver/sliver_floating_header.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/search/search_type.dart';
 import 'package:PiliPlus/models/search/result.dart';
 import 'package:PiliPlus/pages/search_panel/controller.dart';
+import 'package:PiliPlus/pages/search_panel/floating_header_below.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -49,13 +52,26 @@ abstract class CommonSearchPanelState<
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final header = buildHeader();
+    final inset = HeaderOverlayInset.of(context);
     return refreshIndicator(
       onRefresh: controller.onRefresh,
       child: CustomScrollView(
         controller: controller.scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          ?buildHeader(),
+          // Under a header laid over them, as on glass, the results start
+          // below it, and a row of filters floats back to just below it.
+          if (inset > 0 && header is SliverFloatingHeaderWidget)
+            SliverFloatingHeaderBelow(
+              inset: inset,
+              backgroundColor: header.backgroundColor,
+              child: header.child,
+            )
+          else ...[
+            if (inset > 0) HeaderOverlayInset.sliver(context),
+            ?header,
+          ],
           SliverPadding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
