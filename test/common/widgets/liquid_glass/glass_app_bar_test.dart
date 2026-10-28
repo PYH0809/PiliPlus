@@ -197,7 +197,51 @@ void main() {
       expect(tester.getCenter(find.text('设置')), const Offset(206, _barMiddle));
 
       await _pump(tester, _settingsPage(centerTitle: false));
-      expect(tester.getTopLeft(find.text('设置')).dx, 14 + 44 + 16);
+      // After the back button, and the 8 dp its patch reaches past it.
+      expect(tester.getTopLeft(find.text('设置')).dx, 14 + 44 + 16 + 8);
+    });
+
+    testWidgets('the title alone stands on a patch of the surface', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _settingsPage(
+          actions: [
+            IconButton(
+              tooltip: '搜索',
+              onPressed: () {},
+              icon: const Icon(Icons.search),
+            ),
+          ],
+        ),
+      );
+      final patch = find.ancestor(
+        of: find.text('设置'),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is ShapeDecoration &&
+              (widget.decoration as ShapeDecoration).shadows != null,
+        ),
+      );
+      expect(patch, findsOneWidget);
+      final rect = tester.getRect(patch);
+      final title = tester.getRect(find.text('设置'));
+      expect(rect, title.inflate(8).intersect(rect));
+      // Clear of the buttons, whose glass sees the list as the home
+      // header's does.
+      const reach = 16.0;
+      expect(
+        rect
+            .inflate(reach)
+            .overlaps(_paneUnder(tester, find.byTooltip('Back'))),
+        isFalse,
+      );
+      expect(
+        rect.inflate(reach).overlaps(_paneUnder(tester, find.byTooltip('搜索'))),
+        isFalse,
+      );
     });
 
     testWidgets('the actions share one capsule, without the spacers', (

@@ -15,9 +15,17 @@ import 'package:material_ui/material_ui.dart';
 const double _sideInset = 14;
 const double _tabsGap = 6;
 
-// How much more of the surface the title stands on than the header's fade
-// gives: what scrolls under the title shows at about a seventh.
+// The title reads on the fade itself, not on glass as the home header's tabs
+// do, so it stands on a soft patch of the surface of its own, this strong at
+// its middle and this far past its text: what scrolls under the title shows
+// at about an eighth, and the glass beside it sees as much as the home
+// header's.
 const double _titleBacking = 0.7;
+const double _titleBackingBlur = 16;
+const EdgeInsets _titleBackingPadding = EdgeInsets.symmetric(
+  horizontal: 8,
+  vertical: 4,
+);
 
 // As AppBar's, so that a large font keeps the title a title.
 const double _maxTitleTextScale = 1.34;
@@ -143,6 +151,18 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
           ),
         ),
       );
+      title = DecoratedBox(
+        decoration: ShapeDecoration(
+          shape: const StadiumBorder(),
+          shadows: [
+            BoxShadow(
+              color: colorScheme.surface.withValues(alpha: _titleBacking),
+              blurRadius: _titleBackingBlur,
+            ),
+          ],
+        ),
+        child: Padding(padding: _titleBackingPadding, child: title),
+      );
     }
 
     Widget bar = SizedBox(
@@ -203,26 +223,9 @@ class GlassAppBar extends StatelessWidget implements OverlaidAppBar {
                   overlayStyle.systemStatusBarContrastEnforced,
             ),
         child: LiquidGlassHeader(
-          // The title reads on the fade itself, not on glass as the home
-          // header's tabs do, so the fade is thicker behind the bar's rows,
-          // easing back to the header's own by their bottom.
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colorScheme.surface.withValues(alpha: _titleBacking),
-                  colorScheme.surface.withValues(alpha: _titleBacking),
-                  colorScheme.surface.withValues(alpha: 0),
-                ],
-                stops: const [0, 0.75, 1],
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: LiquidGlassGroup(child: bar),
-            ),
+          child: SafeArea(
+            bottom: false,
+            child: LiquidGlassGroup(child: bar),
           ),
         ),
       ),

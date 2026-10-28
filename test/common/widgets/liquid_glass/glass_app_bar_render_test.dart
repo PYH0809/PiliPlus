@@ -105,13 +105,13 @@ void main() {
     // The back circle, above its arrow.
     final back = _variance(pixels!, const Rect.fromLTWH(26, 34, 20, 6));
     final capsule = _variance(pixels, const Rect.fromLTWH(364, 40, 24, 24));
-    // Between them, the list under the fade alone, faint behind the title
-    // but there.
+    // Between them, the list under the header's fade alone, as under the
+    // home header's.
     final fade = _variance(pixels, const Rect.fromLTWH(120, 40, 60, 24));
     final open = _variance(pixels, const Rect.fromLTWH(120, 200, 60, 24));
     final reason = 'shader filters: ${ui.ImageFilter.isShaderFilterSupported}';
-    expect(fade, lessThan(open / 20), reason: reason);
-    expect(fade, greaterThan(open / 1000), reason: reason);
+    expect(fade, lessThan(open / 2), reason: reason);
+    expect(fade, greaterThan(open / 20), reason: reason);
     expect(back, lessThan(fade / 20), reason: reason);
     expect(capsule, lessThan(fade / 20), reason: reason);
   });
