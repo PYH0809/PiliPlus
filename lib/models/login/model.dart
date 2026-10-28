@@ -15,6 +15,12 @@ class CaptchaDataModel {
   String? validate;
   String? seccode;
 
+  /// Geetest v4's result.
+  String? lotNumber;
+  String? captchaOutput;
+  String? passToken;
+  String? genTime;
+
   CaptchaDataModel.fromJson(Map<String, dynamic> json) {
     type = json["type"];
     token = json["token"];

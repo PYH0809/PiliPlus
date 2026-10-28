@@ -98,6 +98,10 @@ abstract final class LoginHttp {
     String? geeChallenge,
     String? geeSeccode,
     String? geeValidate,
+    String? geeLotNumber,
+    String? geeCaptchaOutput,
+    String? geePassToken,
+    String? geeGenTime,
     String? recaptchaToken,
   }) async {
     int timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -109,7 +113,11 @@ abstract final class LoginHttp {
       'cid': cid,
       // if (deviceTouristId != null) 'device_tourist_id': deviceTouristId,
       'disable_rcmd': '0',
+      'gee_captcha_output': ?geeCaptchaOutput,
       'gee_challenge': ?geeChallenge,
+      'gee_gen_time': ?geeGenTime,
+      'gee_lot_number': ?geeLotNumber,
+      'gee_pass_token': ?geePassToken,
       'gee_seccode': ?geeSeccode,
       'gee_validate': ?geeValidate,
       'local_id': _buvid,

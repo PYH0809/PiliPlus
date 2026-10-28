@@ -131,7 +131,29 @@ class LoginPageController extends GetxController
           ..geetest = GeetestData(
             challenge: res['geetest_challenge'],
             gt: geeGt,
-          );
+          )
+          ..lotNumber = null
+          ..captchaOutput = null
+          ..passToken = null
+          ..genTime = null;
+        SmartDialog.showToast('验证成功');
+        onSuccess();
+      }
+    });
+  }
+
+  // 申请极验 v4 验证码
+  void getCaptcha4(String captchaId, VoidCallback onSuccess) {
+    GeetestWebviewDialog.geetest4(captchaId).then((res) {
+      if (res != null) {
+        captchaData
+          ..validate = null
+          ..seccode = null
+          ..geetest = null
+          ..lotNumber = res['lot_number']?.toString()
+          ..captchaOutput = res['captcha_output']?.toString()
+          ..passToken = res['pass_token']?.toString()
+          ..genTime = res['gen_time']?.toString();
         SmartDialog.showToast('验证成功');
         onSuccess();
       }
@@ -539,6 +561,10 @@ class LoginPageController extends GetxController
       geeValidate: captchaData.validate,
       geeSeccode: captchaData.seccode,
       geeChallenge: captchaData.geetest?.challenge,
+      geeLotNumber: captchaData.lotNumber,
+      geeCaptchaOutput: captchaData.captchaOutput,
+      geePassToken: captchaData.passToken,
+      geeGenTime: captchaData.genTime,
       recaptchaToken: captchaData.token,
     );
     if (res['status']) {
@@ -563,11 +589,21 @@ class LoginPageController extends GetxController
           String? captureUrl = res['data']?['recaptcha_url'];
           String? geeGt;
           String? geeChallenge;
+          var geetest4 = false;
           if (captureUrl != null && captureUrl.isNotEmpty) {
             Uri captureUri = Uri.parse(captureUrl);
             captchaData.token = captureUri.queryParameters['recaptcha_token'];
             geeGt = captureUri.queryParameters['gee_gt'];
             geeChallenge = captureUri.queryParameters['gee_challenge'];
+            geetest4 = captureUri.queryParameters['ct'] == 'geetest4';
+          }
+
+          // v4 takes no challenge.
+          if (geetest4 &&
+              geeGt?.isNotEmpty == true &&
+              captchaData.token?.isNotEmpty == true) {
+            getCaptcha4(geeGt!, sendSmsCode);
+            break;
           }
 
           if (!isGeeArgumentValid(geeGt, geeChallenge)) {
