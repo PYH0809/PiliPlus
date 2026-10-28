@@ -43,6 +43,9 @@ class SearchGlassBar extends StatelessWidget {
       child: SizedBox(
         height: 40,
         child: Row(
+          // The capsule as tall as the circles, however short its field: a
+          // dense field with its buttons hidden would leave it flat.
+          crossAxisAlignment: .stretch,
           children: [
             GlassCircle(
               icon: _backIcon(Theme.of(context).platform),
