@@ -1,6 +1,8 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/http/login.dart';
@@ -113,9 +115,15 @@ class _SettingPageState extends State<SettingPage> {
     if (!_isPortrait && GlassAppBar.enabled) {
       return _buildGlassPanes();
     }
+    final glass = GlassAppBar.enabled;
     return SimpleScaffold(
       appBar: GlassAppBar(
-        title: _isPortrait ? const Text('设置') : Text(_type.title),
+        expandTitle: glass,
+        title: glass
+            ? _glassSearch()
+            : _isPortrait
+            ? const Text('设置')
+            : Text(_type.title),
       ),
       body: ViewSafeArea(
         child: _isPortrait
@@ -161,7 +169,7 @@ class _SettingPageState extends State<SettingPage> {
               context: context,
               removeRight: true,
               child: SimpleScaffold(
-                appBar: const GlassAppBar(title: Text('设置')),
+                appBar: GlassAppBar(expandTitle: true, title: _glassSearch()),
                 body: ViewSafeArea(child: _buildList(theme)),
               ),
             ),
@@ -228,7 +236,7 @@ class _SettingPageState extends State<SettingPage> {
       padding: EdgeInsets.only(bottom: padding.bottom + 100),
       children: [
         const HeaderOverlaySpace(),
-        _buildSearchItem(theme),
+        if (!GlassAppBar.enabled) _buildSearchItem(theme),
         ..._items
             .take(_items.length - 1)
             .map(
@@ -344,6 +352,39 @@ class _SettingPageState extends State<SettingPage> {
           ],
         );
       },
+    );
+  }
+
+  // On glass the search floats in the bar beside the back button, on a pane
+  // of its own, and its page grows out of it. Its hint names the page in
+  // place of a title: 设置 on its own would only crowd the row.
+  Widget _glassSearch() {
+    final colorScheme = theme.colorScheme;
+    return SizedBox(
+      height: GlassAppBar.buttonSize,
+      child: GlassMorphButton(
+        shadows: floatingGlassShadows(colorScheme),
+        onTap: (button) => button.toNamed('/settingsSearch'),
+        child: Row(
+          children: [
+            const SizedBox(width: 14),
+            Icon(
+              Icons.search,
+              size: 20,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '搜索设置',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: colorScheme.outline),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
