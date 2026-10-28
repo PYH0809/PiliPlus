@@ -1,5 +1,7 @@
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
+import 'package:PiliPlus/common/widgets/sliver/sliver_floating_header.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/search/search_type.dart';
 import 'package:PiliPlus/models/search/result.dart';
@@ -49,13 +51,24 @@ abstract class CommonSearchPanelState<
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final header = buildHeader();
     return refreshIndicator(
       onRefresh: controller.onRefresh,
       child: CustomScrollView(
         controller: controller.scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          ?buildHeader(),
+          // Under a header laid over them, as on glass, the results start
+          // below it, and their filters scroll away with them, as floating
+          // back they would slide under it.
+          if (HeaderOverlayInset.of(context) > 0) ...[
+            HeaderOverlayInset.sliver(context),
+            if (header case SliverFloatingHeaderWidget(:final child))
+              SliverToBoxAdapter(child: child)
+            else
+              ?header,
+          ] else
+            ?header,
           SliverPadding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.viewPaddingOf(context).bottom + 100,

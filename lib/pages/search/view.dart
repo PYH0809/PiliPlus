@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:PiliPlus/common/widgets/dialog/export_import.dart';
 import 'package:PiliPlus/common/widgets/disabled_icon.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/sliver_wrap.dart';
@@ -11,6 +13,7 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/search/search_rcmd/data.dart';
 import 'package:PiliPlus/pages/search/controller.dart';
 import 'package:PiliPlus/pages/search/widgets/hot_keyword.dart';
+import 'package:PiliPlus/pages/search/widgets/search_glass_header.dart';
 import 'package:PiliPlus/pages/search/widgets/search_text.dart';
 import 'package:PiliPlus/utils/em.dart' show Em;
 import 'package:PiliPlus/utils/extension/size_ext.dart';
@@ -36,6 +39,9 @@ class _SearchPageState extends State<SearchPage> {
   // Whether the field takes focus once the page has grown out of the glass
   // search button, rather than as it opens, its keyboard rising with it.
   bool? _focusLater;
+  // The search field on glass, over the history and trending, which scroll
+  // under it.
+  final bool _glass = GlassSurfaces.installed;
 
   @override
   void initState() {
@@ -64,30 +70,108 @@ class _SearchPageState extends State<SearchPage> {
         ? _buildHotSearch(isTrending: false)
         : null;
 
-    return SimpleScaffold(
-      appBar: _buildAppBar,
-      body: Padding(
-        padding: .only(left: padding.left, right: padding.right),
-        child: ViewInsetsSafeArea(
-          child: CustomScrollView(
-            slivers: [
-              if (_searchController.searchSuggestion) _buildSearchSuggest(),
-              if (isPortrait) ...[
-                ?trending,
-                _buildHistory,
-                ?rcmd,
-              ] else if (trending != null || rcmd != null)
-                SliverCrossAxisGroup(
-                  slivers: [
-                    SliverMainAxisGroup(slivers: [?trending, ?rcmd]),
-                    _buildHistory,
-                  ],
-                )
-              else
-                _buildHistory,
-              SliverPadding(padding: .only(bottom: padding.bottom)),
-            ],
+    final body = Padding(
+      padding: .only(left: padding.left, right: padding.right),
+      child: ViewInsetsSafeArea(
+        child: CustomScrollView(
+          slivers: [
+            if (_glass) const Builder(builder: HeaderOverlayInset.sliver),
+            if (_searchController.searchSuggestion) _buildSearchSuggest(),
+            if (isPortrait) ...[
+              ?trending,
+              _buildHistory,
+              ?rcmd,
+            ] else if (trending != null || rcmd != null)
+              SliverCrossAxisGroup(
+                slivers: [
+                  SliverMainAxisGroup(slivers: [?trending, ?rcmd]),
+                  _buildHistory,
+                ],
+              )
+            else
+              _buildHistory,
+            SliverPadding(padding: .only(bottom: padding.bottom)),
+          ],
+        ),
+      ),
+    );
+
+    if (_glass) {
+      return SearchGlassScaffold(
+        extent: SearchGlassBar.extent,
+        header: _buildGlassBar(),
+        content: body,
+      );
+    }
+    return SimpleScaffold(appBar: _buildAppBar, body: body);
+  }
+
+  Widget _buildField(InputDecoration decoration) => TextField(
+    autofocus: !_focusLater!,
+    focusNode: _searchController.searchFocusNode,
+    controller: _searchController.controller,
+    textInputAction: TextInputAction.search,
+    onChanged: _searchController.onChange,
+    decoration: decoration,
+    onSubmitted: (value) => _searchController.submit(),
+  );
+
+  Widget get _uidBtn => Obx(
+    () => _searchController.showUidBtn.value
+        ? IconButton(
+            tooltip: 'UID搜索用户',
+            icon: const Icon(Icons.person_outline, size: 22),
+            onPressed: () => Get.toNamed(
+              '/member?mid=${_searchController.controller.text}',
+            ),
+          )
+        : const SizedBox.shrink(),
+  );
+
+  /// The field on a capsule of glass, with its buttons at its end, as iOS
+  /// lays out a search field: clearing it while it holds text, and
+  /// searching.
+  Widget _buildGlassBar() {
+    final colorScheme = theme.colorScheme;
+    return SearchGlassBar(
+      field: Theme(
+        data: GlassSurfaces.withoutRipples(theme).copyWith(
+          iconButtonTheme: IconButtonThemeData(
+            style: IconButton.styleFrom(
+              tapTargetSize: .shrinkWrap,
+              foregroundColor: colorScheme.onSurfaceVariant,
+            ),
           ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _buildField(
+                InputDecoration(
+                  isDense: true,
+                  hintText: _searchController.hintText ?? '搜索',
+                  border: InputBorder.none,
+                  contentPadding: const .symmetric(horizontal: 16),
+                ),
+              ),
+            ),
+            _uidBtn,
+            ValueListenableBuilder(
+              valueListenable: _searchController.controller,
+              builder: (context, value, _) => value.text.isEmpty
+                  ? const SizedBox.shrink()
+                  : IconButton(
+                      tooltip: '清空',
+                      icon: const Icon(Icons.cancel, size: 20),
+                      onPressed: _searchController.onClear,
+                    ),
+            ),
+            IconButton(
+              tooltip: '搜索',
+              onPressed: _searchController.submit,
+              icon: const Icon(Icons.search, size: 22),
+            ),
+          ],
         ),
       ),
     );
@@ -101,17 +185,7 @@ class _SearchPageState extends State<SearchPage> {
       ),
     ),
     actions: [
-      Obx(
-        () => _searchController.showUidBtn.value
-            ? IconButton(
-                tooltip: 'UID搜索用户',
-                icon: const Icon(Icons.person_outline, size: 22),
-                onPressed: () => Get.toNamed(
-                  '/member?mid=${_searchController.controller.text}',
-                ),
-              )
-            : const SizedBox.shrink(),
-      ),
+      _uidBtn,
       IconButton(
         tooltip: '清空',
         icon: const Icon(Icons.clear, size: 22),
@@ -124,18 +198,12 @@ class _SearchPageState extends State<SearchPage> {
       ),
       const SizedBox(width: 10),
     ],
-    title: TextField(
-      autofocus: !_focusLater!,
-      focusNode: _searchController.searchFocusNode,
-      controller: _searchController.controller,
-      textInputAction: TextInputAction.search,
-      onChanged: _searchController.onChange,
-      decoration: InputDecoration(
+    title: _buildField(
+      InputDecoration(
         visualDensity: .standard,
         hintText: _searchController.hintText ?? '搜索',
         border: InputBorder.none,
       ),
-      onSubmitted: (value) => _searchController.submit(),
     ),
   );
 
