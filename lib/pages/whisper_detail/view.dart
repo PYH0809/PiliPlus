@@ -6,6 +6,7 @@ import 'package:PiliPlus/common/widgets/dialog/report.dart';
 import 'package:PiliPlus/common/widgets/flutter/chat_list_view.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/text_field.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
@@ -15,9 +16,12 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/msg.dart';
 import 'package:PiliPlus/models/common/image_type.dart';
 import 'package:PiliPlus/pages/common/publish/common_rich_text_pub_page.dart';
+import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart';
 import 'package:PiliPlus/pages/emote/view.dart';
 import 'package:PiliPlus/pages/whisper_detail/controller.dart';
 import 'package:PiliPlus/pages/whisper_detail/widget/chat_item.dart';
+import 'package:PiliPlus/pages/whisper_detail/widget/glass_chat_layout.dart';
+import 'package:PiliPlus/pages/whisper_detail/widget/glass_input_bar.dart';
 import 'package:PiliPlus/pages/whisper_link_setting/view.dart';
 import 'package:PiliPlus/utils/extension/file_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
@@ -51,14 +55,27 @@ class _WhisperDetailPageState
     tag: Utils.makeHeroTag(Get.parameters['talkerId']),
   );
 
+  /// Whether the input bar floats on glass over the messages.
+  late final bool _glassBar =
+      GlassSurfaces.installed && _whisperDetailController.mid != null;
+  final _barInset = ChatBarInset();
+
+  Color get _containerColor => ElevationOverlay.colorWithOverlay(
+    theme.colorScheme.surface,
+    theme.hoverColor,
+    1,
+  );
+
+  @override
+  void dispose() {
+    _barInset.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final padding = MediaQuery.viewPaddingOf(context);
-    late final containerColor = ElevationOverlay.colorWithOverlay(
-      theme.colorScheme.surface,
-      theme.hoverColor,
-      1,
-    );
+    late final containerColor = _containerColor;
     return SimpleScaffold(
       appBar: AppBar(
         title: GestureDetector(
@@ -123,31 +140,98 @@ class _WhisperDetailPageState
       ),
       body: Padding(
         padding: EdgeInsets.only(left: padding.left, right: padding.right),
-        child: Column(
-          children: [
-            Expanded(
-              child: Listener(
-                onPointerDown: hidePanel,
-                behavior: .opaque,
-                child: Obx(
-                  () => _buildBody(_whisperDetailController.loadingState.value),
-                ),
+        child: _glassBar
+            ? _buildGlassBody()
+            : Column(
+                children: [
+                  Expanded(
+                    child: Listener(
+                      onPointerDown: hidePanel,
+                      behavior: .opaque,
+                      child: Obx(
+                        () => _buildBody(
+                          _whisperDetailController.loadingState.value,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_whisperDetailController.mid != null) ...[
+                    ConstrainedBox(
+                      constraints: _kConstraints,
+                      child: _buildInputView(containerColor),
+                    ),
+                    ConstrainedBox(
+                      constraints: _kConstraints,
+                      child: buildPanelContainer(containerColor),
+                    ),
+                  ] else
+                    SizedBox(height: padding.bottom),
+                ],
               ),
-            ),
-            if (_whisperDetailController.mid != null) ...[
-              ConstrainedBox(
-                constraints: _kConstraints,
-                child: _buildInputView(containerColor),
-              ),
-              ConstrainedBox(
-                constraints: _kConstraints,
-                child: buildPanelContainer(containerColor),
-              ),
-            ] else
-              SizedBox(height: padding.bottom),
-          ],
+      ),
+    );
+  }
+
+  // The messages fill the page and scroll under the bar, which floats over
+  // them on glass a gap above the keyboard or the emotes, in its place.
+  Widget _buildGlassBody() {
+    return GlassChatLayout(
+      inset: _barInset,
+      messages: Listener(
+        onPointerDown: hidePanel,
+        behavior: .opaque,
+        child: Obx(
+          () => _buildBody(_whisperDetailController.loadingState.value),
         ),
       ),
+      bar: Column(
+        mainAxisSize: .min,
+        children: [
+          ConstrainedBox(
+            constraints: _kConstraints,
+            child: _buildGlassInputBar(),
+          ),
+          ConstrainedBox(
+            constraints: _kConstraints,
+            child: buildPanelContainer(Colors.transparent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassInputBar() {
+    return GlassInputBar(
+      leading: Obx(() {
+        final emoji = panelType.value == .emoji;
+        return GlassCircle(
+          icon: emoji ? Icons.keyboard_outlined : Icons.emoji_emotions_outlined,
+          tooltip: emoji ? '键盘' : '表情',
+          onTap: () => updatePanelType(emoji ? .keyboard : .emoji),
+        );
+      }),
+      field: RichTextField(
+        key: key,
+        focusNode: focusNode,
+        controller: editController,
+        minLines: 1,
+        maxLines: 4,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        textInputAction: TextInputAction.newline,
+        decoration: GlassInputBar.decoration('发个消息聊聊呗~'),
+      ),
+      trailing: Obx(() {
+        final enablePublish = this.enablePublish.value;
+        return GlassInputButton(
+          icon: enablePublish
+              ? Icons.arrow_upward
+              : Icons.add_photo_alternate_outlined,
+          tooltip: enablePublish ? '发送' : '图片',
+          filled: enablePublish,
+          onPressed: () => _onSendOrPickImage(enablePublish),
+        );
+      }),
     );
   }
 
@@ -156,40 +240,58 @@ class _WhisperDetailPageState
       Loading() => m3eLoading,
       Success(:final response) =>
         response != null && response.isNotEmpty
-            ? ChatListView.separated(
-                maxExtent: _kMaxExtent,
-                itemCount: response.length,
-                padding: const .all(kChatListPadding),
-                physics: platformAlwaysClampingPhysics,
-                controller: _whisperDetailController.scrollController,
-                itemBuilder: (context, int index) {
-                  if (index == response.length - 1) {
-                    _whisperDetailController.onLoadMore();
-                  }
-                  final item = response[index];
-                  final isOwner =
-                      item.senderUid.toInt() ==
-                      _whisperDetailController.account.mid;
-                  return ChatItem(
-                    item: item,
-                    eInfos: _whisperDetailController.eInfos,
-                    onLongPress: () => onLongPress(index, item, isOwner),
-                    onSecondaryTapUp: PlatformUtils.isDesktop
-                        ? (e) =>
-                              _showMenu(e.globalPosition, index, item, isOwner)
-                        : null,
-                    isOwner: isOwner,
-                  );
-                },
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 12),
-              )
+            ? _buildList(response)
             : scrollErrorWidget(onReload: _whisperDetailController.onReload),
       Error(:final errMsg) => scrollErrorWidget(
         errMsg: errMsg,
         onReload: _whisperDetailController.onReload,
       ),
     };
+  }
+
+  Widget _buildList(List<Msg> response) {
+    Widget itemBuilder(BuildContext context, int index) {
+      if (index == response.length - 1) {
+        _whisperDetailController.onLoadMore();
+      }
+      final item = response[index];
+      final isOwner =
+          item.senderUid.toInt() == _whisperDetailController.account.mid;
+      return ChatItem(
+        item: item,
+        eInfos: _whisperDetailController.eInfos,
+        onLongPress: () => onLongPress(index, item, isOwner),
+        onSecondaryTapUp: PlatformUtils.isDesktop
+            ? (e) => _showMenu(e.globalPosition, index, item, isOwner)
+            : null,
+        isOwner: isOwner,
+      );
+    }
+
+    Widget separatorBuilder(BuildContext context, int index) =>
+        const SizedBox(height: 12);
+
+    if (_glassBar) {
+      return InsetChatListView.separated(
+        inset: _barInset,
+        maxExtent: _kMaxExtent,
+        itemCount: response.length,
+        padding: const .all(kChatListPadding),
+        physics: platformAlwaysClampingPhysics,
+        controller: _whisperDetailController.scrollController,
+        itemBuilder: itemBuilder,
+        separatorBuilder: separatorBuilder,
+      );
+    }
+    return ChatListView.separated(
+      maxExtent: _kMaxExtent,
+      itemCount: response.length,
+      padding: const .all(kChatListPadding),
+      physics: platformAlwaysClampingPhysics,
+      controller: _whisperDetailController.scrollController,
+      itemBuilder: itemBuilder,
+      separatorBuilder: separatorBuilder,
+    );
   }
 
   void _showMenu(Offset offset, int index, Msg item, bool isOwner) {
@@ -307,65 +409,7 @@ class _WhisperDetailPageState
             () {
               final enablePublish = this.enablePublish.value;
               return IconButton(
-                onPressed: () async {
-                  if (enablePublish) {
-                    _whisperDetailController.sendMsg(
-                      message: editController.rawText,
-                      onClearText: () {
-                        editController.clear();
-                        this.enablePublish.value = false;
-                      },
-                    );
-                  } else {
-                    try {
-                      final pickedFile = await imagePicker.pickImage(
-                        source: ImageSource.gallery,
-                        imageQuality: 100,
-                        requestFullMetadata: false,
-                      );
-                      if (pickedFile != null) {
-                        final path = pickedFile.path;
-                        SmartDialog.showLoading(msg: '正在上传图片');
-                        final result = await MsgHttp.uploadBfs(
-                          path: path,
-                          biz: 'im',
-                        );
-                        if (result case Success(:final response)) {
-                          final mimeType =
-                              lookupMimeType(
-                                path,
-                              )?.split('/').elementAtOrNull(1) ??
-                              'jpg';
-                          final picMsg = {
-                            'url': response.imageUrl,
-                            'height': response.imageHeight,
-                            'width': response.imageWidth,
-                            'imageType': mimeType,
-                            'original': 1,
-                            'size': response.imgSize,
-                          };
-                          SmartDialog.showLoading(msg: '正在发送');
-                          await _whisperDetailController
-                              .sendMsg(
-                                picMsg: picMsg,
-                                onClearText: editController.clear,
-                              )
-                              .whenComplete(() {
-                                if (PlatformUtils.isMobile) {
-                                  File(path).tryDel();
-                                }
-                              });
-                        } else {
-                          SmartDialog.dismiss();
-                          result.toast();
-                          return;
-                        }
-                      }
-                    } catch (e) {
-                      SmartDialog.showToast(e.toString());
-                    }
-                  }
-                },
+                onPressed: () => _onSendOrPickImage(enablePublish),
                 icon: Icon(
                   enablePublish
                       ? Icons.send
@@ -380,8 +424,80 @@ class _WhisperDetailPageState
     );
   }
 
+  // Sends the text, or with none, picks an image and sends that.
+  Future<void> _onSendOrPickImage(bool enablePublish) async {
+    if (enablePublish) {
+      _whisperDetailController.sendMsg(
+        message: editController.rawText,
+        onClearText: () {
+          editController.clear();
+          this.enablePublish.value = false;
+        },
+      );
+    } else {
+      try {
+        final pickedFile = await imagePicker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 100,
+          requestFullMetadata: false,
+        );
+        if (pickedFile != null) {
+          final path = pickedFile.path;
+          SmartDialog.showLoading(msg: '正在上传图片');
+          final result = await MsgHttp.uploadBfs(
+            path: path,
+            biz: 'im',
+          );
+          if (result case Success(:final response)) {
+            final mimeType =
+                lookupMimeType(
+                  path,
+                )?.split('/').elementAtOrNull(1) ??
+                'jpg';
+            final picMsg = {
+              'url': response.imageUrl,
+              'height': response.imageHeight,
+              'width': response.imageWidth,
+              'imageType': mimeType,
+              'original': 1,
+              'size': response.imgSize,
+            };
+            SmartDialog.showLoading(msg: '正在发送');
+            await _whisperDetailController
+                .sendMsg(
+                  picMsg: picMsg,
+                  onClearText: editController.clear,
+                )
+                .whenComplete(() {
+                  if (PlatformUtils.isMobile) {
+                    File(path).tryDel();
+                  }
+                });
+          } else {
+            SmartDialog.dismiss();
+            result.toast();
+            return;
+          }
+        }
+      } catch (e) {
+        SmartDialog.showToast(e.toString());
+      }
+    }
+  }
+
   @override
-  Widget? get customPanel => EmotePanel(onChoose: onChooseEmote);
+  Widget? get customPanel {
+    final panel = EmotePanel(onChoose: onChooseEmote);
+    if (!_glassBar) return panel;
+    // Opaque, as the keyboard it takes the place of, under the floating bar.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _containerColor,
+        borderRadius: const .vertical(top: .circular(16)),
+      ),
+      child: Padding(padding: const .only(top: 8), child: panel),
+    );
+  }
 
   @override
   Future<void> onCustomPublish({List? pictures}) {

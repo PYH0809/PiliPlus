@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/hit_test.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/models/common/member/contribute_type.dart';
 import 'package:PiliPlus/models_new/space/space/tab2.dart';
@@ -6,6 +7,7 @@ import 'package:PiliPlus/pages/member_article/view.dart';
 import 'package:PiliPlus/pages/member_audio/view.dart';
 import 'package:PiliPlus/pages/member_comic/view.dart';
 import 'package:PiliPlus/pages/member_contribute/controller.dart';
+import 'package:PiliPlus/pages/member_contribute/widgets/glass_category_tabs.dart';
 import 'package:PiliPlus/pages/member_opus/view.dart';
 import 'package:PiliPlus/pages/member_season_series/view.dart';
 import 'package:PiliPlus/pages/member_video/view.dart';
@@ -36,6 +38,9 @@ class _MemberContributeState extends State<MemberContribute>
 
   late final MemberContributeCtr _controller;
 
+  // The categories on a pill of glass, the lists scrolling under it.
+  late final bool _glass = GlassSurfaces.installed;
+
   @override
   void initState() {
     super.initState();
@@ -52,7 +57,17 @@ class _MemberContributeState extends State<MemberContribute>
   Widget build(BuildContext context) {
     super.build(context);
     final theme = Theme.of(context);
-    return _controller.tabs != null
+    return _glass && _controller.tabs != null
+        ? GlassCategoryTabs(
+            controller: _controller.tabController!,
+            labels: [for (final item in _controller.items!) item.title ?? ''],
+            child: TabBarView(
+              physics: const NeverScrollableScrollPhysics(),
+              controller: _controller.tabController,
+              children: _controller.items!.map(_getPageFromType).toList(),
+            ),
+          )
+        : _controller.tabs != null
         ? Column(
             crossAxisAlignment: .stretch,
             children: [

@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
@@ -20,6 +21,19 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
     tag: Utils.generateRandomString(8),
   );
 
+  // Grown out of the space page's glass search button, the keyboard waits
+  // until the page has opened.
+  bool? _focusLater;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _focusLater ??= GlassMorphButton.deferUntilOpened(
+      context,
+      _controller.focusNode.requestFocus,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SimpleScaffold(
@@ -33,7 +47,7 @@ class _MemberSearchPageState extends State<MemberSearchPage> {
           const SizedBox(width: 10),
         ],
         title: TextField(
-          autofocus: true,
+          autofocus: !_focusLater!,
           focusNode: _controller.focusNode,
           controller: _controller.editingController,
           textInputAction: TextInputAction.search,

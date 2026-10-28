@@ -87,7 +87,9 @@ turns on every glass part. It only takes effect after a restart.
   ever means a press: a menu's current value takes a check at the row's end.
 - **Content under an overlaid header** starts with `HeaderOverlayInset.sliver(context)`, or uses
   `HeaderOverlayInset.below(...)` when it pins headers of its own. `RefreshIndicator` reads the inset, so the pull
-  indicator comes out from under the header.
+  indicator comes out from under the header. A bar at the bottom that the keyboard moves, as a chat's input bar, lays
+  out through `GlassChatLayout` (`lib/pages/whisper_detail/widget/glass_chat_layout.dart`), which hands the list
+  under it the bar's height in the same frame, so the newest message moves with the bar.
 - **Motion runs on `GlassSpring`s**, retargeted mid-flight, not on fixed curves. Respect
   `MediaQuery.disableAnimationsOf` by jumping instead of springing.
 - **Interactive glass** keeps keyboard focus and activation (`FocusableActionDetector` + `ActivateIntent`), shows a

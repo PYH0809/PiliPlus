@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -11,6 +12,7 @@ import 'package:PiliPlus/models/common/member/contribute_type.dart';
 import 'package:PiliPlus/models_new/space/space_archive/item.dart';
 import 'package:PiliPlus/pages/common/fab_mixin.dart';
 import 'package:PiliPlus/pages/member/controller.dart';
+import 'package:PiliPlus/pages/member_contribute/widgets/glass_category_tabs.dart';
 import 'package:PiliPlus/pages/member_video/controller.dart';
 import 'package:PiliPlus/pages/member_video/widgets/video_card_h_member_video.dart';
 import 'package:PiliPlus/utils/grid.dart';
@@ -142,6 +144,15 @@ class _MemberVideoState extends State<MemberVideo>
     Widget child = CustomScrollView(
       physics: ReloadScrollPhysics(controller: _controller),
       slivers: [
+        // Room for the 投稿 tab's glass categories, laid over the list,
+        // which the sort row leaves itself once the videos show.
+        Obx(
+          () => switch (_controller.loadingState.value) {
+            Success(:final response?) when response.isNotEmpty =>
+              const SliverToBoxAdapter(),
+            _ => HeaderOverlayInset.sliver(context),
+          },
+        ),
         SliverPadding(
           padding: EdgeInsets.only(bottom: padding.bottom + 100),
           sliver: Obx(
@@ -219,7 +230,7 @@ class _MemberVideoState extends State<MemberVideo>
         response != null && response.isNotEmpty
             ? SliverMainAxisGroup(
                 slivers: [
-                  _buildHeader(theme),
+                  FloatingUnderOverlay(header: _buildHeader(theme)),
                   SliverGrid.builder(
                     gridDelegate: gridDelegate,
                     itemBuilder: (context, index) {
@@ -244,7 +255,7 @@ class _MemberVideoState extends State<MemberVideo>
     };
   }
 
-  Widget _buildHeader(ThemeData theme) {
+  SliverFloatingHeaderWidget _buildHeader(ThemeData theme) {
     return SliverFloatingHeaderWidget(
       backgroundColor: theme.colorScheme.surface,
       child: Padding(
