@@ -1,7 +1,7 @@
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
-import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/glass_header.dart'
     show GlassCircle;
@@ -10,20 +10,23 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:material_ui/material_ui.dart';
 
 /// The search pages' bar in liquid glass, laid out as the home page's
-/// header: a round back button, then [field] on a capsule of glass, which
-/// holds its own buttons. With [onFieldTap] the capsule is a button.
+/// header: a round back button, then [field] on a capsule of glass, then
+/// [trailing], usually a 40 dp [GlassMorphButton]. With [onFieldTap] the
+/// capsule is a [GlassMorphButton] too, the page it opens growing out of it.
 class SearchGlassBar extends StatelessWidget {
   const SearchGlassBar({
     super.key,
     required this.field,
     this.onFieldTap,
+    this.trailing,
   });
 
   /// How tall the bar stands: 6 above the glass, 40 for it, 4 below.
   static const extent = 6.0 + 40.0 + 4.0;
 
   final Widget field;
-  final VoidCallback? onFieldTap;
+  final void Function(GlassMorphButtonState button)? onFieldTap;
+  final Widget? trailing;
 
   // As BackButtonIcon picks it.
   static IconData _backIcon(TargetPlatform platform) => switch (platform) {
@@ -49,7 +52,7 @@ class SearchGlassBar extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: switch (onFieldTap) {
-                final onTap? => LiquidGlassButton(
+                final onTap? => GlassMorphButton(
                   onTap: onTap,
                   shadows: shadows,
                   child: field,
@@ -61,6 +64,10 @@ class SearchGlassBar extends StatelessWidget {
                 ),
               },
             ),
+            if (trailing case final trailing?) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ],
           ],
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/widgets/disabled_icon.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/sliver_wrap.dart';
@@ -42,6 +43,8 @@ class _SearchPageState extends State<SearchPage> {
   // The search field on glass, over the history and trending, which scroll
   // under it.
   final bool _glass = GlassSurfaces.installed;
+  // The round search button the results grow out of, on glass.
+  final _searchButton = GlobalKey<GlassMorphButtonState>();
 
   @override
   void initState() {
@@ -113,7 +116,8 @@ class _SearchPageState extends State<SearchPage> {
     textInputAction: TextInputAction.search,
     onChanged: _searchController.onChange,
     decoration: decoration,
-    onSubmitted: (value) => _searchController.submit(),
+    onSubmitted: (value) =>
+        _searchController.submit(_searchButton.currentState),
   );
 
   Widget get _uidBtn => Obx(
@@ -128,9 +132,8 @@ class _SearchPageState extends State<SearchPage> {
         : const SizedBox.shrink(),
   );
 
-  /// The field on a capsule of glass, with its buttons at its end, as iOS
-  /// lays out a search field: clearing it while it holds text, and
-  /// searching.
+  /// The field on a capsule of glass, which clears it from its end while it
+  /// holds text, beside a round search button the results grow out of.
   Widget _buildGlassBar() {
     final colorScheme = theme.colorScheme;
     return SearchGlassBar(
@@ -166,12 +169,23 @@ class _SearchPageState extends State<SearchPage> {
                       onPressed: _searchController.onClear,
                     ),
             ),
-            IconButton(
-              tooltip: '搜索',
-              onPressed: _searchController.submit,
-              icon: const Icon(Icons.search, size: 22),
-            ),
           ],
+        ),
+      ),
+      trailing: SizedBox.square(
+        dimension: 40,
+        child: GlassMorphButton(
+          key: _searchButton,
+          tooltip: '搜索',
+          shadows: floatingGlassShadows(colorScheme),
+          onTap: _searchController.submit,
+          child: Center(
+            child: Icon(
+              Icons.search,
+              size: 22,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
       ),
     );

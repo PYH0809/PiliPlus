@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -73,9 +74,17 @@ class _SearchResultPageState extends State<SearchResultPage>
     super.dispose();
   }
 
-  void _onKeywordTap() {
+  /// Goes back to search the keyword. On glass, with no search page to go
+  /// back to, the search page grows out of [button], the keyword's capsule,
+  /// over these results, and returns into it.
+  void _onKeywordTap([GlassMorphButtonState? button]) {
     if (_isFromSearch) {
       Get.back(result: true);
+    } else if (button != null) {
+      button.toNamed(
+        '/search',
+        parameters: {'text': _searchResultController.keyword},
+      );
     } else {
       Get.offNamed(
         '/search',

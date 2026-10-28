@@ -1,6 +1,6 @@
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
-import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
 import 'package:PiliPlus/pages/search/widgets/search_glass_header.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,7 +30,8 @@ class _List extends StatelessWidget {
 
 Future<void> _pump(
   WidgetTester tester, {
-  VoidCallback? onFieldTap,
+  void Function(GlassMorphButtonState button)? onFieldTap,
+  Widget? trailing,
   double extent = SearchGlassBar.extent,
   Widget? below,
 }) async {
@@ -47,6 +48,7 @@ Future<void> _pump(
       children: [
         SearchGlassBar(
           onFieldTap: onFieldTap,
+          trailing: trailing,
           field: const Center(child: Text('原神')),
         ),
         ?below,
@@ -85,6 +87,23 @@ void main() {
     expect(capsule.right, 412 - 14);
     expect(capsule.top, back.top);
     expect(capsule.height, 40);
+  });
+
+  testWidgets('a trailing button stands 8 after the capsule, at the end', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      trailing: const SizedBox.square(
+        key: ValueKey('search'),
+        dimension: 40,
+      ),
+    );
+    final search = tester.getRect(find.byKey(const ValueKey('search')));
+    expect(search.right, 412 - 14);
+    expect(search.top, _statusBar + 6);
+    final capsule = tester.getRect(find.byType(LiquidGlass).at(1));
+    expect(capsule.right, search.left - 8);
   });
 
   testWidgets('the list starts below the bar and scrolls under it', (
@@ -127,19 +146,19 @@ void main() {
     expect(find.byType(SearchGlassBar), findsNothing);
   });
 
-  testWidgets('with onFieldTap the capsule is a button', (tester) async {
-    var taps = 0;
-    await _pump(tester, onFieldTap: () => taps++);
-    expect(
-      find.ancestor(
-        of: find.text('原神'),
-        matching: find.byType(LiquidGlassButton),
-      ),
-      findsOneWidget,
+  testWidgets('with onFieldTap the capsule is a button pages grow out of', (
+    tester,
+  ) async {
+    final taps = <GlassMorphButtonState>[];
+    await _pump(tester, onFieldTap: taps.add);
+    final button = find.ancestor(
+      of: find.text('原神'),
+      matching: find.byType(GlassMorphButton),
     );
+    expect(button, findsOneWidget);
     await tester.tap(find.text('原神'));
     await tester.pump();
-    expect(taps, 1);
+    expect(taps, [tester.state<GlassMorphButtonState>(button)]);
   });
 
   testWidgets('the status bar reads as over the surface', (tester) async {
