@@ -5,7 +5,9 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui show Image, ImageFilter, lerpDouble;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_droplet.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/goo.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
@@ -107,12 +109,149 @@ class GlassMorphButton extends StatefulWidget {
   }
 }
 
-class GlassMorphButtonState extends State<GlassMorphButton> {
-  // The page open out of this button, which stands hidden from when the page
-  // first shows until it has closed.
-  TransitionRoute<dynamic>? _route;
+class GlassMorphButtonState extends State<GlassMorphButton>
+    with _MorphOpener<GlassMorphButton> {
   bool _hidden = false;
 
+  @override
+  void _setHidden(bool hidden) => setState(() => _hidden = hidden);
+
+  @override
+  Widget _face() => widget.child;
+
+  @override
+  LiquidGlassStyle _styleOf(ColorScheme colorScheme) =>
+      widget.styleOf(colorScheme);
+
+  @override
+  List<BoxShadow> _shadowsOf(ColorScheme colorScheme) => widget.shadows;
+
+  @override
+  Widget build(BuildContext context) {
+    // Hidden, it takes no taps either: as its page returns, the route lets
+    // taps through to the page below, which would open it again.
+    return IgnorePointer(
+      ignoring: _hidden,
+      child: Opacity(
+        opacity: _hidden ? 0 : 1,
+        child: LiquidGlassButton(
+          styleOf: widget.styleOf,
+          shadows: widget.shadows,
+          tooltip: widget.tooltip,
+          onTap: () => widget.onTap(this),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// A button on a pane of glass it shares, as one in a [GlassButtonGroup],
+/// that opens a page out of itself as [GlassMorphButton] does: the page grows
+/// out of where the button stands and returns into it as a drop of glass.
+/// While the page is open the button's face stands hidden and the pane stays,
+/// unless the button stands alone in its group, which is then the whole
+/// button and hides as a [GlassMorphButton] does. [builder] builds the
+/// button, which opens the page with [GlassMorphSourceState.toNamed]; it is
+/// built in the morph too, so it holds no [GlobalKey]. Off glass, [toNamed]
+/// is [Get.toNamed].
+///
+/// ```dart
+/// GlassButtonGroup(
+///   children: [
+///     GlassMorphSource(
+///       builder: (context, source) => IconButton(
+///         tooltip: '搜索',
+///         onPressed: () => source.toNamed('/settingsSearch'),
+///         icon: const Icon(Icons.search),
+///       ),
+///     ),
+///   ],
+/// )
+/// ```
+class GlassMorphSource extends StatefulWidget {
+  const GlassMorphSource({super.key, required this.builder});
+
+  final Widget Function(BuildContext context, GlassMorphSourceState source)
+  builder;
+
+  @override
+  State<GlassMorphSource> createState() => GlassMorphSourceState();
+}
+
+class GlassMorphSourceState extends State<GlassMorphSource>
+    with _MorphOpener<GlassMorphSource> {
+  bool _hidden = false;
+
+  // Alone in its group, the button is the whole of it, pane and all.
+  GlassButtonGroupState? get _whole {
+    if (!mounted) {
+      return null;
+    }
+    final group = GlassButtonGroup.maybeOf(context);
+    return group != null && group.alone ? group : null;
+  }
+
+  bool get _glass =>
+      GlassButtonGroup.maybeOf(context)?.glass ?? GlassSurfaces.installed;
+
+  @override
+  Future<T?>? toNamed<T>(
+    String page, {
+    Map<String, String>? parameters,
+    dynamic arguments,
+  }) {
+    if (!_glass) {
+      return Get.toNamed(page, parameters: parameters, arguments: arguments);
+    }
+    return super.toNamed(page, parameters: parameters, arguments: arguments);
+  }
+
+  @override
+  RenderBox? get _box => _whole?.box ?? super._box;
+
+  @override
+  void _setHidden(bool hidden) {
+    if (_whole case final group?) {
+      group.hidden = hidden;
+    }
+    setState(() => _hidden = hidden);
+  }
+
+  @override
+  Widget _face() =>
+      Builder(builder: (context) => widget.builder(context, this));
+
+  @override
+  LiquidGlassStyle _styleOf(ColorScheme colorScheme) =>
+      GlassButtonGroup.styleOf(colorScheme);
+
+  // On a pane it shares, the glass it grows out of casts no shadow of its
+  // own over the pane's.
+  @override
+  List<BoxShadow> _shadowsOf(ColorScheme colorScheme) =>
+      _whole != null ? GlassButtonGroup.shadowsOf(colorScheme) : const [];
+
+  @override
+  Widget build(BuildContext context) {
+    // Hidden, it takes no taps either, as a GlassMorphButton.
+    return IgnorePointer(
+      ignoring: _hidden,
+      child: Opacity(
+        opacity: _hidden ? 0 : 1,
+        child: widget.builder(context, this),
+      ),
+    );
+  }
+}
+
+/// What opens a page out of a button: the route it opened, which the button
+/// stands hidden under from when the page first shows until it has closed,
+/// and what the morph draws of the button.
+mixin _MorphOpener<W extends StatefulWidget> on State<W> {
+  TransitionRoute<dynamic>? _route;
+
+  /// The button, whose rect the page grows from and returns into.
   RenderBox? get _box {
     if (!mounted) {
       return null;
@@ -120,6 +259,15 @@ class GlassMorphButtonState extends State<GlassMorphButton> {
     final box = context.findRenderObject();
     return box is RenderBox && box.attached && box.hasSize ? box : null;
   }
+
+  void _setHidden(bool hidden);
+
+  /// The button's face, drawn in the glass as it leaves and as it returns.
+  Widget _face();
+
+  LiquidGlassStyle _styleOf(ColorScheme colorScheme);
+
+  List<BoxShadow> _shadowsOf(ColorScheme colorScheme);
 
   /// Opens the page named [page] out of this button, as [Get.toNamed] does.
   /// With animations turned off, or no route by that name, it is
@@ -168,7 +316,7 @@ class GlassMorphButtonState extends State<GlassMorphButton> {
     // the button hides as the page first shows, a frame on.
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(_route, route)) {
-        setState(() => _hidden = true);
+        _setHidden(true);
       }
     });
     return opened;
@@ -187,7 +335,7 @@ class GlassMorphButtonState extends State<GlassMorphButton> {
     route.animation?.removeStatusListener(_handleRouteStatus);
     _route = null;
     if (mounted) {
-      setState(() => _hidden = false);
+      _setHidden(false);
     }
   }
 
@@ -196,25 +344,6 @@ class GlassMorphButtonState extends State<GlassMorphButton> {
     _route?.animation?.removeStatusListener(_handleRouteStatus);
     _route = null;
     super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Hidden, it takes no taps either: as its page returns, the route lets
-    // taps through to the page below, which would open it again.
-    return IgnorePointer(
-      ignoring: _hidden,
-      child: Opacity(
-        opacity: _hidden ? 0 : 1,
-        child: LiquidGlassButton(
-          styleOf: widget.styleOf,
-          shadows: widget.shadows,
-          tooltip: widget.tooltip,
-          onTap: () => widget.onTap(this),
-          child: widget.child,
-        ),
-      ),
-    );
   }
 }
 
@@ -229,7 +358,7 @@ class _GlassMorphRoute<T> extends GetPageRoute<T> {
     super.middlewares,
   });
 
-  final GlassMorphButtonState source;
+  final _MorphOpener<StatefulWidget> source;
 
   // The route's own animation. Its first frame, offstage for heroes to
   // measure, shows its pages a completed one in its place.
@@ -274,7 +403,7 @@ class _PageMorph extends StatefulWidget {
   });
 
   final Animation<double> animation;
-  final GlassMorphButtonState source;
+  final _MorphOpener<StatefulWidget> source;
   final Widget child;
 
   @override
@@ -358,7 +487,7 @@ class _PageMorphState extends State<_PageMorph> {
       child: IgnorePointer(
         child: Material(
           type: MaterialType.transparency,
-          child: source.widget.child,
+          child: source._face(),
         ),
       ),
     );
@@ -376,9 +505,9 @@ class _PageMorphState extends State<_PageMorph> {
           returnTime: status.isForwardOrCompleted ? null : _returnTime,
           source: _sourceBox,
           faceSize: _sourceBox?.size ?? Size.zero,
-          buttonStyle: source.widget.styleOf(colorScheme),
+          buttonStyle: source._styleOf(colorScheme),
           pageStyle: LiquidGlassStyle.menu(colorScheme),
-          buttonShadows: source.widget.shadows,
+          buttonShadows: source._shadowsOf(colorScheme),
           colorScheme: colorScheme,
           devicePixelRatio: media.devicePixelRatio,
           children: [child!, face],
