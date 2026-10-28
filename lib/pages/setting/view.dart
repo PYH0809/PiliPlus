@@ -110,6 +110,9 @@ class _SettingPageState extends State<SettingPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isPortrait && GlassAppBar.enabled) {
+      return _buildGlassPanes();
+    }
     return SimpleScaffold(
       appBar: GlassAppBar(
         title: _isPortrait ? const Text('设置') : Text(_type.title),
@@ -130,16 +133,58 @@ class _SettingPageState extends State<SettingPage> {
                   ),
                   Expanded(
                     flex: 6,
-                    child: switch (_type) {
-                      .webdavSetting => const WebDavSettingPage(
-                        showAppBar: false,
-                      ),
-                      .about => const AboutPage(showAppBar: false),
-                      _ => CommonSetting(settingType: _type, showAppBar: false),
-                    },
+                    child: _detail,
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget get _detail => switch (_type) {
+    .webdavSetting => const WebDavSettingPage(showAppBar: false),
+    .about => const AboutPage(showAppBar: false),
+    _ => CommonSetting(settingType: _type, showAppBar: false),
+  };
+
+  // On glass each pane has a bar of its own, as iPad's split views have, so
+  // that each title stands over its own pane and the divider runs between
+  // the bars rather than through one.
+  Widget _buildGlassPanes() {
+    return Material(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 4,
+            child: MediaQuery.removePadding(
+              context: context,
+              removeRight: true,
+              child: SimpleScaffold(
+                appBar: const GlassAppBar(title: Text('设置')),
+                body: ViewSafeArea(child: _buildList(theme)),
+              ),
+            ),
+          ),
+          VerticalDivider(
+            width: 1,
+            color: theme.colorScheme.outline.withValues(alpha: 0.1),
+          ),
+          Expanded(
+            flex: 6,
+            child: MediaQuery.removePadding(
+              context: context,
+              removeLeft: true,
+              child: SimpleScaffold(
+                appBar: GlassAppBar(
+                  automaticallyImplyLeading: false,
+                  title: Text(_type.title),
+                ),
+                body: ViewSafeArea(child: _detail),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
