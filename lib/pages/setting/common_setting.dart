@@ -1,3 +1,5 @@
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/models/common/setting_type.dart';
 import 'package:PiliPlus/pages/setting/models/model.dart';
@@ -49,16 +51,21 @@ class _CommonSettingState extends State<CommonSetting> {
   Widget build(BuildContext context) {
     final showAppBar = widget.showAppBar;
     return SimpleScaffold(
-      appBar: showAppBar ? AppBar(title: Text(widget.settingType.title)) : null,
-      body: ListView.builder(
-        key: ValueKey(widget.settingType),
-        padding: EdgeInsets.only(
-          left: showAppBar ? padding.left : 0,
-          right: showAppBar ? padding.right : 0,
-          bottom: padding.bottom + 100,
+      appBar: showAppBar
+          ? GlassAppBar(title: Text(widget.settingType.title))
+          : null,
+      body: Builder(
+        builder: (context) => ListView.builder(
+          key: ValueKey(widget.settingType),
+          padding: EdgeInsets.only(
+            top: HeaderOverlayInset.of(context),
+            left: showAppBar ? padding.left : 0,
+            right: showAppBar ? padding.right : 0,
+            bottom: padding.bottom + 100,
+          ),
+          itemCount: settings.length,
+          itemBuilder: (context, index) => settings[index].widget,
         ),
-        itemCount: settings.length,
-        itemBuilder: (context, index) => settings[index].widget,
       ),
     );
   }

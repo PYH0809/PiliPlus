@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/utils/extension/box_ext.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
@@ -149,7 +150,7 @@ class _FontSettingPageState extends State<FontSettingPage> {
       customFonts = null;
     }
     return SimpleScaffold(
-      appBar: AppBar(
+      appBar: GlassAppBar(
         title: const Text('App字体设置'),
         actions: [
           TextButton(
@@ -172,6 +173,7 @@ class _FontSettingPageState extends State<FontSettingPage> {
         child: Flex(
           direction: isPortrait ? .vertical : .horizontal,
           children: [
+            if (isPortrait) const HeaderOverlaySpace(),
             Expanded(
               flex: isPortrait ? 1 : 2,
               child: Center(
@@ -205,6 +207,7 @@ class _FontSettingPageState extends State<FontSettingPage> {
             Expanded(
               child: Column(
                 children: [
+                  if (!isPortrait) const HeaderOverlaySpace(),
                   Padding(
                     padding: const .symmetric(horizontal: 16, vertical: 5),
                     child: GestureDetector(

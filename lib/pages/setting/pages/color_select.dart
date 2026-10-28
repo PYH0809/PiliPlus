@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:PiliPlus/common/widgets/animated_height.dart';
 import 'package:PiliPlus/common/widgets/color_palette.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/main.dart' show MyApp;
 import 'package:PiliPlus/models/common/nav_bar_config.dart';
@@ -80,12 +81,13 @@ class _ColorSelectPageState extends State<ColorSelectPage> {
       context,
     ).copyWith(top: 0, bottom: 0);
     return SimpleScaffold(
-      appBar: AppBar(title: const Text('选择应用主题')),
+      appBar: const GlassAppBar(title: Text('选择应用主题')),
       body: ListView(
         padding: .only(
           bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
         ),
         children: [
+          const HeaderOverlaySpace(),
           ListTile(
             onTap: () async {
               final result = await showDialog<ThemeType>(

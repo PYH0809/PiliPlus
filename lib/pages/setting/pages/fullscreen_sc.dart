@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/extra_hittest_stack.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/models_new/live/live_superchat/item.dart';
@@ -102,7 +103,7 @@ class _FullScreenScState extends State<FullScreenSc> {
   @override
   Widget build(BuildContext context) {
     return SimpleScaffold(
-      appBar: AppBar(
+      appBar: GlassAppBar(
         title: Row(
           children: [
             const Text('全屏 SuperChat 设置'),
@@ -151,6 +152,7 @@ class _FullScreenScState extends State<FullScreenSc> {
                     child: Column(
                       mainAxisSize: .min,
                       children: [
+                        const HeaderOverlaySpace(),
                         Row(
                           children: [
                             Expanded(

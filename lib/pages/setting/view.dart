@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/http/login.dart';
@@ -110,7 +111,7 @@ class _SettingPageState extends State<SettingPage> {
   @override
   Widget build(BuildContext context) {
     return SimpleScaffold(
-      appBar: AppBar(
+      appBar: GlassAppBar(
         title: _isPortrait ? const Text('设置') : Text(_type.title),
       ),
       body: ViewSafeArea(
@@ -181,6 +182,7 @@ class _SettingPageState extends State<SettingPage> {
     return ListView(
       padding: EdgeInsets.only(bottom: padding.bottom + 100),
       children: [
+        const HeaderOverlaySpace(),
         _buildSearchItem(theme),
         ..._items
             .take(_items.length - 1)
