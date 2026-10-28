@@ -4,7 +4,9 @@ import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/list_tile.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/mine_tab_type.dart';
@@ -15,6 +17,7 @@ import 'package:PiliPlus/pages/login/controller.dart';
 import 'package:PiliPlus/pages/main/controller.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/pages/mine/widgets/fav_item.dart';
+import 'package:PiliPlus/pages/mine/widgets/glass_header.dart';
 import 'package:PiliPlus/pages/mine/widgets/history_item.dart';
 import 'package:PiliPlus/pages/mine/widgets/later_item.dart';
 import 'package:PiliPlus/pages/mine/widgets/sub_item.dart';
@@ -43,6 +46,9 @@ class _MediaPageState extends CommonPageState<MinePage>
   final MineController controller = Get.putOrFind(MineController.new);
   late final MainController _mainController = Get.find<MainController>();
   late ThemeData theme;
+
+  // The header in liquid glass, laid over the list, which scrolls under it.
+  late final bool _glass = _mainController.liquidGlass;
 
   @override
   bool get wantKeepAlive => true;
@@ -76,39 +82,51 @@ class _MediaPageState extends CommonPageState<MinePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final secondary = theme.colorScheme.secondary;
+    if (_glass) {
+      return MineGlassBody(
+        showBackBtn: widget.showBackBtn,
+        actions: _headerButtons,
+        content: _buildList(),
+      );
+    }
     return Column(
       children: [
         Padding(
           padding: const .symmetric(vertical: 10),
           child: _buildHeaderActions,
         ),
-        Expanded(
-          child: Material(
-            type: .transparency,
-            child: refreshIndicator(
-              onRefresh: controller.onRefresh,
-              child: onBuild(
-                ListView(
-                  padding: const .only(bottom: 150),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    _buildUserInfo(theme, secondary),
-                    _buildActions(secondary),
-                    for (final tab in controller.mineTabs)
-                      switch (tab) {
-                        .favorite => Obx(_buildFav),
-                        .history => Obx(_buildHistory),
-                        .later => Obx(_buildLater),
-                        .sub => Obx(_buildSub),
-                      },
-                  ],
-                ),
-              ),
+        Expanded(child: _buildList()),
+      ],
+    );
+  }
+
+  Widget _buildList() {
+    final secondary = theme.colorScheme.secondary;
+    return Material(
+      type: .transparency,
+      child: refreshIndicator(
+        onRefresh: controller.onRefresh,
+        child: onBuild(
+          Builder(
+            // Starts below a header laid over the list, if any.
+            builder: (context) => ListView(
+              padding: .only(top: HeaderOverlayInset.of(context), bottom: 150),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                _buildUserInfo(theme, secondary),
+                _buildActions(secondary),
+                for (final tab in controller.mineTabs)
+                  switch (tab) {
+                    .favorite => Obx(_buildFav),
+                    .history => Obx(_buildHistory),
+                    .later => Obx(_buildLater),
+                    .sub => Obx(_buildSub),
+                  },
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -147,9 +165,6 @@ class _MediaPageState extends CommonPageState<MinePage>
   }
 
   Widget get _buildHeaderActions {
-    const iconSize = 22.0;
-    const padding = EdgeInsets.all(8);
-    const style = ButtonStyle(tapTargetSize: .shrinkWrap);
     return PlayerBar(
       left: widget.showBackBtn
           ? const Padding(
@@ -160,71 +175,105 @@ class _MediaPageState extends CommonPageState<MinePage>
       right: Row(
         spacing: 5,
         mainAxisSize: .min,
-        children: [
-          if (!_mainController.hasHome) ...[
-            IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '搜索',
-              onPressed: () => Get.toNamed('/search'),
-              icon: const Icon(Icons.search),
-            ),
-            msgBadge(_mainController),
-          ],
-          if (GStorage.reply != null)
-            IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '评论记录',
-              onPressed: () => Get.toNamed('/myReply'),
-              icon: const Icon(Icons.message_outlined),
-            ),
-          Obx(
-            () {
-              final anonymity = MineController.anonymity.value;
-              return IconButton(
-                iconSize: iconSize,
-                padding: padding,
-                style: style,
-                tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
-                onPressed: MineController.onChangeAnonymity,
-                icon: anonymity
-                    ? const Icon(MdiIcons.incognito)
-                    : const Icon(MdiIcons.incognitoOff),
-              );
-            },
-          ),
-          IconButton(
-            iconSize: iconSize,
-            padding: padding,
-            style: style,
-            tooltip: '切换账号',
-            onPressed: () => LoginPageController.switchAccountDialog(context),
-            icon: const Icon(Icons.switch_account_outlined),
-          ),
-          Obx(
-            () => IconButton(
-              iconSize: iconSize,
-              padding: padding,
-              style: style,
-              tooltip: '切换至${controller.nextThemeType.label}主题',
-              onPressed: controller.onChangeTheme,
-              icon: controller.themeType.value.icon,
-            ),
-          ),
-          IconButton(
-            iconSize: iconSize,
-            padding: padding,
-            style: style,
-            tooltip: '设置',
-            onPressed: () => Get.toNamed('/setting', preventDuplicates: false),
-            icon: const Icon(Icons.settings_outlined),
-          ),
-          const SizedBox(width: 16),
-        ],
+        children: [..._headerButtons, const SizedBox(width: 16)],
       ),
+    );
+  }
+
+  /// The header's buttons, in a row, or with glass on one pane of it.
+  List<Widget> get _headerButtons {
+    const iconSize = 22.0;
+    const padding = EdgeInsets.all(8);
+    const style = ButtonStyle(tapTargetSize: .shrinkWrap);
+    return [
+      if (!_mainController.hasHome) ...[
+        _opening(
+          '/search',
+          (onPressed) => IconButton(
+            iconSize: iconSize,
+            padding: padding,
+            style: style,
+            tooltip: '搜索',
+            onPressed: onPressed,
+            icon: const Icon(Icons.search),
+          ),
+        ),
+        msgBadge(_mainController, grouped: _glass),
+      ],
+      if (GStorage.reply != null)
+        _opening(
+          '/myReply',
+          (onPressed) => IconButton(
+            iconSize: iconSize,
+            padding: padding,
+            style: style,
+            tooltip: '评论记录',
+            onPressed: onPressed,
+            icon: const Icon(Icons.message_outlined),
+          ),
+        ),
+      Obx(
+        () {
+          final anonymity = MineController.anonymity.value;
+          return IconButton(
+            iconSize: iconSize,
+            padding: padding,
+            style: style,
+            tooltip: "${anonymity ? '退出' : '进入'}无痕模式",
+            onPressed: MineController.onChangeAnonymity,
+            icon: anonymity
+                ? const Icon(MdiIcons.incognito)
+                : const Icon(MdiIcons.incognitoOff),
+          );
+        },
+      ),
+      IconButton(
+        iconSize: iconSize,
+        padding: padding,
+        style: style,
+        tooltip: '切换账号',
+        onPressed: () => LoginPageController.switchAccountDialog(context),
+        icon: const Icon(Icons.switch_account_outlined),
+      ),
+      Obx(
+        () => IconButton(
+          iconSize: iconSize,
+          padding: padding,
+          style: style,
+          tooltip: '切换至${controller.nextThemeType.label}主题',
+          onPressed: controller.onChangeTheme,
+          icon: controller.themeType.value.icon,
+        ),
+      ),
+      _opening(
+        '/setting',
+        (onPressed) => IconButton(
+          iconSize: iconSize,
+          padding: padding,
+          style: style,
+          tooltip: '设置',
+          onPressed: onPressed,
+          icon: const Icon(Icons.settings_outlined),
+        ),
+        preventDuplicates: false,
+      ),
+    ];
+  }
+
+  /// [button], which opens [page]: with glass, the page grows out of it and
+  /// returns into it.
+  Widget _opening(
+    String page,
+    Widget Function(VoidCallback onPressed) button, {
+    bool preventDuplicates = true,
+  }) {
+    if (!_glass) {
+      return button(
+        () => Get.toNamed(page, preventDuplicates: preventDuplicates),
+      );
+    }
+    return GlassMorphSource(
+      builder: (context, source) => button(() => source.toNamed(page)),
     );
   }
 

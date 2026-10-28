@@ -153,8 +153,11 @@ class GlassButtonGroupState extends State<GlassButtonGroup> {
               height: GlassButtonGroup.thickness,
               child: buttons,
             ),
-            Axis.vertical => SizedBox(
-              width: GlassButtonGroup.thickness,
+            // As wide as its widest button, a TextButton's label and all.
+            Axis.vertical => ConstrainedBox(
+              constraints: const BoxConstraints(
+                minWidth: GlassButtonGroup.thickness,
+              ),
               child: buttons,
             ),
           },

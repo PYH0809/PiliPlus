@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_height_widget.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
@@ -418,7 +419,14 @@ void _openMessages(MainController mainController) {
   Get.toNamed('/whisper');
 }
 
-Widget msgBadge(MainController mainController, {bool glass = false}) {
+/// The way to the messages: with [glass] on a glass button of its own, and
+/// with [grouped] a button on a [GlassButtonGroup]'s pane, the page growing
+/// out of either.
+Widget msgBadge(
+  MainController mainController, {
+  bool glass = false,
+  bool grouped = false,
+}) {
   return Obx(
     () {
       if (mainController.accountService.isLogin.value) {
@@ -446,6 +454,18 @@ Widget msgBadge(MainController mainController, {bool glass = false}) {
                 },
                 child: Center(child: icon),
               ),
+            ),
+          );
+        }
+        if (grouped) {
+          return GlassMorphSource(
+            builder: (context, source) => IconButton(
+              tooltip: '消息',
+              onPressed: () {
+                _readMessages(mainController);
+                source.toNamed('/whisper');
+              },
+              icon: icon,
             ),
           );
         }

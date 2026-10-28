@@ -102,6 +102,30 @@ void main() {
     expect(tester.getTopLeft(find.byTooltip('下')).dy, pane.top + _side);
   });
 
+  testWidgets('a column is as wide as its widest button', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        GlassButtonGroup(
+          glass: true,
+          direction: Axis.vertical,
+          children: [
+            _button('上'),
+            TextButton(onPressed: () {}, child: const Text('全部收藏夹')),
+          ],
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final pane = tester.getRect(find.byType(LiquidGlass));
+    final label = tester.getRect(find.byType(TextButton));
+    expect(pane.width, label.width);
+    expect(pane.width, greaterThan(_side));
+    // The label on one line, the icon button centred above it.
+    expect(tester.getSize(find.text('全部收藏夹')).height, lessThan(_side));
+    expect(tester.getCenter(find.byTooltip('上')).dx, pane.center.dx);
+    expect(tester.getSize(find.byTooltip('上')), const Size.square(_side));
+  });
+
   testWidgets('a pressed button alone stands on a platter, inset 2 dp', (
     tester,
   ) async {
