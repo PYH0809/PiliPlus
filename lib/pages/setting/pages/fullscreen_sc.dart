@@ -105,8 +105,15 @@ class _FullScreenScState extends State<FullScreenSc> {
     return SimpleScaffold(
       appBar: GlassAppBar(
         title: Row(
+          mainAxisSize: .min,
           children: [
-            const Text('全屏 SuperChat 设置'),
+            // Ellipsized where the bar is narrow, so the switch stays whole.
+            const Flexible(
+              child: Text(
+                '全屏 SuperChat 设置',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             Transform.scale(
               scale: GlassSurfaces.switchScale,
               alignment: .centerRight,

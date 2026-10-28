@@ -513,6 +513,45 @@ void main() {
       expect(find.byTooltip('Back'), findsOneWidget);
     });
 
+    testWidgets('a title with a switch fits a narrow bar, ellipsized', (
+      tester,
+    ) async {
+      // As 全屏 SuperChat 设置's title.
+      await _pump(
+        tester,
+        SimpleScaffold(
+          appBar: GlassAppBar(
+            title: Row(
+              mainAxisSize: .min,
+              children: [
+                const Flexible(
+                  child: Text(
+                    '全屏 SuperChat 设置',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Switch(value: true, onChanged: (_) {}),
+              ],
+            ),
+            actions: [TextButton(onPressed: () {}, child: const Text('重置'))],
+          ),
+          body: _list(),
+        ),
+      );
+      tester.view.physicalSize = const Size(300, 800);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final toggle = tester.getRect(find.byType(Switch));
+      expect(
+        toggle.right,
+        lessThanOrEqualTo(_paneUnder(tester, find.text('重置')).left),
+      );
+      expect(
+        toggle.left,
+        greaterThanOrEqualTo(_paneUnder(tester, find.byTooltip('Back')).right),
+      );
+    });
+
     testWidgets("a Scaffold's drawers get their glass buttons, as AppBar's", (
       tester,
     ) async {
