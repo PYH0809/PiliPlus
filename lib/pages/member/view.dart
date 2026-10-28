@@ -6,6 +6,8 @@ import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/dialog/report_member.dart';
 import 'package:PiliPlus/common/widgets/dynamic_sliver_app_bar/dynamic_sliver_app_bar.dart';
 import 'package:PiliPlus/common/widgets/gesture/tap_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart'
     show NoOverscrollIndicator;
@@ -22,6 +24,7 @@ import 'package:PiliPlus/pages/login_devices/view.dart';
 import 'package:PiliPlus/pages/login_log/controller.dart';
 import 'package:PiliPlus/pages/member/controller.dart';
 import 'package:PiliPlus/pages/member/widget/medal_wall.dart';
+import 'package:PiliPlus/pages/member/widget/member_glass.dart';
 import 'package:PiliPlus/pages/member/widget/reserve_button.dart';
 import 'package:PiliPlus/pages/member/widget/user_info_card.dart';
 import 'package:PiliPlus/pages/member_cheese/view.dart';
@@ -64,6 +67,9 @@ class _MemberPageState extends State<MemberPage> {
   PageController getHeaderController() =>
       _headerController ??= PageController();
 
+  // The bar's buttons in liquid glass, floating on the banner.
+  late final bool _glass = GlassSurfaces.installed;
+
   @override
   void initState() {
     super.initState();
@@ -103,7 +109,9 @@ class _MemberPageState extends State<MemberPage> {
               if (response != null) {
                 return [
                   DynamicSliverAppBar.medium(
-                    actions: _actions(theme),
+                    leading: _glass ? MemberGlassBar.leading(context) : null,
+                    leadingWidth: _glass ? MemberGlassBar.leadingWidth : null,
+                    actions: _barActions(theme),
                     title: Text(_userController.username ?? ''),
                     flexibleSpace: Obx(
                       () => UserInfoCard(
@@ -130,7 +138,9 @@ class _MemberPageState extends State<MemberPage> {
               return [
                 SliverAppBar(
                   pinned: true,
-                  actions: _actions(theme),
+                  leading: _glass ? MemberGlassBar.leading(context) : null,
+                  leadingWidth: _glass ? MemberGlassBar.leadingWidth : null,
+                  actions: _barActions(theme),
                   title: GestureDetector(
                     onTap: _userController.onReload,
                     behavior: HitTestBehavior.opaque,
@@ -334,16 +344,35 @@ class _MemberPageState extends State<MemberPage> {
     );
   }
 
+  List<Widget> _barActions(ColorScheme theme) =>
+      _glass ? MemberGlassBar.actions(_actions(theme)) : _actions(theme);
+
   List<Widget> _actions(ColorScheme theme) => [
     if (_userController.reserves?.isNotEmpty ?? false)
       _reserveBtn(_userController.reserves!, theme),
-    IconButton(
-      tooltip: '搜索',
-      onPressed: () => Get.toNamed(
-        '/memberSearch?mid=$_mid&uname=${_userController.username}',
+    if (_glass)
+      // The search page grows out of the button, as the home page's does.
+      GlassMorphSource(
+        builder: (context, source) => IconButton(
+          tooltip: '搜索',
+          onPressed: () => source.toNamed(
+            '/memberSearch',
+            parameters: {
+              'mid': '$_mid',
+              'uname': '${_userController.username}',
+            },
+          ),
+          icon: const Icon(Icons.search_outlined),
+        ),
+      )
+    else
+      IconButton(
+        tooltip: '搜索',
+        onPressed: () => Get.toNamed(
+          '/memberSearch?mid=$_mid&uname=${_userController.username}',
+        ),
+        icon: const Icon(Icons.search_outlined),
       ),
-      icon: const Icon(Icons.search_outlined),
-    ),
     PopupMenuButton(
       icon: const Icon(Icons.more_vert),
       itemBuilder: (_) => <PopupMenuEntry>[
