@@ -299,6 +299,59 @@ void main() {
     expect(_opacityAbove(tester, find.byType(LiquidGlass).first), 1);
   });
 
+  testWidgets('a keyed GlassMorphButton moved under its page keeps it', (
+    tester,
+  ) async {
+    // As 设置's search, between the bar and the landscape list pane's.
+    final key = GlobalKey<GlassMorphButtonState>();
+    final moved = ValueNotifier(false);
+    addTearDown(moved.dispose);
+    Widget button() => SizedBox.square(
+      dimension: 40,
+      child: GlassMorphButton(
+        key: key,
+        tooltip: '搜索',
+        onTap: (button) => button.toNamed('/search'),
+        child: const Icon(Icons.search),
+      ),
+    );
+    await _pump(
+      tester,
+      ValueListenableBuilder(
+        valueListenable: moved,
+        builder: (_, moved, _) => moved
+            ? Align(alignment: Alignment.topLeft, child: button())
+            : button(),
+      ),
+    );
+    final state = key.currentState;
+    await tester.tap(find.byTooltip('搜索'));
+    await tester.pumpAndSettle();
+    moved.value = true;
+    await tester.pump();
+    // The same button, still hidden under its page, where it stands now.
+    expect(key.currentState, same(state));
+    expect(
+      tester
+          .widget<Opacity>(
+            find
+                .descendant(
+                  of: find.byKey(key, skipOffstage: false),
+                  matching: find.byType(Opacity, skipOffstage: false),
+                )
+                .first,
+          )
+          .opacity,
+      0,
+    );
+
+    Get.back<void>();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(_opacityAbove(tester, find.byType(LiquidGlass).first), 1);
+    expect(tester.getTopLeft(find.byTooltip('搜索')), Offset.zero);
+  });
+
   testWidgets('the face of a button scaled down is drawn at its size', (
     tester,
   ) async {

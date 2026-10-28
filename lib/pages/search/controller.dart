@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/search.dart';
 import 'package:PiliPlus/models/search/suggest.dart';
@@ -163,7 +164,9 @@ class SSearchController extends GetxController
   }
 
   // 搜索
-  Future<void> submit() async {
+  /// Searches; on glass the results grow out of [button], the round search
+  /// button, and return into it.
+  Future<void> submit([GlassMorphButtonState? button]) async {
     if (controller.text.isEmpty) {
       if (hintText.isNullOrEmpty) return;
       controller.text = hintText!;
@@ -186,11 +189,13 @@ class SSearchController extends GetxController
     }
 
     searchFocusNode.unfocus();
-    Get.toNamed(
-      '/searchResult',
-      parameters: {'tag': tag, 'keyword': text},
-      arguments: {'initIndex': initIndex, 'fromSearch': true},
-    )?.then((val) {
+    const page = '/searchResult';
+    final parameters = {'tag': tag, 'keyword': text};
+    final arguments = {'initIndex': initIndex, 'fromSearch': true};
+    final opened = button != null
+        ? button.toNamed(page, parameters: parameters, arguments: arguments)
+        : Get.toNamed(page, parameters: parameters, arguments: arguments);
+    opened?.then((val) {
       searchFocusNode.requestFocus();
       if (val is bool && val) {
         onValueChanged(text);

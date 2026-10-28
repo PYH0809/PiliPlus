@@ -21,6 +21,7 @@ import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recogniz
     show touchSlopH;
 import 'package:PiliPlus/common/widgets/gesture/image_horizontal_drag_gesture_recognizer.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/foundation.dart' show clampDouble;
 import 'package:flutter/gestures.dart'
     show
@@ -39,6 +40,14 @@ import 'package:material_ui/material_ui.dart';
 ///
 /// created by dom on 2026/02/14
 ///
+
+/// Whether a [Viewer]'s image is zoomed in past its fit, sent up as it
+/// changes and once as it first shows, for what floats over it to step aside.
+class ViewerZoomNotification extends Notification {
+  const ViewerZoomNotification(this.zoomed);
+
+  final bool zoomed;
+}
 
 class Viewer extends StatefulWidget {
   const Viewer({
@@ -114,6 +123,20 @@ class _ViewerState extends State<Viewer> with SingleTickerProviderStateMixin {
 
   late double _scaleFrom, _scaleTo;
   late Offset _positionFrom, _positionTo;
+
+  bool? _zoomed;
+
+  // After the frame, as a listener may rebuild what lies beside the viewer.
+  void _reportZoom() {
+    final zoomed = _scale > widget.minScale;
+    if (zoomed == _zoomed) return;
+    _zoomed = zoomed;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ViewerZoomNotification(zoomed).dispatch(context);
+      }
+    });
+  }
 
   void _listener() {
     final t = Curves.easeOut.transform(_animationController.value);
@@ -455,8 +478,14 @@ class _ViewerState extends State<Viewer> with SingleTickerProviderStateMixin {
     _gestureType = null;
   }
 
+  // Only the glass over the gallery listens.
+  static final bool _glass = Pref.liquidGlass;
+
   @override
   Widget build(BuildContext context) {
+    if (_glass) {
+      _reportZoom();
+    }
     return Listener(
       behavior: .opaque,
       onPointerDown: _onPointerDown,

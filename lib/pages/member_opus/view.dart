@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/skeleton/space_opus.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -73,6 +74,8 @@ class _MemberOpusState extends State<MemberOpus>
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              // Room for the 投稿 tab's glass categories, laid over the list.
+              HeaderOverlayInset.sliver(context),
               SliverPadding(
                 padding: EdgeInsets.only(
                   top: widget.isSingle ? 12 : 0,

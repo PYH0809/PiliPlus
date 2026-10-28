@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
@@ -59,6 +60,9 @@ class DynLikePage extends StatelessWidget {
           ? platformAlwaysClampingPhysics
           : const AlwaysScrollableScrollPhysics(),
       slivers: [
+        // Room for the tabs laid over the list on glass.
+        if (HeaderOverlayInset.of(context) > 0)
+          HeaderOverlayInset.sliver(context),
         SliverPadding(
           padding: .only(
             bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
