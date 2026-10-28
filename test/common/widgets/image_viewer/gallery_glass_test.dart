@@ -126,6 +126,51 @@ void main() {
       await tester.pump();
       expect(find.byType(LiquidGlass), findsNothing);
     });
+
+    testWidgets('steps aside as a page turns under it', (tester) async {
+      final turning = ValueNotifier(0.0);
+      addTearDown(turning.dispose);
+      await tester.pumpWidget(
+        _app(
+          GalleryGlass(
+            drag: drag,
+            zoomed: zoomed,
+            turning: turning,
+            child: const Text('1/2'),
+          ),
+        ),
+      );
+      expect(find.byType(LiquidGlass), findsOneWidget);
+
+      turning.value = 0.5;
+      await tester.pump();
+      expect(find.byType(LiquidGlass), findsOneWidget);
+
+      turning.value = 1;
+      await tester.pump();
+      expect(find.byType(LiquidGlass), findsNothing);
+
+      turning.value = 0;
+      await tester.pump();
+      expect(find.byType(LiquidGlass), findsOneWidget);
+    });
+  });
+
+  test('steps aside only while a page with a video turns', () {
+    // A video on the second page of three.
+    bool isVideo(int index) => index == 1;
+    double away(double page) => GalleryGlass.turningAway(page, isVideo);
+
+    expect(away(0), 0, reason: 'settled on an image');
+    expect(away(1), 0, reason: 'settled on the video');
+    expect(away(0.1), closeTo(0.4, 1e-9), reason: 'the video coming in');
+    expect(away(0.3), 1);
+    expect(away(0.5), 1, reason: 'the glass over both pages');
+    expect(away(0.9), closeTo(0.4, 1e-9));
+    expect(away(1.8), closeTo(0.8, 1e-9), reason: 'the video going out');
+
+    // Between two images, nothing changes under the glass that it can't see.
+    expect(GalleryGlass.turningAway(0.5, (_) => false), 0);
   });
 
   testWidgets('Viewer reports whether it is zoomed in', (tester) async {

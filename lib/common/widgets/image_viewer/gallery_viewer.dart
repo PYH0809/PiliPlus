@@ -114,6 +114,19 @@ class _GalleryViewerState extends State<GalleryViewer>
   late final _zoomed = ValueNotifier(false);
   // Holds the pages, where the glass finds a live photo's video.
   late final _pagesKey = GlobalKey();
+  late final _turning = ValueNotifier(0.0);
+
+  bool _isLivePhoto(int index) =>
+      index >= 0 &&
+      index < widget.sources.length &&
+      widget.sources[index].sourceType == SourceType.livePhoto;
+
+  void _onPageScroll() {
+    _turning.value = GalleryGlass.turningAway(
+      _pageController.page!,
+      _isLivePhoto,
+    );
+  }
 
   String _getActualUrl(String url) {
     return _quality != 100
@@ -152,6 +165,9 @@ class _GalleryViewerState extends State<GalleryViewer>
     }
 
     _pageController = PageController(initialPage: widget.initIndex);
+    if (_glass) {
+      _pageController.addListener(_onPageScroll);
+    }
 
     final gestureSettings = MediaQuery.maybeGestureSettingsOf(Get.context!);
     _tapGestureRecognizer = ImageTapGestureRecognizer()
@@ -309,6 +325,7 @@ class _GalleryViewerState extends State<GalleryViewer>
     _longPressGestureRecognizer.dispose();
     if (_glass) {
       _zoomed.dispose();
+      _turning.dispose();
     }
     if (widget.quality != _quality) {
       for (final item in widget.sources) {
@@ -396,6 +413,7 @@ class _GalleryViewerState extends State<GalleryViewer>
           () => GalleryGlass(
             drag: _animateController,
             zoomed: _zoomed,
+            turning: _turning,
             video:
                 widget.sources[_currIndex.value].sourceType ==
                     SourceType.livePhoto

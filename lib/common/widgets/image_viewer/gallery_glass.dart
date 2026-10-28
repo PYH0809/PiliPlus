@@ -18,13 +18,15 @@ final _showSpring = SpringDescription.withDurationAndBounce(
 ///
 /// The gallery is black in either theme, so the glass is dark, as the
 /// player's is, and its text light. It steps aside, easing out by bending
-/// rather than fading, as [drag] pulls the image away to close the gallery
-/// and while the image is [zoomed] in, and comes back as either lets go.
+/// rather than fading, as [drag] pulls the image away to close the gallery,
+/// while the image is [zoomed] in and as [turning] asks, and comes back as
+/// each lets go.
 class GalleryGlass extends StatefulWidget {
   const GalleryGlass({
     super.key,
     required this.drag,
     required this.zoomed,
+    this.turning,
     this.video,
     required this.child,
   });
@@ -33,11 +35,27 @@ class GalleryGlass extends StatefulWidget {
   final Animation<double> drag;
   final ValueListenable<bool> zoomed;
 
+  /// How far, from 0 to 1, to step aside as a page turns under it, as
+  /// [turningAway] answers.
+  final ValueListenable<double>? turning;
+
   /// Keys a box holding the video under it while one plays, as a live
   /// photo's: a texture, which the host cannot capture, so the pane is then
   /// a [VideoGlass], which draws the video again itself.
   final GlobalKey? video;
   final Widget child;
+
+  /// How far the glass steps aside at [page], fractional while a page
+  /// turns, where [isVideo] says which pages hold a video: from a quarter of
+  /// the way into a turn to or from one, as over both pages at once neither
+  /// [VideoGlass] nor the host's glass would show them both.
+  static double turningAway(double page, bool Function(int index) isVideo) {
+    final from = page.floor();
+    if (from == page || !(isVideo(from) || isVideo(from + 1))) {
+      return 0;
+    }
+    return ((page - page.roundToDouble()).abs() * 4).clamp(0.0, 1.0);
+  }
 
   @override
   State<GalleryGlass> createState() => _GalleryGlassState();
@@ -89,10 +107,12 @@ class _GalleryGlassState extends State<GalleryGlass>
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([widget.drag, _shown]),
+      listenable: Listenable.merge([widget.drag, _shown, widget.turning]),
       builder: (context, child) {
         final t =
-            _shown.value * (1 - widget.drag.value / _kDragAway).clamp(0.0, 1.0);
+            _shown.value *
+            (1 - widget.drag.value / _kDragAway).clamp(0.0, 1.0) *
+            (1 - (widget.turning?.value ?? 0));
         // Gone, it leaves the host nothing to capture for it.
         if (t <= 0) {
           return const SizedBox.shrink();
@@ -114,13 +134,12 @@ class _GalleryGlassState extends State<GalleryGlass>
         );
         final style = LiquidGlassStyle.regular(colorScheme);
         if (widget.video case final video?) {
-          // As the player's notes over the video, but as thick as the glass
-          // over an image, which the player's clear glass is not over the
-          // black around the video.
+          // As thick as the glass over an image, which the player's clear
+          // glass is not over the black around the video. Not one of the
+          // player's notes, which their own switch may leave a bare tint.
           return VideoGlassSource(
             video: video,
             child: VideoGlass.capsule(
-              note: true,
               t: t,
               style: style,
               child: content,
