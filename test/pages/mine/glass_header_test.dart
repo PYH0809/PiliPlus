@@ -304,4 +304,67 @@ void main() {
       Get.reset();
     }
   });
+
+  testWidgets('消息 going while its page is open or returning, as it does '
+      'logged out, breaks nothing', (tester) async {
+    for (final returning in [false, true]) {
+      final shown = ValueNotifier(true);
+      await tester.pumpWidget(
+        GetMaterialApp(
+          // As main.dart's builder.
+          builder: (context, child) => LiquidGlassScope(
+            enabled: true,
+            child: LiquidGlassHost(enabled: true, child: child!),
+          ),
+          getPages: [
+            GetPage(
+              name: '/whisper',
+              page: () => const Scaffold(body: Center(child: Text('消息页'))),
+            ),
+          ],
+          home: Scaffold(
+            body: ValueListenableBuilder(
+              valueListenable: shown,
+              builder: (context, value, _) => MineGlassBody(
+                actions: [
+                  // As msgBadge hides it logged out.
+                  if (value)
+                    GlassMorphSource(
+                      builder: (context, source) => IconButton(
+                        tooltip: '消息',
+                        onPressed: () => source.toNamed('/whisper'),
+                        icon: const Icon(Icons.notifications_none),
+                      ),
+                    ),
+                  ..._actions(2),
+                ],
+                content: const _List(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('消息'));
+      await tester.pumpAndSettle();
+      expect(find.text('消息页'), findsOneWidget);
+      if (!returning) {
+        shown.value = false;
+        await tester.pump();
+      }
+      Get.back<void>();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+      if (returning) {
+        shown.value = false;
+      }
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('消息页'), findsNothing);
+      expect(find.byTooltip('消息'), findsNothing);
+      expect(find.byTooltip('a0'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      shown.dispose();
+      Get.reset();
+    }
+  });
 }
