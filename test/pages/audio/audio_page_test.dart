@@ -3,10 +3,14 @@ import 'dart:io';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart';
+import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/models_new/video/video_subtitle/subtitle_line.dart';
 import 'package:PiliPlus/pages/audio/controller.dart';
+import 'package:PiliPlus/pages/audio/subtitle/subtitle_view.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
 import 'package:PiliPlus/pages/audio/volume_button.dart';
 import 'package:PiliPlus/pages/audio/widgets/glass_controls.dart';
@@ -92,6 +96,10 @@ class _FakeAudioController extends AudioController {
     position.value = 72;
     duration.value = 225;
   }
+
+  // Fetches no subtitles: they are there or not as a test sets them.
+  @override
+  (int, int)? get subtitleTarget => null;
 
   @override
   bool playPrev() {
@@ -604,6 +612,91 @@ void main() {
       expect(
         tester.getRect(find.byType(ProgressBar)).bottom,
         lessThanOrEqualTo(position.top),
+      );
+    });
+  });
+
+  group('subtitles', () {
+    final cover = find.byWidgetPredicate(
+      (widget) => widget is NetworkImgLayer && widget.width == 170,
+    );
+
+    for (final glass in [true, false]) {
+      final mode = glass ? 'glass on' : 'glass off';
+
+      testWidgets('$mode: the cover shows them, the title above goes back', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+        expect(find.text('暂无字幕'), findsOneWidget);
+        expect(cover, findsNothing);
+
+        await tester.tap(find.text('一首歌'));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+        expect(cover, findsOneWidget);
+      });
+
+      testWidgets('$mode: 字幕 in the title bar switches them too', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(find.byTooltip('字幕'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AudioSubtitlePanel), findsOneWidget);
+
+        await tester.tap(find.byTooltip('字幕'));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+        expect(find.byType(AudioSubtitlePanel), findsNothing);
+      });
+    }
+
+    testWidgets('an audio has no 字幕 button, and no subtitles', (
+      tester,
+    ) async {
+      await _pump(tester, glass: true, ugc: false);
+      expect(find.byTooltip('字幕'), findsNothing);
+
+      await tester.tap(cover);
+      await tester.pumpAndSettle();
+      expect(find.text('暂无字幕'), findsOneWidget);
+    });
+
+    testWidgets('glass on: the lines stay between the title bar and the '
+        'controls', (tester) async {
+      final controller = await _pump(tester, glass: true);
+      await tester.tap(cover);
+      await tester.pumpAndSettle();
+      controller.subtitleLines.value = Success([
+        for (var i = 0; i < 80; i++)
+          SubtitleLine(
+            from: Duration(seconds: i * 2),
+            to: Duration(seconds: i * 2 + 1),
+            content: '第 $i 句',
+          ),
+      ]);
+      controller.updateSubtitlePosition(const Duration(seconds: 72));
+      await tester.pumpAndSettle();
+      final controlsTop = _paneUnder(
+        tester,
+        find.text(DurationUtils.formatDuration(72)),
+      ).top;
+      const barBottom = _statusBar + kToolbarHeight;
+
+      final header = tester.getRect(find.text('一首歌'));
+      expect(header.top, greaterThanOrEqualTo(barBottom));
+      final list = tester.getRect(find.byType(AudioSubtitleList));
+      expect(list.top, greaterThan(header.bottom));
+      expect(list.bottom, lessThanOrEqualTo(controlsTop));
+      // the line 72 seconds in, in the middle of them
+      expect(controller.subtitleLine.value, 36);
+      expect(
+        tester.getCenter(find.text('第 36 句')).dy,
+        moreOrLessEquals(list.center.dy, epsilon: 1),
       );
     });
   });
