@@ -9,6 +9,7 @@ import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart';
+import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/local/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
@@ -59,6 +60,7 @@ typedef _StatusConfig = (
   bool isBuffering,
   bool isLive,
   double speed,
+  bool canSkip,
 );
 
 class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
@@ -157,6 +159,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     bool isLive, {
     required Duration position,
     required double speed,
+    bool canSkip = false,
     String? debugLabel,
   }) {
     if (!enableBackgroundPlay || _item.isEmpty) {
@@ -165,7 +168,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
     if (onPlay != null && debugLabel == 'onVideoPaused') return;
 
-    final newConfig = (status, isBuffering, isLive, speed);
+    final newConfig = (status, isBuffering, isLive, speed, canSkip);
     if (_lastConfig == newConfig) {
       if (_lastPos != null) {
         final pos = position.inSeconds;
@@ -195,15 +198,18 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       isLive,
       position: position,
       speed: speed,
+      canSkip: canSkip,
     );
   }
 
+  /// [canSkip] adds previous / next, for a page with its own playlist.
   void _updateState(
     AudioProcessingState state,
     bool playing,
     bool isLive, {
     required Duration position,
     required double speed,
+    bool canSkip = false,
   }) {
     playbackState.add(
       playbackState.value.copyWith(
@@ -217,6 +223,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
               label: 'Rewind',
               action: .rewind,
             ),
+          if (canSkip)
+            const MediaControl(
+              androidIcon: 'drawable/ic_player_skip_previous',
+              label: 'Previous',
+              action: .skipToPrevious,
+            ),
           if (playing)
             const MediaControl(
               androidIcon: 'drawable/ic_player_pause',
@@ -229,6 +241,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
               label: 'Play',
               action: .play,
             ),
+          if (canSkip)
+            const MediaControl(
+              androidIcon: 'drawable/ic_player_skip_next',
+              label: 'Next',
+              action: .skipToNext,
+            ),
           if (!isLive)
             const MediaControl(
               androidIcon: 'drawable/ic_player_fast_forward_10s',
@@ -236,6 +254,11 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
               action: .fastForward,
             ),
         ],
+        // Android 12 and lower fold the notification to three buttons:
+        // previous, play / pause and next, as music apps do.
+        androidCompactActionIndices: canSkip && !isLive
+            ? const [1, 2, 3]
+            : null,
         playing: playing,
         systemActions: const {.seek},
       ),
@@ -315,12 +338,15 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
           duration: Duration(seconds: data.duration ?? 0),
           artUri: getUri(cover),
         );
-      case DetailItem(:final arc):
+      case DetailItem(:final arc, :final parts):
+        final part = parts.length > 1
+            ? parts.firstWhereOrNull((e) => e.subId.toInt() == cid)
+            : null;
         mediaItem = MediaItem(
           id: id,
-          title: arc.title,
+          title: part?.title ?? arc.title,
           artist: data.owner.name,
-          duration: Duration(seconds: arc.duration.toInt()),
+          duration: Duration(seconds: (part?.duration ?? arc.duration).toInt()),
           artUri: getUri(arc.cover),
         );
       case BiliDownloadEntryInfo():
@@ -340,8 +366,49 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       default:
         return;
     }
+    // A page taking the card from another neither plays because that one did
+    // nor starts from where that one was: a video takes its player's status
+    // and position once the shared player holds its video, and where it has
+    // got to itself before; 听视频 republishes its own state on hearing its
+    // item.
+    bool? playing;
+    Duration? position;
+    if (!isShowing(herotag)) {
+      final holds = switch (data) {
+        DetailItem() => false,
+        // A room has one stream, and the player keeps no cid for it.
+        RoomInfoH5Data() => PlPlayerController.playOwner?.tag == herotag,
+        _ => _playerHolds(herotag, cid),
+      };
+      playing =
+          holds &&
+          (PlPlayerController.getPlayerStatusIfExists()?.isPlaying ?? false);
+      position = _positionOf(herotag, holds);
+    }
     _item.add(mediaItem);
+    _resetControls(mediaItem, playing: playing, position: position);
     setMediaItem(mediaItem);
+  }
+
+  /// Rebuilds the card's buttons for [item], which takes the card from a page
+  /// that may have had previous / next, or been live. They go before the item,
+  /// so that a page with a playlist, hearing its item, puts its own back.
+  void _resetControls(
+    MediaItem item, {
+    AudioProcessingState? state,
+    bool? playing,
+    Duration? position,
+  }) {
+    final current = playbackState.value;
+    _updateState(
+      state ?? current.processingState,
+      playing ?? current.playing,
+      item.isLive ?? false,
+      // By default where playback is now: the last update's position, run on
+      // since.
+      position: position ?? current.position,
+      speed: current.speed,
+    );
   }
 
   void onVideoDetailDispose(String herotag) {
@@ -351,11 +418,71 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       _item.removeWhere((item) => item.id.endsWith(herotag));
     }
     if (_item.isNotEmpty) {
-      setMediaItem(_item.last);
-      playbackState.add(
-        playbackState.value.copyWith(processingState: .ready, playing: false),
+      final item = _item.last;
+      // The page underneath shows where it is itself, not where the shared
+      // player was for the page that left; 听视频 republishes its own state on
+      // hearing its item.
+      final tag = _pages.lastWhereOrNull(item.id.endsWith);
+      final cid = tag == null
+          ? null
+          : int.tryParse(item.id.substring(0, item.id.length - tag.length));
+      _resetControls(
+        item,
+        state: .ready,
+        playing: false,
+        position: _positionOf(
+          tag,
+          tag != null && cid != null && _playerHolds(tag, cid),
+        ),
+      );
+      setMediaItem(item);
+    }
+  }
+
+  /// Whether the card shows the page tagged [herotag].
+  bool isShowing(String herotag) =>
+      mediaItem.value?.id.endsWith(herotag) ?? false;
+
+  /// The hero tags of the open pages that can put an item on the card, in the
+  /// order they opened.
+  final List<String> _pages = [];
+
+  /// Whether the shared player holds the video [cid] of the page tagged
+  /// [herotag], rather than one of the page it served before.
+  static bool _playerHolds(String herotag, int cid) =>
+      PlPlayerController.playOwner?.tag == herotag &&
+      PlPlayerController.instance?.cid == cid;
+
+  /// Where the video page tagged [herotag] has got to: the shared player's
+  /// position when it [holds] the page's video, else what the page kept
+  /// itself; zero for other pages.
+  static Duration _positionOf(String? herotag, bool holds) {
+    if (holds) {
+      return Duration(
+        milliseconds: PlPlayerController.instance!.positionInMilliseconds,
       );
     }
+    if (herotag == null ||
+        !Get.isRegistered<VideoDetailController>(tag: herotag)) {
+      return Duration.zero;
+    }
+    return Get.find<VideoDetailController>(tag: herotag).playedTime ??
+        Duration.zero;
+  }
+
+  /// Notes a page that can put an item on the card as it opens.
+  void onPageOpen(String herotag) => _pages.add(herotag);
+
+  /// Forgets a page noted with [onPageOpen] as it closes.
+  void onPageClose(String herotag) => _pages.remove(herotag);
+
+  /// Whether the card shows a page opened after the one tagged [herotag], and
+  /// so above it.
+  bool isShowingPageAbove(String herotag) {
+    final id = mediaItem.value?.id;
+    final index = _pages.indexOf(herotag);
+    if (id == null || index == -1) return false;
+    return _pages.skip(index + 1).any(id.endsWith);
   }
 
   void clearIfNeeded() {

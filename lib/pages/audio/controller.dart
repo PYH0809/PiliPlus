@@ -84,6 +84,30 @@ class AudioController extends GetxController
   late final AnimationController animController;
 
   List<StreamSubscription>? _subscriptions;
+  StreamSubscription? _mediaItemSubscription;
+
+  /// Whether a page opened from here, such as 看MV's video, covers this one.
+  bool isCovered = false;
+
+  /// Back on top: an item held back while covered goes to the card, which
+  /// also republishes the state.
+  void onUncovered() {
+    isCovered = false;
+    _bindMediaControls();
+    _reclaimMediaCard();
+  }
+
+  /// Hands this page's item to the card when the card shows another one, or
+  /// one from before the part or item changed.
+  void _reclaimMediaCard() {
+    if (_isCardStale ||
+        videoPlayerServiceHandler?.isShowing(hashCode.toString()) == false) {
+      if (audioItem.value case final item?) _updateMediaItem(item);
+    }
+  }
+
+  /// Whether the card holds an item from before the part or item changed.
+  bool _isCardStale = false;
 
   int? index;
   List<DetailItem>? playlist;
@@ -214,12 +238,42 @@ class AudioController extends GetxController
         _queryPlayUrl();
       }
     });
-    videoPlayerServiceHandler
-      ?..onPlay = onPlay
-      ..onPause = onPause
-      ..onSeek = onSeek
-      ..onSkipToNext = playNext
-      ..onSkipToPrevious = playPrev;
+    videoPlayerServiceHandler?.onPageOpen(hashCode.toString());
+    _bindMediaControls();
+    // When the card shows this page again, such as after a page opened from
+    // here closes, it gets this page's controls, state and previous / next
+    // back.
+    _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen((_) {
+      final handler = videoPlayerServiceHandler!;
+      final tag = hashCode.toString();
+      if (!handler.isShowing(tag)) {
+        if (handler.isShowingPageAbove(tag)) {
+          // A page opened from here took the card, and its buttons with it.
+          // This page stops playing as well, as it does for 看MV, so that no
+          // sound goes on that the card cannot pause, and lets go of its audio
+          // focus and of a play still waiting for it.
+          _unbindMediaControls();
+          onPause();
+        } else if (!isCovered) {
+          // On top, the card is this page's, also when a page below, such as
+          // the video this was opened from, hands its item over late.
+          _reclaimMediaCard();
+        }
+        // An item from a page below while a page such as 举报 covers this one
+        // waits: this page takes the card back once it is on top again.
+        return;
+      }
+      // Another 听视频 opened from here unbound them as it closed.
+      _bindMediaControls();
+      if (_isCardStale) {
+        if (audioItem.value case final item?) {
+          // Its item goes up to date first, and that republishes the state.
+          _updateMediaItem(item);
+          return;
+        }
+      }
+      onPlaylistChanged();
+    });
 
     animController = AnimationController(
       vsync: this,
@@ -231,6 +285,28 @@ class AudioController extends GetxController
         ..onPause = onPause
         ..isPlaying = isPlayingOrPending;
     }
+  }
+
+  /// Lets the card's buttons drive this page.
+  void _bindMediaControls() {
+    videoPlayerServiceHandler
+      ?..onPlay = onPlay
+      ..onPause = onPause
+      ..onSeek = onSeek
+      ..onSkipToNext = playNext
+      ..onSkipToPrevious = playPrev;
+  }
+
+  /// Lets go of the card's buttons, if they are still this page's.
+  void _unbindMediaControls() {
+    final handler = videoPlayerServiceHandler;
+    if (handler == null || handler.onPlay != onPlay) return;
+    handler
+      ..onPlay = null
+      ..onPause = null
+      ..onSeek = null
+      ..onSkipToNext = null
+      ..onSkipToPrevious = null;
   }
 
   bool isPlaying() {
@@ -294,10 +370,27 @@ class AudioController extends GetxController
     hasLike.value = item.stat.hasLike_7;
     coinNum.value = item.stat.hasCoin_8 ? 2 : 0;
     hasFav.value = item.stat.hasFav;
-    videoPlayerServiceHandler?.onVideoDetailChange(
+    _updateMediaItem(item);
+  }
+
+  /// Hands [item] to the media card, as the part [subId] names.
+  void _updateMediaItem(DetailItem item) {
+    // A request that returns after the page left must not bring its card back.
+    if (isClosed) return;
+    final handler = videoPlayerServiceHandler;
+    if (handler == null) return;
+    final tag = hashCode.toString();
+    // While a page opened from here has the card, the item waits till the card
+    // shows this page again.
+    if (handler.isShowingPageAbove(tag)) {
+      _isCardStale = true;
+      return;
+    }
+    _isCardStale = false;
+    handler.onVideoDetailChange(
       item,
       (subId.firstOrNull ?? oid).toInt(),
-      hashCode.toString(),
+      tag,
     );
   }
 
@@ -343,8 +436,19 @@ class AudioController extends GetxController
           playlist?.addAll(response.list);
         }
       }
+      // Playback may also have started before the item reached the card.
+      onPlaylistChanged();
     } else {
       res.toast();
+    }
+  }
+
+  /// Republishes the playback state, whose previous / next follow the
+  /// playlist, while the media card shows this page and not one opened on top.
+  void onPlaylistChanged() {
+    if (player != null &&
+        videoPlayerServiceHandler?.isShowing(hashCode.toString()) == true) {
+      _updatePlaybackState();
     }
   }
 
@@ -454,17 +558,31 @@ class AudioController extends GetxController
       )
       ..open(Media(url, start: _start, extras: extras), play: false);
     _start = null;
-    if (_wantPlay) onPlay();
+    // A late answer must not start playing under a page opened from here that
+    // has the card: that page's sound would mix with this, out of the card's
+    // reach.
+    if (videoPlayerServiceHandler?.isShowingPageAbove(hashCode.toString()) ==
+        true) {
+      _wantPlay = false;
+    } else if (_wantPlay) {
+      onPlay();
+    }
   }
 
   PlayerStatus _playerStatus = .paused;
   void _updatePlaybackState({Duration? position, String? debugLabel}) {
+    // A page opened from here that has the card keeps its own state there.
+    if (videoPlayerServiceHandler?.isShowingPageAbove(hashCode.toString()) ==
+        true) {
+      return;
+    }
     videoPlayerServiceHandler?.onUpdateState(
       _playerStatus,
       false,
       false,
       position: position ?? player!.state.position,
       speed: speed,
+      canSkip: (playlist?.length ?? 0) > 1,
       debugLabel: debugLabel,
     );
   }
@@ -513,6 +631,13 @@ class AudioController extends GetxController
           animController.forward();
           _playerStatus = .playing;
           _stopStatusTimer();
+          // The card can lose this page's item, such as when the last video
+          // page, opened from here with 看MV, closes and clears it: playing
+          // hands the item back.
+          if (videoPlayerServiceHandler?.isShowing(hashCode.toString()) ==
+              false) {
+            if (audioItem.value case final item?) _updateMediaItem(item);
+          }
           _updatePlaybackState();
         } else {
           animController.reverse();
@@ -872,6 +997,7 @@ class AudioController extends GetxController
             _queryPlayUrl().then((res) {
               if (res) {
                 _videoDetailController = null;
+                if (audioItem.value case final item?) _updateMediaItem(item);
               }
             });
             return true;
@@ -971,18 +1097,16 @@ class AudioController extends GetxController
   @override
   void onClose() {
     _stopStatusTimer();
+    _mediaItemSubscription?.cancel();
     shutdownTimerService
       ..onPause = null
       ..isPlaying = null
       ..reset();
+    _unbindMediaControls();
     videoPlayerServiceHandler
-      ?..onPlay = null
-      ..onPause = null
-      ..onSeek = null
-      ..onSkipToNext = null
-      ..onSkipToPrevious = null
-      ..onVideoDetailDispose(hashCode.toString())
-      ..clearIfNeeded();
+      ?..onVideoDetailDispose(hashCode.toString())
+      ..clearIfNeeded()
+      ..onPageClose(hashCode.toString());
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
     _subscriptions = null;
