@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_button_group.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart';
@@ -14,6 +15,7 @@ import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
@@ -124,6 +126,7 @@ Future<_FakeAudioController> _pump(
   bool ugc = true,
   bool mv = false,
   String desc = '',
+  ThemeData? theme,
 }) async {
   tester.view
     ..physicalSize = const Size(_width, _height)
@@ -139,6 +142,7 @@ Future<_FakeAudioController> _pump(
   AudioPage.debugController = () => controller;
   await tester.pumpWidget(
     GetMaterialApp(
+      theme: theme,
       home: const Scaffold(body: Text('home')),
       getPages: [
         GetPage(name: '/audio', page: () => const AudioPage()),
@@ -192,6 +196,22 @@ void main() {
   tearDownAll(() async {
     await Hive.close();
     await tempDir.delete(recursive: true);
+  });
+
+  testWidgets('glass on, light theme: the menus read light on the dark page', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      glass: true,
+      theme: GlassSurfaces.themed(ThemeData(brightness: Brightness.light)),
+    );
+    await _openMore(tester);
+
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.text('播放信息'),
+    );
+    expect(paragraph.text.style!.color!.computeLuminance(), greaterThan(0.5));
   });
 
   for (final glass in [true, false]) {
