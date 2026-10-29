@@ -9,6 +9,7 @@ import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart';
+import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/local/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
@@ -366,16 +367,17 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         return;
     }
     // A page taking the card from another neither plays because that one did
-    // nor starts from where that one was: a video takes its player's status
-    // and position, and 听视频 republishes its own state on hearing its item.
+    // nor starts from where that one was: a video takes where it has got to
+    // itself, and its player's status once it owns the shared player; 听视频
+    // republishes its own state on hearing its item.
     bool? playing;
     Duration? position;
     if (!isShowing(herotag)) {
-      final player = data is DetailItem ? null : PlPlayerController.instance;
-      playing = player?.playerStatus.isPlaying ?? false;
-      position = Duration(
-        milliseconds: playing ? player!.positionInMilliseconds : 0,
-      );
+      playing =
+          data is! DetailItem &&
+          PlPlayerController.playOwner?.tag == herotag &&
+          (PlPlayerController.getPlayerStatusIfExists()?.isPlaying ?? false);
+      position = _savedPosition(herotag);
     }
     _item.add(mediaItem);
     _resetControls(mediaItem, playing: playing, position: position);
@@ -411,16 +413,14 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
     if (_item.isNotEmpty) {
       final item = _item.last;
-      // The page underneath shows where its player is; 听视频 republishes its
-      // own state on hearing its item.
+      // The page underneath shows where it was itself, not where the shared
+      // player was for the page that left; 听视频 republishes its own state on
+      // hearing its item.
       _resetControls(
         item,
         state: .ready,
         playing: false,
-        position: Duration(
-          milliseconds:
-              PlPlayerController.instance?.positionInMilliseconds ?? 0,
-        ),
+        position: _savedPosition(_pages.lastWhereOrNull(item.id.endsWith)),
       );
       setMediaItem(item);
     }
@@ -433,6 +433,17 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// The hero tags of the open pages that can put an item on the card, in the
   /// order they opened.
   final List<String> _pages = [];
+
+  /// Where the video page tagged [herotag] has got to, kept by the page
+  /// itself; zero for other pages.
+  static Duration _savedPosition(String? herotag) {
+    if (herotag == null ||
+        !Get.isRegistered<VideoDetailController>(tag: herotag)) {
+      return Duration.zero;
+    }
+    return Get.find<VideoDetailController>(tag: herotag).playedTime ??
+        Duration.zero;
+  }
 
   /// Notes a page that can put an item on the card as it opens.
   void onPageOpen(String herotag) => _pages.add(herotag);
