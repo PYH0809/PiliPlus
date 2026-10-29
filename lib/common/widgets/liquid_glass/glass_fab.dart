@@ -7,8 +7,9 @@ import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// A page's floating action button. With the liquid glass switch on, a drop
-/// of glass in the theme's color that swells under the finger, as the reply
-/// buttons are; with it off, Material's [FloatingActionButton], as before.
+/// of glass in the theme's color that swells under the finger, as the video
+/// page's reply button is; with it off, Material's [FloatingActionButton], as
+/// before.
 ///
 /// On glass it keeps Material's footprint, 56 dp high and padded as Material
 /// pads it, a circle or a capsule, so a page lays it out and slides it away

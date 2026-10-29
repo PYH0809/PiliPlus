@@ -96,7 +96,10 @@ ButtonStyle glassActionButtonStyle(ColorScheme colorScheme) {
   );
 }
 
-/// The button to write a reply on glass: a circle tinted the theme's color.
+/// The button to write a reply on glass: a circle of the action bar's glass,
+/// the icon in the theme's color, as iOS 26 floats a compose button by its
+/// toolbar. Tinted the theme's color, the glass hid what lay behind it and
+/// read as a plain disc over the bar.
 class GlassReplyButton extends StatelessWidget {
   const GlassReplyButton({super.key, required this.onTap});
 
@@ -112,11 +115,9 @@ class GlassReplyButton extends StatelessWidget {
       child: LiquidGlassButton(
         tooltip: '评论',
         onTap: onTap,
-        styleOf: (colorScheme) =>
-            LiquidGlassStyle.tinted(colorScheme, colorScheme.primary),
         shadows: floatingGlassShadows(colorScheme),
         child: Center(
-          child: Icon(Icons.reply, color: colorScheme.onPrimary),
+          child: Icon(Icons.reply, color: colorScheme.primary),
         ),
       ),
     );
