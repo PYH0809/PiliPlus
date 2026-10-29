@@ -366,7 +366,26 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         return;
     }
     _item.add(mediaItem);
+    _resetControls(mediaItem);
     setMediaItem(mediaItem);
+  }
+
+  /// Rebuilds the card's buttons for [item], which takes the card from a page
+  /// that may have had previous / next, or been live. They go before the item,
+  /// so that a page with a playlist, hearing its item, puts its own back.
+  void _resetControls(
+    MediaItem item, {
+    AudioProcessingState? state,
+    bool? playing,
+  }) {
+    final current = playbackState.value;
+    _updateState(
+      state ?? current.processingState,
+      playing ?? current.playing,
+      item.isLive ?? false,
+      position: current.updatePosition,
+      speed: current.speed,
+    );
   }
 
   void onVideoDetailDispose(String herotag) {
@@ -377,17 +396,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
     if (_item.isNotEmpty) {
       final item = _item.last;
-      // Rebuild the controls as well: the page that left may have had
-      // previous / next, or been live. The item goes last, so that a page
-      // with a playlist hearing it can put its own previous / next back.
-      final state = playbackState.value;
-      _updateState(
-        .ready,
-        false,
-        item.isLive ?? false,
-        position: state.updatePosition,
-        speed: state.speed,
-      );
+      _resetControls(item, state: .ready, playing: false);
       setMediaItem(item);
     }
   }

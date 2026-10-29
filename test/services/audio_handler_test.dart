@@ -139,6 +139,19 @@ void main() {
     expect(state.androidCompactActionIndices, isNull);
   });
 
+  test('a video taking the card from 听视频 drops previous / next before it '
+      'plays', () {
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    handler.onVideoDetailChange(item(), 2, 'video');
+
+    expect(handler.isShowing('video'), isTrue);
+    expect(actions(), isNot(contains(MediaAction.skipToPrevious)));
+    expect(actions(), isNot(contains(MediaAction.skipToNext)));
+    expect(handler.playbackState.value.androidCompactActionIndices, isNull);
+  });
+
   test('back on 听视频 after a video opened from it closes, the page can put '
       'its previous / next back', () async {
     handler.onVideoDetailChange(item(), 1, 'audio');

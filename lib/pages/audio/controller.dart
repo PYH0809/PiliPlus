@@ -92,6 +92,7 @@ class AudioController extends GetxController
   /// also republishes the state.
   void onUncovered() {
     isCovered = false;
+    _bindMediaControls();
     if (_isCardStale) {
       if (audioItem.value case final item?) _updateMediaItem(item);
     }
@@ -215,7 +216,11 @@ class AudioController extends GetxController
     // here closes, it gets this page's controls, state and previous / next
     // back.
     _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen((_) {
-      if (!videoPlayerServiceHandler!.isShowing(hashCode.toString())) return;
+      if (!videoPlayerServiceHandler!.isShowing(hashCode.toString())) {
+        // A page opened from here took the card, and its buttons with it.
+        if (isCovered) _unbindMediaControls();
+        return;
+      }
       // Another 听视频 opened from here unbound them as it closed.
       _bindMediaControls();
       if (_isCardStale) {
@@ -248,6 +253,18 @@ class AudioController extends GetxController
       ..onSeek = onSeek
       ..onSkipToNext = playNext
       ..onSkipToPrevious = playPrev;
+  }
+
+  /// Lets go of the card's buttons, if they are still this page's.
+  void _unbindMediaControls() {
+    final handler = videoPlayerServiceHandler;
+    if (handler == null || handler.onPlay != onPlay) return;
+    handler
+      ..onPlay = null
+      ..onPause = null
+      ..onSeek = null
+      ..onSkipToNext = null
+      ..onSkipToPrevious = null;
   }
 
   bool isPlaying() {
@@ -903,13 +920,9 @@ class AudioController extends GetxController
       ..onPause = null
       ..isPlaying = null
       ..reset();
+    _unbindMediaControls();
     videoPlayerServiceHandler
-      ?..onPlay = null
-      ..onPause = null
-      ..onSeek = null
-      ..onSkipToNext = null
-      ..onSkipToPrevious = null
-      ..onVideoDetailDispose(hashCode.toString())
+      ?..onVideoDetailDispose(hashCode.toString())
       ..clearIfNeeded();
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
