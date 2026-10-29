@@ -241,6 +241,7 @@ class AudioController extends GetxController
     if (request != _playRequest) return;
     if (granted) return player?.play();
     _wantPlay = false;
+    _finishShutdownWaiting();
   }
 
   Future<void>? onPause() {
@@ -249,14 +250,18 @@ class AudioController extends GetxController
     return player?.pause();
   }
 
+  // 焦点申请的编号：连着申请时只有最新一次失败才清理
+  int _focusRequest = 0;
+
   /// 开播前申请音频焦点，拿不到（比如通话中）就不播
   Future<bool> _requestAudioFocus() async {
     final handler = audioSessionHandler;
-    if (handler == null || await handler.setActive(true, owner: this)) {
-      return true;
-    }
-    // 申请失败时 audio_session 会留着这次申请，之后再申请都直接返回成功
-    handler.setActive(false, owner: this);
+    if (handler == null) return true;
+    final request = ++_focusRequest;
+    if (await handler.setActive(true, owner: this)) return true;
+    // 申请失败时 audio_session 会留着这次申请，之后再申请都直接返回成功，所以要释放；
+    // 但期间又申请过的话，焦点可能已经归新申请，不能放掉
+    if (request == _focusRequest) handler.setActive(false, owner: this);
     return false;
   }
 
@@ -373,6 +378,12 @@ class AudioController extends GetxController
     if (isPlaying()) return;
     if (_playInterrupted && !(player?.state.completed ?? true)) return;
     _releaseAudioFocus();
+    _finishShutdownWaiting();
+  }
+
+  /// 定时关闭在等当前这一首播完的话，已经没有可播的了，现在就执行
+  void _finishShutdownWaiting() {
+    if (shutdownTimerService.isWaiting) shutdownTimerService.handleWaiting();
   }
 
   /// 打开了可以播放的媒体时返回 true
