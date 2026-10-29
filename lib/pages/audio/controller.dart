@@ -117,9 +117,13 @@ class AudioController extends GetxController
 
   bool _playInterrupted = false;
   double? _volumeBeforeDuck;
-  // 页面要不要在放：开播、切曲时为 true；暂停、被打断、播完不再接着放时为 false。
-  // 等焦点、等播放器、等下一首地址的自动播放，开播前都再看一眼它
+  // 页面要不要在放：开播、点选一首时为 true；暂停、被打断、播完不再接着放时为 false。
+  // 等播放器、等下一首地址的自动播放，开播前都再看一眼它
   bool _wantPlay = true;
+  // 等焦点的开播请求的编号：暂停、切曲、被打断都会作废还没等到焦点的请求
+  int _playRequest = 0;
+  // 地址请求的编号：连着切了几次时只认最新一次的结果
+  int _urlRequest = 0;
 
   Timer? _statusTimer;
 
@@ -231,12 +235,12 @@ class AudioController extends GetxController
     _wantPlay = true;
     _playInterrupted = false;
     if (player == null) return;
-    if (!await _requestAudioFocus()) {
-      _wantPlay = false;
-    } else if (_wantPlay) {
-      // 等焦点期间暂停或关闭了页面，就不再播放
-      return player?.play();
-    }
+    final request = ++_playRequest;
+    final granted = await _requestAudioFocus();
+    // 等焦点期间暂停、切曲、被打断或关闭了页面，就不再播放
+    if (request != _playRequest) return;
+    if (granted) return player?.play();
+    _wantPlay = false;
   }
 
   Future<void>? onPause() {
@@ -258,6 +262,7 @@ class AudioController extends GetxController
 
   void _releaseAudioFocus() {
     _wantPlay = false;
+    _playRequest++;
     _playInterrupted = false;
     // 让出焦点后不会再收到 duck 结束
     _restoreDuckedVolume();
@@ -342,13 +347,16 @@ class AudioController extends GetxController
 
   Future<bool> _queryPlayUrl() async {
     _querySponsorBlock();
-    // 切过去就要放；等地址期间暂停了（主动暂停、拔耳机、被打断），换过去以后先不播
-    _wantPlay = true;
+    final request = ++_urlRequest;
+    // 要换曲了，还在等焦点的上一首就不用再播
+    _playRequest++;
     final res = await AudioGrpc.audioPlayUrl(
       itemType: itemType,
       oid: oid,
       subId: subId,
     );
+    // 期间又切了别的，这次的结果作废；等地址期间暂停过的，换过去以后也先不播
+    if (request != _urlRequest) return false;
     if (res case Success(:final response)) {
       if (!_onPlay(response)) _releaseAudioFocusIfStopped();
       return true;
@@ -359,9 +367,12 @@ class AudioController extends GetxController
     }
   }
 
-  /// 下一个放不了时，已经播完的就别再占着焦点
+  /// 下一个放不了时，已经播完的就别再占着焦点。被打断、停在半路的留着，
+  /// 打断结束后还能接着放
   void _releaseAudioFocusIfStopped() {
-    if (!isPlaying() && !_playInterrupted) _releaseAudioFocus();
+    if (isPlaying()) return;
+    if (_playInterrupted && !(player?.state.completed ?? true)) return;
+    _releaseAudioFocus();
   }
 
   /// 打开了可以播放的媒体时返回 true
@@ -553,6 +564,7 @@ class AudioController extends GetxController
           // 在放，或者正等着下一首接着放，才算被打断
           if (!_wantPlay) return;
           _wantPlay = false;
+          _playRequest++;
           // 被打断时保留音频焦点，打断结束后才能恢复。安卓上的 unknown 是
           // 永久失去焦点，不会再有结束（iOS 的打断开始都是 unknown）
           _playInterrupted =
@@ -850,6 +862,7 @@ class AudioController extends GetxController
 
   void playIndex(int index, {List<Int64>? subId}) {
     if (index == this.index && subId == null) return;
+    _wantPlay = true;
     this.index = index;
     final audioItem = playlist![index];
     final item = audioItem.item;

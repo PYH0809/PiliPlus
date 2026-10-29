@@ -15,8 +15,9 @@ class AudioSessionHandler {
     if (active) {
       _focusOwner = owner;
     } else {
-      // 让出焦点后不会再收到 duck 结束
-      _restoreDuckedVolume();
+      // 降的是视频的音量，视频让出焦点后不会再收到 duck 结束。
+      // 别的页面让出时视频可能还在被 duck，不能提前恢复
+      if (owner is PlPlayerController) _restoreDuckedVolume();
       if (owner != _focusOwner) return Future.value(true);
       _focusOwner = null;
     }
