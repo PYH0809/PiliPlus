@@ -365,16 +365,20 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       default:
         return;
     }
-    // A page taking the card from another does not play just because that one
-    // did: a video takes its player's status, and 听视频 republishes its own
-    // state on hearing its item.
-    final bool? playing = isShowing(herotag)
-        ? null
-        : data is DetailItem
-        ? false
-        : PlPlayerController.getPlayerStatusIfExists()?.isPlaying ?? false;
+    // A page taking the card from another neither plays because that one did
+    // nor starts from where that one was: a video takes its player's status
+    // and position, and 听视频 republishes its own state on hearing its item.
+    bool? playing;
+    Duration? position;
+    if (!isShowing(herotag)) {
+      final player = data is DetailItem ? null : PlPlayerController.instance;
+      playing = player?.playerStatus.isPlaying ?? false;
+      position = Duration(
+        milliseconds: playing ? player!.positionInMilliseconds : 0,
+      );
+    }
     _item.add(mediaItem);
-    _resetControls(mediaItem, playing: playing);
+    _resetControls(mediaItem, playing: playing, position: position);
     setMediaItem(mediaItem);
   }
 
@@ -385,14 +389,16 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     MediaItem item, {
     AudioProcessingState? state,
     bool? playing,
+    Duration? position,
   }) {
     final current = playbackState.value;
     _updateState(
       state ?? current.processingState,
       playing ?? current.playing,
       item.isLive ?? false,
-      // Where playback is now: the last update's position, run on since.
-      position: current.position,
+      // By default where playback is now: the last update's position, run on
+      // since.
+      position: position ?? current.position,
       speed: current.speed,
     );
   }
@@ -405,7 +411,17 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
     if (_item.isNotEmpty) {
       final item = _item.last;
-      _resetControls(item, state: .ready, playing: false);
+      // The page underneath shows where its player is; 听视频 republishes its
+      // own state on hearing its item.
+      _resetControls(
+        item,
+        state: .ready,
+        playing: false,
+        position: Duration(
+          milliseconds:
+              PlPlayerController.instance?.positionInMilliseconds ?? 0,
+        ),
+      );
       setMediaItem(item);
     }
   }

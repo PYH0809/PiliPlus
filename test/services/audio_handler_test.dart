@@ -175,7 +175,7 @@ void main() {
   });
 
   test('a video taking the card from 听视频 does not play just because 听视频 '
-      'did', () {
+      'did, nor from where 听视频 was', () {
     handler.onVideoDetailChange(item(), 1, 'audio');
     play(canSkip: true);
 
@@ -188,6 +188,7 @@ void main() {
     );
 
     expect(handler.playbackState.value.playing, isFalse);
+    expect(handler.playbackState.value.updatePosition, Duration.zero);
     expect(actions(), contains(MediaAction.play));
   });
 
