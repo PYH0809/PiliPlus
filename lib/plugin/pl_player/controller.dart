@@ -1257,7 +1257,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
     await _videoPlayerController?.play();
 
-    audioSessionHandler?.setActive(true);
+    audioSessionHandler?.setActive(true, owner: this);
 
     playerStatus = .playing;
   }
@@ -1269,7 +1269,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
     // 主动暂停时让出音频焦点
     if (!isInterrupt) {
-      audioSessionHandler?.setActive(false);
+      audioSessionHandler?.setActive(false, owner: this);
     }
   }
 

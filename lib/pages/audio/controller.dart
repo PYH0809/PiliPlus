@@ -215,7 +215,7 @@ class AudioController extends GetxController
     if (shutdownTimerService.isActive) {
       shutdownTimerService
         ..onPause = onPause
-        ..isPlaying = isPlaying;
+        ..isPlaying = isPlayingOrInterrupted;
     }
   }
 
@@ -223,8 +223,12 @@ class AudioController extends GetxController
     return player?.state.playing ?? false;
   }
 
+  /// 被打断暂停、等着恢复的也算在播放，定时关闭到点时要停掉它
+  bool isPlayingOrInterrupted() => isPlaying() || _playInterrupted;
+
   Future<void>? onPlay() async {
     if (player == null) return;
+    _playInterrupted = false;
     final releases = _focusReleases;
     // 等焦点期间暂停或关闭了页面，就不再播放
     if (await _requestAudioFocus() && releases == _focusReleases) {
@@ -244,9 +248,11 @@ class AudioController extends GetxController
   /// 开播前申请音频焦点，拿不到（比如通话中）就不播
   Future<bool> _requestAudioFocus() async {
     final handler = audioSessionHandler;
-    if (handler == null || await handler.setActive(true)) return true;
+    if (handler == null || await handler.setActive(true, owner: this)) {
+      return true;
+    }
     // 申请失败时 audio_session 会留着这次申请，之后再申请都直接返回成功
-    handler.setActive(false);
+    handler.setActive(false, owner: this);
     return false;
   }
 
@@ -255,10 +261,8 @@ class AudioController extends GetxController
     _playInterrupted = false;
     // 让出焦点后不会再收到 duck 结束
     _restoreDuckedVolume();
-    // 视频页（比如刚返回、已经续播的那个）可能正用着焦点
-    if (PlPlayerController.getPlayerStatusIfExists()?.isPlaying != true) {
-      audioSessionHandler?.setActive(false);
-    }
+    // 返回的视频页已经续播的话，焦点归它，这里不会放掉
+    audioSessionHandler?.setActive(false, owner: this);
   }
 
   Future<void>? onSeek(Duration duration) {
@@ -540,10 +544,9 @@ class AudioController extends GetxController
       }),
       if (session != null) ...[
         session.interruptionEventStream.listen(_onInterruption),
-        // 耳机拔出暂停，被打断暂停的也不再恢复，免得从扬声器放出来
-        session.becomingNoisyEventStream.listen((_) {
-          if (isPlaying() || _playInterrupted) onPause();
-        }),
+        // 耳机拔出暂停；被打断后等着恢复的、正在切下一首的，也都不再播放，
+        // 免得从扬声器放出来
+        session.becomingNoisyEventStream.listen((_) => onPause()),
       ],
     ];
   }
@@ -559,8 +562,10 @@ class AudioController extends GetxController
           player.setVolume(_volumeBeforeDuck! * 0.5);
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
-          // 被打断时保留音频焦点，打断结束后才能恢复
-          _playInterrupted = true;
+          // 被打断时保留音频焦点，打断结束后才能恢复。安卓上的 unknown 是
+          // 永久失去焦点，不会再有结束（iOS 的打断开始都是 unknown）
+          _playInterrupted =
+              event.type == AudioInterruptionType.pause || !Platform.isAndroid;
           // 降低音量后又被暂停时，不一定还会收到 duck 结束
           _restoreDuckedVolume();
           player.pause();

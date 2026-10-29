@@ -7,9 +7,19 @@ class AudioSessionHandler {
   bool _playInterrupted = false;
   bool _volumeDucked = false;
 
-  Future<bool> setActive(bool active) {
-    // 让出焦点后不会再收到 duck 结束
-    if (!active) _restoreDuckedVolume();
+  // 最后申请焦点的播放器（视频页或听视频），只有它能让出焦点，
+  // 免得一个页面晚到的让出把另一个页面刚拿到的焦点放掉
+  Object? _focusOwner;
+
+  Future<bool> setActive(bool active, {Object? owner}) {
+    if (active) {
+      _focusOwner = owner;
+    } else {
+      // 让出焦点后不会再收到 duck 结束
+      _restoreDuckedVolume();
+      if (owner != _focusOwner) return Future.value(true);
+      _focusOwner = null;
+    }
     return session.setActive(active);
   }
 
