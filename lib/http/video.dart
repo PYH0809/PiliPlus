@@ -895,7 +895,7 @@ abstract final class VideoHttp {
         'cid': cid,
         'season_id': ?seasonId,
         'ep_id': ?epId,
-      }),
+      }, silent: silent),
       options: silent
           ? Options(extra: const {AccountManager.silent: true})
           : null,
