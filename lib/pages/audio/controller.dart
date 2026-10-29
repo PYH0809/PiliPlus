@@ -96,9 +96,6 @@ class AudioController extends GetxController
     _reclaimMediaCard();
   }
 
-  /// The pages that put their own item on the media card.
-  static const _mediaRoutes = {'/videoV', '/liveRoom', '/audio'};
-
   /// Hands this page's item to the card when the card shows another one, or
   /// one from before the part or item changed.
   void _reclaimMediaCard() {
@@ -221,25 +218,28 @@ class AudioController extends GetxController
         _queryPlayUrl();
       }
     });
+    videoPlayerServiceHandler?.onPageOpen(hashCode.toString());
     _bindMediaControls();
     // When the card shows this page again, such as after a page opened from
     // here closes, it gets this page's controls, state and previous / next
     // back.
     _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen((_) {
-      if (!videoPlayerServiceHandler!.isShowing(hashCode.toString())) {
-        if (!isCovered) {
-          // On top, the card is this page's, also when a page below, such as
-          // the video this was opened from, hands its item over late.
-          _reclaimMediaCard();
-        } else if (_mediaRoutes.contains(Get.currentRoute)) {
+      final handler = videoPlayerServiceHandler!;
+      final tag = hashCode.toString();
+      if (!handler.isShowing(tag)) {
+        if (handler.isShowingPageAbove(tag)) {
           // A page opened from here took the card, and its buttons with it.
           // This page stops playing as well, as it does for 看MV, so that no
           // sound goes on that the card cannot pause.
           _unbindMediaControls();
           player?.pause();
+        } else if (!isCovered) {
+          // On top, the card is this page's, also when a page below, such as
+          // the video this was opened from, hands its item over late.
+          _reclaimMediaCard();
         }
-        // Under a page without a player, such as 举报, the item came from a
-        // page below: this page takes the card back once it is on top again.
+        // An item from a page below while a page such as 举报 covers this one
+        // waits: this page takes the card back once it is on top again.
         return;
       }
       // Another 听视频 opened from here unbound them as it closed.
@@ -322,7 +322,7 @@ class AudioController extends GetxController
     final tag = hashCode.toString();
     // While a page opened from here has the card, the item waits till the card
     // shows this page again.
-    if (isCovered && !handler.isShowing(tag)) {
+    if (handler.isShowingPageAbove(tag)) {
       _isCardStale = true;
       return;
     }
@@ -478,8 +478,8 @@ class AudioController extends GetxController
   PlayerStatus _playerStatus = .paused;
   void _updatePlaybackState({Duration? position, String? debugLabel}) {
     // A page opened from here that has the card keeps its own state there.
-    if (isCovered &&
-        videoPlayerServiceHandler?.isShowing(hashCode.toString()) == false) {
+    if (videoPlayerServiceHandler?.isShowingPageAbove(hashCode.toString()) ==
+        true) {
       return;
     }
     videoPlayerServiceHandler?.onUpdateState(

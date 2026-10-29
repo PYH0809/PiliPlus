@@ -206,6 +206,7 @@ class LiveRoomController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    videoPlayerServiceHandler?.onPageOpen(heroTag);
     scrollController = ScrollController()..addListener(listener);
     final account = Accounts.main;
     isLogin = account.isLogin;

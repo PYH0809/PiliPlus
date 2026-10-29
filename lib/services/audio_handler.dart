@@ -365,8 +365,16 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       default:
         return;
     }
+    // A page taking the card from another does not play just because that one
+    // did: a video takes its player's status, and 听视频 republishes its own
+    // state on hearing its item.
+    final bool? playing = isShowing(herotag)
+        ? null
+        : data is DetailItem
+        ? false
+        : PlPlayerController.getPlayerStatusIfExists()?.isPlaying ?? false;
     _item.add(mediaItem);
-    _resetControls(mediaItem);
+    _resetControls(mediaItem, playing: playing);
     setMediaItem(mediaItem);
   }
 
@@ -390,6 +398,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void onVideoDetailDispose(String herotag) {
+    _pages.remove(herotag);
     if (!enableBackgroundPlay) return;
 
     if (_item.isNotEmpty) {
@@ -405,6 +414,22 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// Whether the card shows the page tagged [herotag].
   bool isShowing(String herotag) =>
       mediaItem.value?.id.endsWith(herotag) ?? false;
+
+  /// The hero tags of the open pages that can put an item on the card, in the
+  /// order they opened.
+  final List<String> _pages = [];
+
+  /// Notes a page that can put an item on the card as it opens.
+  void onPageOpen(String herotag) => _pages.add(herotag);
+
+  /// Whether the card shows a page opened after the one tagged [herotag], and
+  /// so above it.
+  bool isShowingPageAbove(String herotag) {
+    final id = mediaItem.value?.id;
+    final index = _pages.indexOf(herotag);
+    if (id == null || index == -1) return false;
+    return _pages.skip(index + 1).any(id.endsWith);
+  }
 
   void clearIfNeeded() {
     if (!enableBackgroundPlay) return;

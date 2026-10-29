@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart';
+import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/services/audio_handler.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:audio_service/audio_service.dart';
@@ -171,6 +172,42 @@ void main() {
       handler.playbackState.value.updatePosition,
       greaterThanOrEqualTo(const Duration(seconds: 181)),
     );
+  });
+
+  test('a video taking the card from 听视频 does not play just because 听视频 '
+      'did', () {
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    // A video part, with no player of its own playing yet.
+    handler.onVideoDetailChange(
+      Part(cid: 2, part: 'MV', duration: 200),
+      2,
+      'video',
+      artist: '茶理理理子',
+    );
+
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(actions(), contains(MediaAction.play));
+  });
+
+  test('the card knows whether it shows a page opened above another', () {
+    handler
+      ..onPageOpen('below')
+      ..onPageOpen('listen')
+      ..onPageOpen('above');
+    addTearDown(() {
+      for (final tag in ['below', 'listen', 'above']) {
+        handler.onVideoDetailDispose(tag);
+      }
+    });
+
+    handler.onVideoDetailChange(item(), 1, 'above');
+    expect(handler.isShowingPageAbove('listen'), isTrue);
+
+    // Such as the intro of the video below arriving late.
+    handler.onVideoDetailChange(item(), 2, 'below');
+    expect(handler.isShowingPageAbove('listen'), isFalse);
   });
 
   test('back on 听视频 after a video opened from it closes, the page can put '
