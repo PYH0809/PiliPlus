@@ -450,6 +450,13 @@ class AudioController extends GetxController
           animController.forward();
           _playerStatus = .playing;
           _stopStatusTimer();
+          // The card can lose this page's item, such as when the last video
+          // page, opened from here with 看MV, closes and clears it: playing
+          // hands the item back.
+          if (videoPlayerServiceHandler?.isShowing(hashCode.toString()) ==
+              false) {
+            if (audioItem.value case final item?) _updateMediaItem(item);
+          }
           _updatePlaybackState();
         } else {
           animController.reverse();
