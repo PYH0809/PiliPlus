@@ -83,6 +83,7 @@ class AudioController extends GetxController
   late final AnimationController animController;
 
   List<StreamSubscription>? _subscriptions;
+  StreamSubscription? _mediaItemSubscription;
 
   int? index;
   List<DetailItem>? playlist;
@@ -200,6 +201,11 @@ class AudioController extends GetxController
       ..onSeek = onSeek
       ..onSkipToNext = playNext
       ..onSkipToPrevious = playPrev;
+    // When the card shows this page again, such as after a video opened from
+    // here closes, it gets this page's state and previous / next back.
+    _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen(
+      (_) => onPlaylistChanged(),
+    );
 
     animController = AnimationController(
       vsync: this,
@@ -231,12 +237,17 @@ class AudioController extends GetxController
   }
 
   void _updateCurrItem(DetailItem item) {
-    // A request that returns after the page left must not bring its card back.
-    if (isClosed) return;
     audioItem.value = item;
     hasLike.value = item.stat.hasLike_7;
     coinNum.value = item.stat.hasCoin_8 ? 2 : 0;
     hasFav.value = item.stat.hasFav;
+    _updateMediaItem(item);
+  }
+
+  /// Hands [item] to the media card, as the part [subId] names.
+  void _updateMediaItem(DetailItem item) {
+    // A request that returns after the page left must not bring its card back.
+    if (isClosed) return;
     videoPlayerServiceHandler?.onVideoDetailChange(
       item,
       (subId.firstOrNull ?? oid).toInt(),
@@ -294,9 +305,12 @@ class AudioController extends GetxController
   }
 
   /// Republishes the playback state, whose previous / next follow the
-  /// playlist.
+  /// playlist, while the media card shows this page and not one opened on top.
   void onPlaylistChanged() {
-    if (player != null) _updatePlaybackState();
+    if (player != null &&
+        videoPlayerServiceHandler?.isShowing(hashCode.toString()) == true) {
+      _updatePlaybackState();
+    }
   }
 
   @pragma('vm:notify-debugger-on-exception')
@@ -732,7 +746,7 @@ class AudioController extends GetxController
             _queryPlayUrl().then((res) {
               if (res) {
                 _videoDetailController = null;
-                if (audioItem.value case final item?) _updateCurrItem(item);
+                if (audioItem.value case final item?) _updateMediaItem(item);
               }
             });
             return true;
@@ -831,6 +845,7 @@ class AudioController extends GetxController
   @override
   void onClose() {
     _stopStatusTimer();
+    _mediaItemSubscription?.cancel();
     shutdownTimerService
       ..onPause = null
       ..isPlaying = null

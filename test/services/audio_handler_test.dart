@@ -139,6 +139,27 @@ void main() {
     expect(state.androidCompactActionIndices, isNull);
   });
 
+  test('back on 听视频 after a video opened from it closes, the page can put '
+      'its previous / next back', () async {
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+    handler.onVideoDetailChange(item(), 2, 'video');
+    play();
+    expect(handler.isShowing('audio'), isFalse);
+
+    // What 听视频 does when the card shows its item again.
+    final subscription = handler.mediaItem.listen((_) {
+      if (handler.isShowing('audio')) play(canSkip: true);
+    });
+    addTearDown(subscription.cancel);
+    handler.onVideoDetailDispose('video');
+    await pumpEventQueue();
+
+    expect(handler.isShowing('audio'), isTrue);
+    expect(actions(), contains(MediaAction.skipToPrevious));
+    expect(actions(), contains(MediaAction.skipToNext));
+  });
+
   test('leaving the page takes the card away', () {
     handler.onVideoDetailChange(item(), 1, 'audio');
     play(canSkip: true);

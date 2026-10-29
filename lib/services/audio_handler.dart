@@ -377,9 +377,9 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
     if (_item.isNotEmpty) {
       final item = _item.last;
-      setMediaItem(item);
       // Rebuild the controls as well: the page that left may have had
-      // previous / next, or been live.
+      // previous / next, or been live. The item goes last, so that a page
+      // with a playlist hearing it can put its own previous / next back.
       final state = playbackState.value;
       _updateState(
         .ready,
@@ -388,8 +388,13 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         position: state.updatePosition,
         speed: state.speed,
       );
+      setMediaItem(item);
     }
   }
+
+  /// Whether the card shows the page tagged [herotag].
+  bool isShowing(String herotag) =>
+      mediaItem.value?.id.endsWith(herotag) ?? false;
 
   void clearIfNeeded() {
     if (!enableBackgroundPlay) return;
