@@ -87,6 +87,29 @@ void main() {
     }
   });
 
+  testWidgets('a buttonSize makes the pane and its buttons that big', (
+    tester,
+  ) async {
+    const side = 56.0;
+    await tester.pumpWidget(
+      _app(
+        GlassButtonGroup(
+          glass: true,
+          buttonSize: side,
+          children: [_button('上一个'), _button('播放'), _button('下一个')],
+        ),
+      ),
+    );
+    final pane = tester.getRect(find.byType(LiquidGlass));
+    expect(pane.size, const Size(3 * side, side));
+    final buttons = find.byType(IconButton);
+    for (var i = 0; i < 3; i++) {
+      final rect = tester.getRect(buttons.at(i));
+      expect(rect.size, const Size.square(side));
+      expect(rect.left, pane.left + i * side);
+    }
+  });
+
   testWidgets('a column along Axis.vertical', (tester) async {
     await tester.pumpWidget(
       _app(

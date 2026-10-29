@@ -5,8 +5,12 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/gesture/tap_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
+import 'package:PiliPlus/common/widgets/menu_entries.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
@@ -19,9 +23,9 @@ import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/image_type.dart';
 import 'package:PiliPlus/pages/audio/controller.dart';
 import 'package:PiliPlus/pages/audio/volume_button.dart';
+import 'package:PiliPlus/pages/audio/widgets/glass_controls.dart';
 import 'package:PiliPlus/pages/setting/models/play_settings.dart'
     show showPlayerVolumeDialog;
-import 'package:PiliPlus/pages/video/introduction/ugc/widgets/action_item.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart'
     show HeaderControlState;
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
@@ -40,7 +44,6 @@ import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart' hide DraggableScrollableSheet;
@@ -50,6 +53,11 @@ class AudioPage extends StatefulWidget {
 
   @override
   State<AudioPage> createState() => _AudioPageState();
+
+  /// Makes the page's controller in place of [AudioController.new], for a
+  /// test to give it one that neither fetches nor plays.
+  @visibleForTesting
+  static AudioController Function()? debugController;
 
   static void toAudioPage({
     int? id,
@@ -84,7 +92,7 @@ extension _ListOrderExt on ListOrder {
 class _AudioPageState extends State<AudioPage>
     with RouteAware, RouteAwareMixin {
   final _controller = Get.put(
-    AudioController(),
+    AudioPage.debugController?.call() ?? AudioController(),
     tag: Utils.generateRandomString(8),
   );
 
@@ -112,7 +120,7 @@ class _AudioPageState extends State<AudioPage>
     final isPortrait = MediaQuery.sizeOf(context).isPortrait;
     final padding = MediaQuery.viewPaddingOf(context);
     return SimpleScaffold(
-      appBar: AppBar(
+      appBar: GlassAppBar(
         actions: [
           if (_controller.isUgc && _controller.enableSponsorBlock)
             Obx(() {
@@ -152,60 +160,153 @@ class _AudioPageState extends State<AudioPage>
               ),
             icon: const Icon(Icons.schedule, size: 22),
           ),
-          if (_controller.isUgc)
-            IconButton(
-              tooltip: '更多',
-              onPressed: _showMore,
-              icon: const Icon(Icons.more_vert, size: 22),
-            ),
+          Obx(() {
+            final audioItem = _controller.audioItem.value;
+            if (_controller.isUgc || (audioItem?.hasMv ?? false)) {
+              return PopupMenuButton<void>(
+                tooltip: '更多',
+                icon: const Icon(Icons.more_vert, size: 22),
+                itemBuilder: (_) => _moreEntries(audioItem),
+              );
+            }
+            return const SizedBox.shrink();
+          }),
           const SizedBox(width: 5),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.only(
-          left: 20 + padding.left,
-          right: 20 + padding.right,
-          bottom: 30 + padding.bottom,
-        ),
-        child: isPortrait
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _buildInfo(colorScheme, isPortrait)),
-                  const SizedBox(height: 25),
-                  _buildProgressBar(colorScheme),
-                  _buildDuration(colorScheme),
-                  _buildControls(),
-                ],
-              )
-            : Row(
-                spacing: 12,
-                children: [
-                  Expanded(
-                    child: _buildInfo(colorScheme, isPortrait),
-                  ),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+      body: GlassAppBar.enabled
+          ? Builder(builder: _buildGlassBody)
+          : Padding(
+              padding: EdgeInsets.only(
+                left: 20 + padding.left,
+                right: 20 + padding.right,
+                bottom: 30 + padding.bottom,
+              ),
+              child: isPortrait
+                  ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Obx(() {
-                          final audioItem = _controller.audioItem.value;
-                          if (audioItem != null) {
-                            return _buildActions(audioItem);
-                          }
-                          return const SizedBox.shrink();
-                        }),
+                        Expanded(child: _buildInfo(colorScheme, .zero)),
                         const SizedBox(height: 25),
                         _buildProgressBar(colorScheme),
                         _buildDuration(colorScheme),
                         _buildControls(),
                       ],
+                    )
+                  : Row(
+                      spacing: 12,
+                      children: [
+                        Expanded(
+                          child: _buildInfo(colorScheme, .zero),
+                        ),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildProgressBar(colorScheme),
+                              _buildDuration(colorScheme),
+                              _buildControls(),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+            ),
+    );
+  }
+
+  /// With glass on, the content takes the whole page, under the title bar
+  /// and, upright, under the controls floating on glass at the bottom, its
+  /// lists kept clear of both by the padding [_buildInfo] gets. Sideways
+  /// the controls stand on glass beside it.
+  Widget _buildGlassBody(BuildContext context) {
+    final colorScheme = ColorScheme.of(context);
+    final padding = MediaQuery.viewPaddingOf(context);
+    final top = HeaderOverlayInset.of(context);
+    final controls = _buildGlassControls(colorScheme);
+    final sides = EdgeInsets.only(
+      left: 20 + padding.left,
+      right: 20 + padding.right,
+    );
+    if (MediaQuery.sizeOf(context).isPortrait) {
+      final bottom = padding.bottom + _glassControlsBottom;
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: Padding(
+              padding: sides,
+              child: _buildInfo(
+                colorScheme,
+                EdgeInsets.only(
+                  top: top,
+                  bottom: bottom + AudioGlassControls.height + _glassFade,
+                ),
               ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: LiquidGlassFooter(
+              fade: _glassFade,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  _glassControlsSide + padding.left,
+                  0,
+                  _glassControlsSide + padding.right,
+                  bottom,
+                ),
+                child: controls,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    final bottom = 30 + padding.bottom;
+    return Padding(
+      padding: sides,
+      child: Row(
+        spacing: 12,
+        children: [
+          Expanded(
+            child: _buildInfo(
+              colorScheme,
+              EdgeInsets.only(top: top, bottom: bottom),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(top: top, bottom: bottom),
+              child: controls,
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  // As the title bar's: the controls stand 14 in from the sides over a fade
+  // 16 tall, and 20 above the bottom.
+  static const double _glassControlsSide = 14;
+  static const double _glassControlsBottom = 20;
+  static const double _glassFade = 16;
+
+  Widget _buildGlassControls(ColorScheme colorScheme) {
+    return AudioGlassControls(
+      position: _buildPosition(),
+      progress: _buildProgressBar(colorScheme, volume: false),
+      duration: _buildTotal(),
+      trailing: _showVolume ? VolumeButton(controller: _controller) : null,
+      playModeIcon: Obx(() => Icon(_controller.playMode.value.icon)),
+      onPlayMode: _showPlaySettings,
+      onPrevious: _controller.playPrev,
+      playPause: _controller.animController,
+      onPlayPause: _controller.playOrPause,
+      onNext: _controller.playNext,
+      onPlaylist: _showPlaylist,
     );
   }
 
@@ -597,175 +698,55 @@ class _AudioPageState extends State<AudioPage>
     );
   }
 
-  void _showMore() {
-    showModalBottomSheet(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      constraints: BoxConstraints(
-        maxWidth: min(640, context.mediaQueryShortestSide),
-      ),
-      builder: (context) {
-        final colorScheme = ColorScheme.of(context);
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewPaddingOf(context).bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              InkWell(
-                onTap: Get.back,
-                borderRadius: Style.bottomSheetRadius,
-                child: SizedBox(
-                  height: 35,
-                  child: Center(
-                    child: Container(
-                      width: 32,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: colorScheme.outline,
-                        borderRadius: const BorderRadius.all(
-                          Radius.circular(3),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.warning_amber_rounded, size: 20),
-                title: const Text('举报', style: TextStyle(fontSize: 14)),
-                onTap: () {
-                  Get.back();
-                  PageUtils.reportVideo(_controller.oid.toInt());
-                },
-              ),
-              if (_controller.player case final player?) ...[
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.info_outline, size: 20),
-                  title: const Text('播放信息', style: TextStyle(fontSize: 14)),
-                  onTap: () {
-                    Get.back();
-                    HeaderControlState.showPlayerInfo(context, player: player);
-                  },
-                ),
-                if (PlatformUtils.isMobile)
-                  ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.volume_up, size: 20),
-                    title: Text(
-                      '播放器音量: ${player.getProperty('volume').subLength(3)}%',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    onTap: () {
-                      Get.back();
-                      showPlayerVolumeDialog(
-                        context,
-                        () {},
-                        onChanged: _controller.setPlayerVolume,
-                      );
-                    },
-                  ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildActions(DetailItem audioItem) {
-    return SizedBox(
-      height: 48,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Obx(
-            () => ActionItem(
-              animation: _controller.tripleAnimation,
-              icon: const Icon(FontAwesomeIcons.thumbsUp),
-              selectIcon: const Icon(
-                FontAwesomeIcons.solidThumbsUp,
-              ),
-              selectStatus: _controller.hasLike.value,
-              semanticsLabel: '点赞',
-              text: NumUtils.numFormat(audioItem.stat.like),
-              onStartTriple: _controller.onStartTriple,
-              onCancelTriple: _controller.onCancelTriple,
+  List<PopupMenuEntry<void>> _moreEntries(DetailItem? audioItem) {
+    final player = _controller.player;
+    return [
+      if (audioItem != null && audioItem.hasMv)
+        menuRow(
+          '看MV',
+          icon: Icons.play_circle_outline,
+          onTap: () {
+            // The MV of the track playing now, as 举报 reports that one: the
+            // track may have moved on while the menu was open.
+            final item = _controller.audioItem.value;
+            if (item == null || !item.hasMv) return;
+            _controller.onPause();
+            PageUtils.toVideoPage(
+              cid: item.associatedItem.subId.first.toInt(),
+              aid: item.associatedItem.oid.toInt(),
+            );
+          },
+        ),
+      if (player != null) ...[
+        menuRow(
+          '播放信息',
+          icon: Icons.info_outline,
+          onTap: () =>
+              HeaderControlState.showPlayerInfo(context, player: player),
+        ),
+        if (PlatformUtils.isMobile)
+          menuRow(
+            '播放器音量: ${player.getProperty('volume').subLength(3)}%',
+            icon: Icons.volume_up,
+            showKind: false,
+            onTap: () => showPlayerVolumeDialog(
+              context,
+              () {},
+              onChanged: _controller.setPlayerVolume,
             ),
           ),
-          Obx(
-            () => ActionItem(
-              animation: _controller.tripleAnimation,
-              icon: const Icon(FontAwesomeIcons.b),
-              selectIcon: const Icon(FontAwesomeIcons.b),
-              onTap: _controller.actionCoinVideo,
-              selectStatus: _controller.hasCoin,
-              semanticsLabel: '投币',
-              text: NumUtils.numFormat(
-                audioItem.stat.coin,
-              ),
-            ),
-          ),
-          Obx(
-            () => ActionItem(
-              animation: _controller.tripleAnimation,
-              icon: const Icon(FontAwesomeIcons.star),
-              selectIcon: const Icon(
-                FontAwesomeIcons.solidStar,
-              ),
-              onTap: () => _controller.showFavBottomSheet(context),
-              onLongPress: () => _controller.showFavBottomSheet(
-                context,
-                isLongPress: true,
-              ),
-              selectStatus: _controller.hasFav.value,
-              semanticsLabel: '收藏',
-              text: NumUtils.numFormat(
-                audioItem.stat.favourite,
-              ),
-            ),
-          ),
-          ActionItem(
-            icon: const Icon(FontAwesomeIcons.comment),
-            onTap: _controller.showReply,
-            semanticsLabel: '评论',
-            text: NumUtils.numFormat(
-              audioItem.stat.reply,
-            ),
-          ),
-          ActionItem(
-            icon: const Icon(
-              FontAwesomeIcons.shareFromSquare,
-            ),
-            onTap: () => _controller.actionShareVideo(context),
-            selectStatus: false,
-            semanticsLabel: '分享',
-            text: NumUtils.numFormat(
-              audioItem.stat.share,
-            ),
-          ),
-          if (audioItem.associatedItem.hasOid() &&
-              audioItem.associatedItem.subId.isNotEmpty)
-            ActionItem(
-              icon: const Icon(FontAwesomeIcons.circlePlay),
-              onTap: () {
-                _controller.onPause();
-                PageUtils.toVideoPage(
-                  cid: audioItem.associatedItem.subId.first.toInt(),
-                  aid: audioItem.associatedItem.oid.toInt(),
-                );
-              },
-              selectStatus: false,
-              semanticsLabel: '看MV',
-              text: '看MV',
-            ),
-        ],
-      ),
-    );
+      ],
+      if (_controller.isUgc) ...[
+        if (player != null || (audioItem?.hasMv ?? false))
+          const PopupMenuDivider(),
+        menuRow(
+          '举报',
+          icon: Icons.warning_amber_rounded,
+          destructive: true,
+          onTap: () => PageUtils.reportVideo(_controller.oid.toInt()),
+        ),
+      ],
+    ];
   }
 
   void _onDragStart(ThumbDragDetails details) {
@@ -784,7 +765,9 @@ class _AudioPageState extends State<AudioPage>
       ..onSeek(Duration(milliseconds: milliseconds));
   }
 
-  Widget _buildProgressBar(ColorScheme colorScheme) {
+  bool get _showVolume => kDebugMode || PlatformUtils.isDesktop;
+
+  Widget _buildProgressBar(ColorScheme colorScheme, {bool volume = true}) {
     final primary = colorScheme.primary;
     final thumbGlowColor = primary.withAlpha(80);
     final baseBarColor = colorScheme.isDark
@@ -829,7 +812,7 @@ class _AudioPageState extends State<AudioPage>
         ],
       );
     }
-    if (kDebugMode || PlatformUtils.isDesktop) {
+    if (volume && _showVolume) {
       child = Row(
         spacing: 10,
         children: [
@@ -848,29 +831,34 @@ class _AudioPageState extends State<AudioPage>
         style: TextStyle(fontSize: 13, color: colorScheme.outline),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Obx(() {
-              final position = _controller.position.value;
-              if (_controller.player != null) {
-                return Text(
-                  DurationUtils.formatDuration(position),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
-            Obx(() {
-              final duration = _controller.duration.value;
-              if (_controller.player != null) {
-                return Text(
-                  DurationUtils.formatDuration(duration),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
-          ],
+          children: [_buildPosition(), _buildTotal()],
         ),
       ),
     );
+  }
+
+  Widget _buildPosition() {
+    return Obx(() {
+      final position = _controller.position.value;
+      if (_controller.player != null) {
+        return Text(
+          DurationUtils.formatDuration(position),
+        );
+      }
+      return const SizedBox.shrink();
+    });
+  }
+
+  Widget _buildTotal() {
+    return Obx(() {
+      final duration = _controller.duration.value;
+      if (_controller.player != null) {
+        return Text(
+          DurationUtils.formatDuration(duration),
+        );
+      }
+      return const SizedBox.shrink();
+    });
   }
 
   Widget _buildControls() {
@@ -919,7 +907,9 @@ class _AudioPageState extends State<AudioPage>
     );
   }
 
-  Widget _buildInfo(ColorScheme colorScheme, bool isPortrait) {
+  /// The cover, title and the rest; its list keeps [padding] clear, the
+  /// room the glass bars over it leave.
+  Widget _buildInfo(ColorScheme colorScheme, EdgeInsets padding) {
     return Obx(() {
       final audioItem = _controller.audioItem.value;
       if (audioItem != null) {
@@ -929,7 +919,7 @@ class _AudioPageState extends State<AudioPage>
             Expanded(
               child: Center(
                 child: ListView(
-                  padding: .zero,
+                  padding: padding,
                   shrinkWrap: true,
                   physics: platformClampingPhysics,
                   key: const PageStorageKey(_AudioPageState),
@@ -1022,16 +1012,17 @@ class _AudioPageState extends State<AudioPage>
                 ),
               ),
             ),
-            if (isPortrait) ...[
-              const SizedBox(height: 10),
-              _buildActions(audioItem),
-            ],
           ],
         );
       }
       return const SizedBox.shrink();
     });
   }
+}
+
+extension on DetailItem {
+  /// Whether it has a video to watch, its MV.
+  bool get hasMv => associatedItem.hasOid() && associatedItem.subId.isNotEmpty;
 }
 
 extension _PlayReatExt on PlayRepeat {

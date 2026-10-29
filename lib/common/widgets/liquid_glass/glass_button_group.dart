@@ -7,7 +7,7 @@ import 'package:material_ui/material_ui.dart';
 /// evenly spaced, without dividers, a capsule around them, or a circle
 /// around a lone one. [children] stay as they are: `IconButton`s,
 /// `PopupMenuButton`s and `TextButton`s keep their tooltips, semantics,
-/// keyboard focus and disabled grey, and stand [thickness] tall, a pressed
+/// keyboard focus and disabled grey, and stand [buttonSize] tall, a pressed
 /// one alone on a platter, without a ripple, its corners concentric with the
 /// pane's. A `PopupMenuButton`'s menu grows out of its button and returns
 /// into it, as every menu on glass does. While all of them hide, as an `Obx`
@@ -21,6 +21,7 @@ class GlassButtonGroup extends StatefulWidget {
     required this.children,
     this.direction = Axis.horizontal,
     this.glass,
+    this.buttonSize = thickness,
   });
 
   /// How thick the pane is, and how long a button on it at least, as iOS
@@ -35,6 +36,11 @@ class GlassButtonGroup extends StatefulWidget {
 
   /// Whether the buttons stand on glass: the 液态玻璃 switch when null.
   final bool? glass;
+
+  /// How thick the pane is, and how long a button on it at least:
+  /// [thickness], a bar's, unless the buttons are a page's main controls, as
+  /// a player's.
+  final double buttonSize;
 
   /// The group [context] is in.
   static GlassButtonGroupState? maybeOf(BuildContext context) =>
@@ -111,7 +117,7 @@ class GlassButtonGroupState extends State<GlassButtonGroup> {
           ? BorderSide(color: colorScheme.primary, width: 2)
           : null,
     );
-    const size = Size.square(GlassButtonGroup.thickness);
+    final size = Size.square(widget.buttonSize);
     const shape = WidgetStatePropertyAll<OutlinedBorder>(_PlatterBorder());
     final group = Stack(
       children: [
@@ -127,7 +133,7 @@ class GlassButtonGroupState extends State<GlassButtonGroup> {
           data: onGlass.copyWith(
             iconButtonTheme: IconButtonThemeData(
               style: ButtonStyle(
-                minimumSize: const WidgetStatePropertyAll(size),
+                minimumSize: WidgetStatePropertyAll(size),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.standard,
                 splashFactory: NoSplash.splashFactory,
@@ -138,7 +144,7 @@ class GlassButtonGroupState extends State<GlassButtonGroup> {
             ),
             textButtonTheme: TextButtonThemeData(
               style: ButtonStyle(
-                minimumSize: const WidgetStatePropertyAll(size),
+                minimumSize: WidgetStatePropertyAll(size),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.standard,
                 splashFactory: NoSplash.splashFactory,
@@ -150,14 +156,12 @@ class GlassButtonGroupState extends State<GlassButtonGroup> {
           ),
           child: switch (widget.direction) {
             Axis.horizontal => SizedBox(
-              height: GlassButtonGroup.thickness,
+              height: widget.buttonSize,
               child: buttons,
             ),
             // As wide as its widest button, a TextButton's label and all.
             Axis.vertical => ConstrainedBox(
-              constraints: const BoxConstraints(
-                minWidth: GlassButtonGroup.thickness,
-              ),
+              constraints: BoxConstraints(minWidth: widget.buttonSize),
               child: buttons,
             ),
           },
