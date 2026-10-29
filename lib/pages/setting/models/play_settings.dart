@@ -262,6 +262,15 @@ List<SettingsModel> get playSettings => [
     getSubtitle: () => '当前选择偏好：${Pref.subtitlePreferenceV2.desc}',
     onTap: _showSubtitleDialog,
   ),
+  NormalModel(
+    title: '听视频字幕语言',
+    leading: const Icon(Icons.subtitles_outlined),
+    getSubtitle: () => switch (Pref.audioSubtitleLan) {
+      final lan? => '沿用上次在听视频页选的语言：$lan',
+      null => '中文优先，UP主上传的字幕优先于 AI 字幕',
+    },
+    onTap: _showAudioSubtitleLanDialog,
+  ),
   if (PlatformUtils.isDesktop)
     SwitchModel(
       title: '最小化时暂停/还原时播放',
@@ -432,6 +441,29 @@ Future<void> _showSubtitleDialog(
       SettingBoxKey.subtitlePreferenceV2,
       res.index,
     );
+    setState();
+  }
+}
+
+Future<void> _showAudioSubtitleLanDialog(
+  BuildContext context,
+  VoidCallback setState,
+) async {
+  final lan = Pref.audioSubtitleLan;
+  if (lan == null) {
+    SmartDialog.showToast('在听视频页的字幕里选过语言后，会记在这里');
+    return;
+  }
+  final res = await showDialog<String>(
+    context: context,
+    builder: (context) => SelectDialog<String>(
+      title: '听视频字幕语言',
+      value: lan,
+      values: [('', '自动：中文优先，UP主上传的优先'), (lan, '沿用上次选的：$lan')],
+    ),
+  );
+  if (res == '') {
+    await GStorage.setting.delete(SettingBoxKey.audioSubtitleLan);
     setState();
   }
 }

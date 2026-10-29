@@ -7,10 +7,12 @@ import 'dart:convert';
 
 import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/init.dart';
+import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart' show Options;
 import 'package:hive_ce/hive.dart';
 
 abstract final class WbiSign {
@@ -74,8 +76,13 @@ abstract final class WbiSign {
         .toString(); // 计算 w_rid
   }
 
-  static Future<String> _getWbiKeys() async {
-    final resp = await Request().get(Api.userInfo);
+  static Future<String> _getWbiKeys(bool silent) async {
+    final resp = await Request().get(
+      Api.userInfo,
+      options: silent
+          ? Options(extra: const {AccountManager.silent: true})
+          : null,
+    );
     try {
       final wbiUrls = resp.data['data']['wbi_img'];
 
@@ -92,7 +99,9 @@ abstract final class WbiSign {
     }
   }
 
-  static FutureOr<String> getWbiKeys() {
+  /// [silent] for the request it may start; another caller waiting on that
+  /// one still toasts its own failure.
+  static FutureOr<String> getWbiKeys({bool silent = false}) {
     final nowDate = DateTime.now();
     if (DateTime.fromMillisecondsSinceEpoch(
           _localCache.get(LocalCacheKey.timeStamp, defaultValue: 0) as int,
@@ -100,19 +109,20 @@ abstract final class WbiSign {
         nowDate.day) {
       final String? mixinKey = _localCache.get(LocalCacheKey.mixinKey);
       if (mixinKey != null) return mixinKey;
-      return _future ??= _getWbiKeys();
+      return _future ??= _getWbiKeys(silent);
     } else {
       return _future = _localCache
           .put(LocalCacheKey.timeStamp, nowDate.millisecondsSinceEpoch)
-          .then((_) => _getWbiKeys());
+          .then((_) => _getWbiKeys(silent));
     }
   }
 
   static Future<Map<String, Object>> makSign(
-    Map<String, Object> params,
-  ) async {
+    Map<String, Object> params, {
+    bool silent = false,
+  }) async {
     // params 为需要加密的请求参数
-    final String mixinKey = await getWbiKeys();
+    final String mixinKey = await getWbiKeys(silent: silent);
     encWbi(params, mixinKey);
     return params;
   }

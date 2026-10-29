@@ -17,6 +17,7 @@ import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/audio_normalization.dart';
 import 'package:PiliPlus/models/video/play/url.dart' as http_model show Volume;
+import 'package:PiliPlus/pages/audio/subtitle/subtitle_mixin.dart';
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
@@ -44,7 +45,8 @@ class AudioController extends GetxController
         GetTickerProviderStateMixin,
         BlockConfigMixin,
         BlockMixin,
-        AudioNormalizationMixin {
+        AudioNormalizationMixin,
+        AudioSubtitleMixin {
   late Int64 id;
   late Int64 oid;
   late List<Int64> subId;
@@ -53,6 +55,11 @@ class AudioController extends GetxController
   late final PlaylistSource from;
   @override
   late final bool isUgc = itemType == 1;
+
+  /// The video and part playing, once their media opened: the next one's
+  /// address may still fail, and this one plays on.
+  @override
+  (int, int)? subtitleTarget;
 
   final audioItem = Rxn<DetailItem>();
 
@@ -102,6 +109,7 @@ class AudioController extends GetxController
     if (player case final player?) {
       speed = value;
       player.setRate(value);
+      updateSubtitleRate(value);
       _updatePlaybackState();
     }
   }
@@ -290,6 +298,7 @@ class AudioController extends GetxController
       ..onSkipToPrevious = null;
   }
 
+  @override
   bool isPlaying() {
     return player?.state.playing ?? false;
   }
@@ -297,6 +306,7 @@ class AudioController extends GetxController
   /// 在放，或者等着接着放（被打断、在等下一首）；定时关闭到点时要停掉它
   bool isPlayingOrPending() => isPlaying() || _wantPlay || _playInterrupted;
 
+  @override
   Future<void>? onPlay() async {
     _wantPlay = true;
     _playInterrupted = false;
@@ -341,7 +351,9 @@ class AudioController extends GetxController
     audioSessionHandler?.setActive(false, owner: this);
   }
 
+  @override
   Future<void>? onSeek(Duration duration) {
+    onSubtitleSeek(duration);
     _updatePlaybackState(position: duration);
     return player?.seek(duration);
   }
@@ -526,6 +538,12 @@ class AudioController extends GetxController
     String? referer,
     http_model.Volume? volume,
   }) async {
+    // The subtitles follow what plays from now on, whichever way it came:
+    // its address asked for, or handed over by the video page.
+    subtitleTarget = itemType == 1 && subId.isNotEmpty
+        ? (oid.toInt(), subId.first.toInt())
+        : null;
+    onSubtitleTargetChanged();
     await _initPlayerIfNeeded();
     final extras = audioFilterExtras(volume);
     player
@@ -591,6 +609,7 @@ class AudioController extends GetxController
     final stream = player!.stream;
     _subscriptions = [
       stream.position.listen((position) {
+        updateSubtitlePosition(position);
         if (isDragging) return;
         final seconds = position.inSeconds;
         if (seconds != this.position.value) {
@@ -605,6 +624,7 @@ class AudioController extends GetxController
         this.duration.value = duration.inSeconds;
       }),
       stream.playing.listen((playing) {
+        updateSubtitlePlaying(playing);
         if (playing) {
           animController.forward();
           _playerStatus = .playing;
@@ -624,6 +644,7 @@ class AudioController extends GetxController
         }
       }),
       stream.buffering.listen((bool buffering) {
+        updateSubtitleBuffering(buffering);
         if (!_playerStatus.isCompleted) {
           _stopStatusTimer();
           _updatePlaybackState();

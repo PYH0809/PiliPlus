@@ -22,11 +22,16 @@ abstract final class DmGrpc {
     );
   }
 
-  static Future<LoadingState<DmViewReply>> dmView(int aid, int cid) {
+  static Future<LoadingState<DmViewReply>> dmView(
+    int aid,
+    int cid, {
+    bool silent = false,
+  }) {
     return GrpcReq.request(
       GrpcUrl.dmView,
       DmViewReq(pid: Int64(aid), oid: Int64(cid), type: 1),
       DmViewReply.fromBuffer,
+      silent: silent,
     );
   }
 }

@@ -22,6 +22,10 @@ final _setCookieReg = RegExp('(?<=)(,)(?=[^;]+?=)');
 class AccountManager extends Interceptor {
   AccountManager();
 
+  /// Set in a request's `extra`, its failure shows where it was asked for,
+  /// not as a toast.
+  static const silent = 'silent';
+
   static String blockServer = Pref.blockServer;
 
   static String getCookies(List<Cookie> cookies) {
@@ -161,6 +165,7 @@ class AccountManager extends Interceptor {
   }
 
   static void toast(DioException err) {
+    if (err.requestOptions.extra[silent] == true) return;
     const skipShow = [
       'heartbeat',
       'history/report',
