@@ -124,6 +124,9 @@ class AudioController extends GetxController
   int _playRequest = 0;
   // 地址请求的编号：连着切了几次时只认最新一次的结果
   int _urlRequest = 0;
+  int _urlReturned = 0;
+  // 点了别的一首、地址还没回来
+  bool get _switchingTrack => _urlReturned != _urlRequest;
 
   Timer? _statusTimer;
 
@@ -154,7 +157,13 @@ class AudioController extends GetxController
       _lastVolume = null;
     }
     desktopVolume.value = volume;
-    player?.setVolume(volume * 100);
+    setPlayerVolume(volume * 100);
+  }
+
+  /// duck 期间用户调过音量的话，以用户的为准，duck 结束时不再恢复
+  void setPlayerVolume(double volume) {
+    _volumeBeforeDuck = null;
+    player?.setVolume(volume);
   }
 
   void syncVolume([_]) {
@@ -362,6 +371,7 @@ class AudioController extends GetxController
     );
     // 期间又切了别的，这次的结果作废；等地址期间暂停过的，换过去以后也先不播
     if (request != _urlRequest) return false;
+    _urlReturned = request;
     if (res case Success(:final response)) {
       if (!_onPlay(response)) _releaseAudioFocusIfStopped();
       return true;
@@ -521,6 +531,8 @@ class AudioController extends GetxController
         if (completed) {
           _playerStatus = .completed;
           _startStatusTimer();
+          // 已经点了别的一首、地址还没回来：播完的是旧的那首，接着放新的就行
+          if (_switchingTrack) return;
           // 播完不再接着放时让出音频焦点
           if (shutdownTimerService.isWaiting) {
             _releaseAudioFocus();

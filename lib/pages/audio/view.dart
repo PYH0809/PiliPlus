@@ -649,7 +649,7 @@ class _AudioPageState extends State<AudioPage> {
                       showPlayerVolumeDialog(
                         context,
                         () {},
-                        onChanged: player.setVolume,
+                        onChanged: _controller.setPlayerVolume,
                       );
                     },
                   ),
