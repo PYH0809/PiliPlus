@@ -218,7 +218,12 @@ class AudioController extends GetxController
     _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen((_) {
       if (!videoPlayerServiceHandler!.isShowing(hashCode.toString())) {
         // A page opened from here took the card, and its buttons with it.
-        if (isCovered) _unbindMediaControls();
+        // This page stops playing as well, as it does for 看MV, so that no
+        // sound goes on that the card cannot pause.
+        if (isCovered) {
+          _unbindMediaControls();
+          player?.pause();
+        }
         return;
       }
       // Another 听视频 opened from here unbound them as it closed.
