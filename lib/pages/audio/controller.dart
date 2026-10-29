@@ -231,6 +231,8 @@ class AudioController extends GetxController
   }
 
   void _updateCurrItem(DetailItem item) {
+    // A request that returns after the page left must not bring its card back.
+    if (isClosed) return;
     audioItem.value = item;
     hasLike.value = item.stat.hasLike_7;
     coinNum.value = item.stat.hasCoin_8 ? 2 : 0;
@@ -271,8 +273,6 @@ class AudioController extends GetxController
           this.index = index;
           _updateCurrItem(response.list[index]);
           playlist = response.list;
-          // Playback may have started before the item reached the media card.
-          if (player != null) _updatePlaybackState();
         }
       } else if (isLoadPrev) {
         _prev = response.reachStart ? null : response.paginationReply.prev;
@@ -286,9 +286,17 @@ class AudioController extends GetxController
           playlist?.addAll(response.list);
         }
       }
+      // Playback may also have started before the item reached the card.
+      onPlaylistChanged();
     } else {
       res.toast();
     }
+  }
+
+  /// Republishes the playback state, whose previous / next follow the
+  /// playlist.
+  void onPlaylistChanged() {
+    if (player != null) _updatePlaybackState();
   }
 
   @pragma('vm:notify-debugger-on-exception')

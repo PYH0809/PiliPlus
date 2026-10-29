@@ -110,6 +110,35 @@ void main() {
     expect(handler.playbackState.value.androidCompactActionIndices, isNull);
   });
 
+  test('back on a paused video page, the card is the video\'s again, without '
+      'previous / next', () {
+    handler
+      ..onVideoDetailChange(item(), 1, 'video')
+      ..onVideoDetailChange(
+        item(
+          parts: [
+            BKArcPart(subId: Int64(1), title: 'P1 开场', duration: Int64(300)),
+            BKArcPart(subId: Int64(2), title: 'P2 正文', duration: Int64(1019)),
+          ],
+        ),
+        2,
+        'audio',
+      );
+    play(canSkip: true);
+
+    handler.onVideoDetailDispose('audio');
+
+    final state = handler.playbackState.value;
+    expect(handler.mediaItem.value!.id, '1video');
+    expect(state.playing, isFalse);
+    expect(actions(), [
+      MediaAction.rewind,
+      MediaAction.play,
+      MediaAction.fastForward,
+    ]);
+    expect(state.androidCompactActionIndices, isNull);
+  });
+
   test('leaving the page takes the card away', () {
     handler.onVideoDetailChange(item(), 1, 'audio');
     play(canSkip: true);

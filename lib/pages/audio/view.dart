@@ -257,6 +257,7 @@ class _AudioPageState extends State<AudioPage> {
                                     _controller.index -= 1;
                                   }
                                   playlist.removeAt(index);
+                                  _controller.onPlaylistChanged();
                                   (context as Element).markNeedsBuild();
                                 },
                                 iconColor: colorScheme.outline,
@@ -370,6 +371,7 @@ class _AudioPageState extends State<AudioPage> {
                                   _controller.index -= 1;
                                 }
                                 playlist.removeAt(index);
+                                _controller.onPlaylistChanged();
                                 (context as Element).markNeedsBuild();
                               },
                               iconColor: colorScheme.outline,

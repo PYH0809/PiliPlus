@@ -376,9 +376,17 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       _item.removeWhere((item) => item.id.endsWith(herotag));
     }
     if (_item.isNotEmpty) {
-      setMediaItem(_item.last);
-      playbackState.add(
-        playbackState.value.copyWith(processingState: .ready, playing: false),
+      final item = _item.last;
+      setMediaItem(item);
+      // Rebuild the controls as well: the page that left may have had
+      // previous / next, or been live.
+      final state = playbackState.value;
+      _updateState(
+        .ready,
+        false,
+        item.isLive ?? false,
+        position: state.updatePosition,
+        speed: state.speed,
       );
     }
   }
