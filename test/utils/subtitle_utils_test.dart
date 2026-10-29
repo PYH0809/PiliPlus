@@ -173,6 +173,11 @@ void main() {
     test('in proportion between', () {
       expect(SubtitleUtils.moveTo(apart(475), 1), _ms(615));
     });
+
+    test('by the gap as played at a speed', () {
+      expect(SubtitleUtils.moveTo(apart(950), 1, rate: 2), _ms(615));
+      expect(SubtitleUtils.moveTo(apart(475), 1, rate: 0.5), _ms(750));
+    });
   });
 
   group('SubtitleUtils.targetAt', () {
@@ -182,6 +187,15 @@ void main() {
       // 2 seconds apart: a 750 ms move, from 2.25 s
       expect(SubtitleUtils.targetAt(lines, _ms(2249)), (index: 0, dots: false));
       expect(SubtitleUtils.targetAt(lines, _ms(2250)), (index: 1, dots: false));
+    });
+
+    test('sets off by the move played at a speed', () {
+      // At 2x a 750 ms move is 1.5 s of the media's: no sooner than line 0
+      expect(SubtitleUtils.targetAt(lines, _ms(1499), rate: 2).index, 0);
+      expect(SubtitleUtils.targetAt(lines, _ms(1500), rate: 2).index, 1);
+      // At 0.5x, 375 ms of it
+      expect(SubtitleUtils.targetAt(lines, _ms(2624), rate: 0.5).index, 0);
+      expect(SubtitleUtils.targetAt(lines, _ms(2625), rate: 0.5).index, 1);
     });
 
     test('but not before the line before it starts', () {

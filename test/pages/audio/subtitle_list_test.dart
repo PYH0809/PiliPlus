@@ -231,6 +231,21 @@ void main() {
     expect(_topOf(tester, 'line 6'), closeTo(0.08, 0.003));
   });
 
+  testWidgets('at double speed it still lands as the next line starts', (
+    tester,
+  ) async {
+    final audio = await _pumpList(tester, at: _lines[5].from)
+      ..updateSubtitleRate(2);
+    final next = _lines[6].from;
+    // 100 ms of the media in each 50 ms frame.
+    for (var at = _lines[5].from; at <= next; at += _s(0.1)) {
+      audio.updateSubtitlePosition(at);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(audio.subtitleLine.value, 6);
+    expect(_topOf(tester, 'line 6'), closeTo(0.08, 0.003));
+  });
+
   testWidgets('the rows below set off later, the ones above together', (
     tester,
   ) async {
@@ -444,6 +459,28 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(audio.subtitleInterlude.value, isNotNull);
       expect(dots, findsNothing);
+    });
+
+    testWidgets('hold still, asking for no frames, while paused', (
+      tester,
+    ) async {
+      final audio = await _pumpList(tester, lines: apart(7), at: _s(1));
+      await _play(tester, audio, _s(1.5), _s(3));
+      expect(dots, findsNWidgets(3));
+
+      audio
+        ..playing = false
+        ..updateSubtitlePlaying(false);
+      // Settles: the clock stopped.
+      await tester.pumpAndSettle();
+      expect(dots, findsNWidgets(3));
+
+      audio
+        ..playing = true
+        ..updateSubtitlePlaying(true);
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      expect(dots, findsNWidgets(3));
     });
 
     testWidgets('come in again after a seek back in the pause', (tester) async {

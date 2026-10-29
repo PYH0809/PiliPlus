@@ -126,10 +126,16 @@ abstract final class SubtitleUtils {
 
   /// How long the list takes to move on to line [index]: 480 ms when it
   /// starts 200 ms or less after the line before it, 750 ms for 750 ms or
-  /// more, and in between in proportion.
-  static Duration moveTo(List<SubtitleLine> lines, int index) {
+  /// more, and in between in proportion. The gap is in real time, as played
+  /// at [rate]; the move takes as long at any rate.
+  static Duration moveTo(
+    List<SubtitleLine> lines,
+    int index, {
+    double rate = 1,
+  }) {
     if (index <= 0) return const Duration(milliseconds: 750);
-    final gap = (lines[index].from - lines[index - 1].from).inMilliseconds;
+    final gap =
+        (lines[index].from - lines[index - 1].from).inMilliseconds / rate;
     final ms = gap <= 200
         ? 480
         : gap >= 750
@@ -139,13 +145,14 @@ abstract final class SubtitleUtils {
   }
 
   /// Where the list heads at [position]: the line lit, and the next one as
-  /// soon as moving there would land just as it starts, though never before
-  /// the line before it starts; in an interlude, the dots above the line it
-  /// waits for. -1 without lines.
+  /// soon as moving there would land just as it starts, played at [rate],
+  /// though never before the line before it starts; in an interlude, the dots
+  /// above the line it waits for. -1 without lines.
   static ({int index, bool dots}) targetAt(
     List<SubtitleLine> lines,
-    Duration position,
-  ) {
+    Duration position, {
+    double rate = 1,
+  }) {
     if (lines.isEmpty) return (index: -1, dots: false);
     if (interludeAt(lines, position) case (:final next, start: _, end: _)) {
       return (index: next, dots: true);
@@ -153,7 +160,8 @@ abstract final class SubtitleUtils {
     final index = lastStartedAt(lines, position);
     final next = index + 1;
     if (next < lines.length) {
-      final early = lines[next].from - moveTo(lines, next);
+      // The move's time, in the media's.
+      final early = lines[next].from - moveTo(lines, next, rate: rate) * rate;
       final earliest = index == -1 ? Duration.zero : lines[index].from;
       if (position >= (early > earliest ? early : earliest)) {
         return (index: next, dots: false);

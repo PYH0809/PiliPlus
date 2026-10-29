@@ -147,6 +147,7 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
       ever(_controller.subtitleInterlude, (_) => _clock.update()),
       ever(_controller.subtitlePosition, (_) => _clock.update()),
       ever(_controller.subtitlePlaying, (_) => _clock.update()),
+      ever(_controller.subtitleRate, (_) => _clock.update()),
     ];
     _clock.update();
     _jumpAfterLayout();
@@ -238,7 +239,13 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
         focus.index < _lines.length;
     _springNext = false;
     if (inTime) {
-      _moveTo(SubtitleUtils.moveTo(_lines, focus.index));
+      _moveTo(
+        SubtitleUtils.moveTo(
+          _lines,
+          focus.index,
+          rate: _controller.subtitleRate.value,
+        ),
+      );
     } else {
       _springTo(focus);
     }
@@ -470,7 +477,8 @@ class _Notifier extends ChangeNotifier {
 }
 
 /// The player's position between the updates it sends, as the dots of an
-/// interlude move with it every frame. It only ticks while dots show.
+/// interlude move with it every frame. It only ticks while dots show and
+/// move: through an interlude they show in, playing.
 class _MediaClock extends ChangeNotifier {
   _MediaClock(TickerProvider vsync, this._controller) {
     _ticker = vsync.createTicker(_tick);
@@ -483,6 +491,7 @@ class _MediaClock extends ChangeNotifier {
   Duration _baseAt = .zero;
 
   bool _playing = false;
+  double _rate = 1;
 
   /// When the interlude showing came into view, by the player's clock, and
   /// which it is.
@@ -492,7 +501,8 @@ class _MediaClock extends ChangeNotifier {
   /// Off from where it was heading by more, the player sought.
   static const _seekJump = Duration(milliseconds: 500);
 
-  Duration get position => _base + (_playing ? _now - _baseAt : .zero);
+  Duration get position =>
+      _base + (_playing ? (_now - _baseAt) * _rate : .zero);
 
   ({int next, Duration start, Duration end})? get interlude =>
       _controller.subtitleInterlude.value;
@@ -521,18 +531,12 @@ class _MediaClock extends ChangeNotifier {
   void update() {
     final expected = position;
     final interlude = this.interlude;
-    if (interlude != null && !_ticker.isActive) {
-      // Its time starts over with the ticker.
-      _now = .zero;
-      _ticker.start();
-    }
     _base = _controller.subtitlePosition.value;
-    _baseAt = _now;
     _playing = _controller.subtitlePlaying.value;
+    _rate = _controller.subtitleRate.value;
     if (interlude == null) {
       _entered = null;
       _enteredFor = null;
-      _ticker.stop();
     } else if (interlude != _enteredFor ||
         (_base - expected).abs() > _seekJump) {
       // Another interlude, or a seek in this one: the dots come in again
@@ -540,6 +544,14 @@ class _MediaClock extends ChangeNotifier {
       _entered = _base < interlude.start ? interlude.start : _base;
       _enteredFor = interlude;
     }
+    if (!_playing || !shows) {
+      _ticker.stop();
+    } else if (!_ticker.isActive) {
+      // Its time starts over with the ticker.
+      _now = .zero;
+      _ticker.start();
+    }
+    _baseAt = _now;
     notifyListeners();
   }
 

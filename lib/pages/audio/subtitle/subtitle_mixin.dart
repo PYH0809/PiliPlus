@@ -52,6 +52,9 @@ mixin AudioSubtitleMixin on GetxController {
 
   final RxBool subtitlePlaying = false.obs;
 
+  /// The playback speed, as the lines' times pass faster or slower.
+  final RxDouble subtitleRate = 1.0.obs;
+
   /// What [subtitleLines] holds or is loading.
   (int, int)? _target;
 
@@ -98,11 +101,22 @@ mixin AudioSubtitleMixin on GetxController {
 
   void updateSubtitlePlaying(bool playing) => subtitlePlaying.value = playing;
 
+  void updateSubtitleRate(double rate) {
+    subtitleRate.value = rate;
+    if (subtitleLines.value case Success(:final response)) {
+      _follow(response);
+    }
+  }
+
   /// The lit line first, as the list reads it when its focus moves.
   void _follow(List<SubtitleLine> lines) {
     subtitleLine.value = SubtitleUtils.lineIndexAt(lines, _position);
     subtitleInterlude.value = SubtitleUtils.interludeAt(lines, _position);
-    subtitleFocus.value = SubtitleUtils.targetAt(lines, _position);
+    subtitleFocus.value = SubtitleUtils.targetAt(
+      lines,
+      _position,
+      rate: subtitleRate.value,
+    );
   }
 
   /// Seeks to the start of [index], and plays from there.

@@ -109,6 +109,7 @@ class AudioController extends GetxController
     if (player case final player?) {
       speed = value;
       player.setRate(value);
+      updateSubtitleRate(value);
       _updatePlaybackState();
     }
   }
