@@ -131,7 +131,7 @@ class _AudioPageState extends State<AudioPage> {
             tooltip: '定时关闭',
             onPressed: () => shutdownTimerService
               ..onPause ??= _controller.onPause
-              ..isPlaying ??= _controller.isPlaying
+              ..isPlaying ??= _controller.isPlayingOrPending
               ..showScheduleExitDialog(
                 context,
                 isFullScreen: false,
@@ -649,7 +649,7 @@ class _AudioPageState extends State<AudioPage> {
                       showPlayerVolumeDialog(
                         context,
                         () {},
-                        onChanged: player.setVolume,
+                        onChanged: _controller.setPlayerVolume,
                       );
                     },
                   ),
@@ -737,7 +737,7 @@ class _AudioPageState extends State<AudioPage> {
             ActionItem(
               icon: const Icon(FontAwesomeIcons.circlePlay),
               onTap: () {
-                _controller.player?.pause();
+                _controller.onPause();
                 PageUtils.toVideoPage(
                   cid: audioItem.associatedItem.subId.first.toInt(),
                   aid: audioItem.associatedItem.oid.toInt(),
@@ -944,7 +944,7 @@ class _AudioPageState extends State<AudioPage> {
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: () {
-                          _controller.player?.pause();
+                          _controller.onPause();
                           Get.toNamed('/member?mid=${audioItem.owner.mid}');
                         },
                         child: Row(

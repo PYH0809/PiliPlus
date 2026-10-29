@@ -46,6 +46,7 @@ import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:fixnum/fixnum.dart' show Int64;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
@@ -114,6 +115,19 @@ class AudioController extends GetxController
   double? _lastVolume;
   late final RxDouble desktopVolume = RxDouble(Pref.desktopVolume);
 
+  bool _playInterrupted = false;
+  double? _volumeBeforeDuck;
+  // 页面要不要在放：开播、点选一首时为 true；暂停、被打断、播完不再接着放时为 false。
+  // 等播放器、等下一首地址的自动播放，开播前都再看一眼它
+  bool _wantPlay = true;
+  // 等焦点的开播请求的编号：暂停、切曲、被打断都会作废还没等到焦点的请求
+  int _playRequest = 0;
+  // 地址请求的编号：连着切了几次时只认最新一次的结果
+  int _urlRequest = 0;
+  int _urlReturned = 0;
+  // 点了别的一首、地址还没回来
+  bool get _switchingTrack => _urlReturned != _urlRequest;
+
   Timer? _statusTimer;
 
   void _startStatusTimer() {
@@ -143,7 +157,13 @@ class AudioController extends GetxController
       _lastVolume = null;
     }
     desktopVolume.value = volume;
-    player?.setVolume(volume * 100);
+    setPlayerVolume(volume * 100);
+  }
+
+  /// duck 期间用户调过音量的话，以用户的为准，duck 结束时不再恢复
+  void setPlayerVolume(double volume) {
+    _volumeBeforeDuck = null;
+    player?.setVolume(volume);
   }
 
   void syncVolume([_]) {
@@ -209,7 +229,7 @@ class AudioController extends GetxController
     if (shutdownTimerService.isActive) {
       shutdownTimerService
         ..onPause = onPause
-        ..isPlaying = isPlaying;
+        ..isPlaying = isPlayingOrPending;
     }
   }
 
@@ -217,12 +237,51 @@ class AudioController extends GetxController
     return player?.state.playing ?? false;
   }
 
-  Future<void>? onPlay() {
-    return player?.play();
+  /// 在放，或者等着接着放（被打断、在等下一首）；定时关闭到点时要停掉它
+  bool isPlayingOrPending() => isPlaying() || _wantPlay || _playInterrupted;
+
+  Future<void>? onPlay() async {
+    _wantPlay = true;
+    _playInterrupted = false;
+    if (player == null) return;
+    final request = ++_playRequest;
+    final granted = await _requestAudioFocus();
+    // 等焦点期间暂停、切曲、被打断或关闭了页面，就不再播放
+    if (request != _playRequest) return;
+    if (granted) return player?.play();
+    _wantPlay = false;
+    _finishShutdownWaiting();
   }
 
   Future<void>? onPause() {
+    // 主动暂停时让出音频焦点；播放器还没建好时，也取消之后的自动播放
+    _releaseAudioFocus();
     return player?.pause();
+  }
+
+  // 焦点申请的编号：连着申请时只有最新一次失败才清理
+  int _focusRequest = 0;
+
+  /// 开播前申请音频焦点，拿不到（比如通话中）就不播
+  Future<bool> _requestAudioFocus() async {
+    final handler = audioSessionHandler;
+    if (handler == null) return true;
+    final request = ++_focusRequest;
+    if (await handler.setActive(true, owner: this)) return true;
+    // 申请失败时 audio_session 会留着这次申请，之后再申请都直接返回成功，所以要释放；
+    // 但期间又申请过的话，焦点可能已经归新申请，不能放掉
+    if (request == _focusRequest) handler.setActive(false, owner: this);
+    return false;
+  }
+
+  void _releaseAudioFocus() {
+    _wantPlay = false;
+    _playRequest++;
+    _playInterrupted = false;
+    // 让出焦点后不会再收到 duck 结束
+    _restoreDuckedVolume();
+    // 返回的视频页已经续播的话，焦点归它，这里不会放掉
+    audioSessionHandler?.setActive(false, owner: this);
   }
 
   Future<void>? onSeek(Duration duration) {
@@ -302,21 +361,43 @@ class AudioController extends GetxController
 
   Future<bool> _queryPlayUrl() async {
     _querySponsorBlock();
+    final request = ++_urlRequest;
+    // 要换曲了，还在等焦点的上一首就不用再播
+    _playRequest++;
     final res = await AudioGrpc.audioPlayUrl(
       itemType: itemType,
       oid: oid,
       subId: subId,
     );
+    // 期间又切了别的，这次的结果作废；等地址期间暂停过的，换过去以后也先不播
+    if (request != _urlRequest) return false;
+    _urlReturned = request;
     if (res case Success(:final response)) {
-      _onPlay(response);
+      if (!_onPlay(response)) _releaseAudioFocusIfStopped();
       return true;
     } else {
       res.toast();
+      _releaseAudioFocusIfStopped();
       return false;
     }
   }
 
-  void _onPlay(PlayURLResp data) {
+  /// 下一个放不了时，已经播完的就别再占着焦点。被打断、停在半路的留着，
+  /// 打断结束后还能接着放
+  void _releaseAudioFocusIfStopped() {
+    if (isPlaying()) return;
+    if (_playInterrupted && !(player?.state.completed ?? true)) return;
+    _releaseAudioFocus();
+    _finishShutdownWaiting();
+  }
+
+  /// 定时关闭在等当前这一首播完的话，已经没有可播的了，现在就执行
+  void _finishShutdownWaiting() {
+    if (shutdownTimerService.isWaiting) shutdownTimerService.handleWaiting();
+  }
+
+  /// 打开了可以播放的媒体时返回 true
+  bool _onPlay(PlayURLResp data) {
     final PlayInfo? playInfo = data.playerInfo.values.firstOrNull;
     if (playInfo != null) {
       http_model.Volume? volume;
@@ -336,22 +417,25 @@ class AudioController extends GetxController
         final playDash = playInfo.playDash;
         final audios = playDash.audio;
         if (audios.isEmpty) {
-          return;
+          return false;
         }
         position.value = 0;
         final audio = audios.findTargetMedia((e) => e.id, cacheAudioQa);
         _onOpenMedia(VideoUtils.getCdnUrl(audio.playUrls), volume: volume);
+        return true;
       } else if (playInfo.hasPlayUrl()) {
         final playUrl = playInfo.playUrl;
         final durls = playUrl.durl;
         if (durls.isEmpty) {
-          return;
+          return false;
         }
         final durl = durls.first;
         position.value = 0;
         _onOpenMedia(VideoUtils.getCdnUrl(durl.playUrls), volume: volume);
+        return true;
       }
     }
+    return false;
   }
 
   Future<void> _onOpenMedia(
@@ -368,8 +452,9 @@ class AudioController extends GetxController
         // mpv cannot clear referer option
         headers: {'Referer': ?referer},
       )
-      ..open(Media(url, start: _start, extras: extras));
+      ..open(Media(url, start: _start, extras: extras), play: false);
     _start = null;
+    if (_wantPlay) onPlay();
   }
 
   PlayerStatus _playerStatus = .paused;
@@ -388,6 +473,9 @@ class AudioController extends GetxController
     if (_hasInit) return;
     _hasInit = true;
     assert(player == null, _subscriptions = null);
+    final session = audioSessionHandler == null
+        ? null
+        : await AudioSession.instance;
     player = await Player.create(
       configuration: PlayerConfiguration(
         options: {
@@ -443,14 +531,19 @@ class AudioController extends GetxController
         if (completed) {
           _playerStatus = .completed;
           _startStatusTimer();
+          // 播完不再接着放时让出音频焦点。定时关闭在等这一首播完的话先执行它，
+          // 正在切的那首也就不再自动播放
           if (shutdownTimerService.isWaiting) {
+            _releaseAudioFocus();
             shutdownTimerService.handleWaiting();
-          } else {
+          } else if (!_switchingTrack) {
+            // 点了别的一首、地址还没回来时，播完的是旧的那首，接着放新的就行
             switch (playMode.value) {
               case PlayRepeat.pause:
+                _releaseAudioFocus();
                 break;
               case PlayRepeat.listOrder:
-                playNext(nextPart: true);
+                if (!playNext(nextPart: true)) _releaseAudioFocus();
                 break;
               case PlayRepeat.singleCycle:
                 onPlay();
@@ -465,12 +558,69 @@ class AudioController extends GetxController
                 }
                 break;
               case PlayRepeat.autoPlayRelated:
+                _releaseAudioFocus();
                 break;
             }
           }
         }
       }),
+      if (session != null) ...[
+        session.interruptionEventStream.listen(_onInterruption),
+        // 耳机拔出暂停；被打断后等着恢复的、正在切下一首的，也都不再播放，
+        // 免得从扬声器放出来
+        session.becomingNoisyEventStream.listen((_) => onPause()),
+      ],
     ];
+  }
+
+  void _onInterruption(AudioInterruptionEvent event) {
+    final player = this.player;
+    if (player == null) return;
+    if (event.begin) {
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          if (!player.state.playing) return;
+          _volumeBeforeDuck ??= player.state.volume;
+          player.setVolume(_volumeBeforeDuck! * 0.5);
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          // 安卓上的 unknown 是永久失去焦点，不会再有结束（iOS 的打断开始都是 unknown）
+          final canResume =
+              event.type == AudioInterruptionType.pause || !Platform.isAndroid;
+          // 在放，或者正等着下一首接着放，才算被打断
+          if (!_wantPlay) {
+            // 临时打断后又永久失去了焦点，就不会再恢复了
+            if (_playInterrupted && !canResume) {
+              _playInterrupted = false;
+              _finishShutdownWaiting();
+            }
+            return;
+          }
+          _wantPlay = false;
+          _playRequest++;
+          // 被打断时保留音频焦点，打断结束后才能恢复
+          _playInterrupted = canResume;
+          // 降低音量后又被暂停时，不一定还会收到 duck 结束
+          _restoreDuckedVolume();
+          player.pause();
+          if (!canResume) _finishShutdownWaiting();
+      }
+    } else {
+      _restoreDuckedVolume();
+      if (_playInterrupted && event.type == AudioInterruptionType.pause) {
+        _wantPlay = true;
+        // 正在切曲、或者在等下一首的地址时不用播，地址回来就会接着放
+        if (!player.state.completed && !_switchingTrack) player.play();
+      }
+      _playInterrupted = false;
+    }
+  }
+
+  void _restoreDuckedVolume() {
+    if (_volumeBeforeDuck case final volume?) {
+      _volumeBeforeDuck = null;
+      player?.setVolume(volume);
+    }
   }
 
   @override
@@ -694,7 +844,8 @@ class AudioController extends GetxController
   }
 
   Future<void>? playOrPause() {
-    return player?.playOrPause();
+    if (isPlaying()) return onPause();
+    return onPlay();
   }
 
   bool playPrev() {
@@ -743,6 +894,7 @@ class AudioController extends GetxController
 
   void playIndex(int index, {List<Int64>? subId}) {
     if (index == this.index && subId == null) return;
+    _wantPlay = true;
     this.index = index;
     final audioItem = playlist![index];
     final item = audioItem.item;
@@ -834,6 +986,7 @@ class AudioController extends GetxController
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
     _subscriptions = null;
+    _releaseAudioFocus();
     player?.dispose();
     player = null;
     animController.dispose();
