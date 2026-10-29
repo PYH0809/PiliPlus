@@ -422,6 +422,11 @@ class AudioController extends GetxController
 
   PlayerStatus _playerStatus = .paused;
   void _updatePlaybackState({Duration? position, String? debugLabel}) {
+    // A page opened from here that has the card keeps its own state there.
+    if (isCovered &&
+        videoPlayerServiceHandler?.isShowing(hashCode.toString()) == false) {
+      return;
+    }
     videoPlayerServiceHandler?.onUpdateState(
       _playerStatus,
       false,
