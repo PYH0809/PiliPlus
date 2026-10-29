@@ -465,6 +465,12 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
           foregroundColor: theme.colorScheme.outline,
         );
 
+  /// An action button's label, [text] in [color]; on glass it keeps to one
+  /// line.
+  Widget actionLabel(String text, Color color) => glassActionBar
+      ? glassActionLabel(text, color)
+      : Text(text, style: TextStyle(color: color));
+
   /// The action bar holding [row]: on the surface, or floating on glass.
   Widget actionBarSurface(Widget row) => DynActionBar(
     glass: glassActionBar,

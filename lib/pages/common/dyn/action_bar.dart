@@ -77,11 +77,15 @@ class DynActionBar extends StatelessWidget {
 
 /// The action bar's buttons on glass: no ripples, a platter under a press, as
 /// rows on glass have.
+///
+/// Each button fills its share of the capsule, so its padding only shows when
+/// that share is tight: kept small, a narrow phone still has room for 分享 or
+/// a count of four figures beside the icon.
 ButtonStyle glassActionButtonStyle(ColorScheme colorScheme) {
   final platter = glassPlatterColor(colorScheme);
   return TextButton.styleFrom(
     tapTargetSize: .padded,
-    padding: const EdgeInsets.symmetric(horizontal: 15),
+    padding: const EdgeInsets.symmetric(horizontal: 4),
     foregroundColor: colorScheme.onSurfaceVariant,
     splashFactory: NoSplash.splashFactory,
     shape: const StadiumBorder(),
@@ -156,3 +160,11 @@ class GlassSortButton extends StatelessWidget {
     );
   }
 }
+
+/// A label of the action bar on glass, [text] in [color] on one line: squeezed,
+/// it shrinks to fit rather than break, as a count broken over two lines
+/// reads as two.
+Widget glassActionLabel(String text, Color color) => FittedBox(
+  fit: .scaleDown,
+  child: Text(text, maxLines: 1, style: TextStyle(color: color)),
+);
