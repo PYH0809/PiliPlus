@@ -308,6 +308,40 @@ void main() {
     expect(_topOf(tester, 'line 1'), closeTo(0.08, 0.002));
   });
 
+  testWidgets('a move set off while paused waits for play', (tester) async {
+    final audio = await _pumpList(tester, at: _lines[0].from)
+      ..updateSubtitleRate(0.5);
+    for (var at = _lines[0].from; at <= _s(2.5); at += _s(0.025)) {
+      audio.updateSubtitlePosition(at);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    audio
+      ..playing = false
+      ..updateSubtitlePlaying(false);
+    await tester.pump();
+    double offset() =>
+        tester.widget<Scrollable>(find.byType(Scrollable)).controller!.offset;
+    final paused = offset();
+    // Twice as fast moves the focus on, the media standing still.
+    audio.updateSubtitleRate(2);
+    expect(audio.subtitleFocus.value.index, 1);
+    // Frames, as a ticker counts from the first.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(offset(), paused);
+
+    audio
+      ..playing = true
+      ..updateSubtitlePlaying(true);
+    for (var at = _s(2.6); at <= _lines[1].from; at += _s(0.1)) {
+      audio.updateSubtitlePosition(at);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(_topOf(tester, 'line 1'), closeTo(0.08, 0.002));
+  });
+
   testWidgets('the rows below set off later, the ones above together', (
     tester,
   ) async {
@@ -578,6 +612,18 @@ void main() {
       await tester.pump();
       expect(tester.binding.hasScheduledFrame, isTrue);
       expect(dots, findsNWidgets(3));
+    });
+
+    testWidgets('stop with the lines they were in', (tester) async {
+      final audio = await _pumpList(tester, lines: apart(7), at: _s(1));
+      await _play(tester, audio, _s(1.5), _s(3));
+      expect(dots, findsNWidgets(3));
+
+      // The lines asked for again, and none come.
+      audio.retrySubtitle();
+      expect(audio.subtitleInterlude.value, isNull);
+      await tester.pumpAndSettle();
+      expect(find.text('暂无字幕'), findsOneWidget);
     });
 
     testWidgets('hold still while the player buffers', (tester) async {

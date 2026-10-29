@@ -263,6 +263,8 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
       // starts: a focus that moved on late lands in time too.
       final move = SubtitleUtils.moveTo(_lines, focus.index, rate: rate);
       _moveTo(left < move ? left : move);
+      // Set off while the media stands, as by a speed change: it waits too.
+      _holdOrGoOn();
     } else {
       _springTo(focus);
     }

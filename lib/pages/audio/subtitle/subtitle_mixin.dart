@@ -165,13 +165,13 @@ mixin AudioSubtitleMixin on GetxController {
     final target = subtitleTarget;
     if (target == null) {
       _target = null;
-      subtitleLines.value = const Success([]);
+      _setNoLines(const Success([]));
       return;
     }
     if (target == _target) return;
     _target = target;
     final generation = ++_generation;
-    subtitleLines.value = LoadingState.loading();
+    _setNoLines(LoadingState.loading());
     final res = await _querySubtitles(target.$1, target.$2);
     if (generation != _generation) return;
     if (res case Success(:final response)) {
@@ -182,14 +182,14 @@ mixin AudioSubtitleMixin on GetxController {
         Pref.audioSubtitleLan,
       );
       if (index == -1) {
-        subtitleLines.value = const Success([]);
+        _setNoLines(const Success([]));
       } else {
         _showLines(index, generation);
       }
     } else if (res case final Error error) {
       // try again the next time they are shown
       _target = null;
-      subtitleLines.value = error;
+      _setNoLines(error);
     }
   }
 
@@ -204,15 +204,23 @@ mixin AudioSubtitleMixin on GetxController {
       _setLines(const []);
       return;
     }
-    subtitleLines.value = LoadingState.loading();
+    _setNoLines(LoadingState.loading());
     final res = await VideoHttp.subtitleLines(url);
     if (generation != _generation) return;
     if (res case Success(:final response)) {
       _cache[index] = response;
       _setLines(response);
     } else {
-      subtitleLines.value = res;
+      _setNoLines(res);
     }
+  }
+
+  /// [state] in place of lines: nothing lit, and no interlude playing on,
+  /// whose clock would tick over a loading or failed list.
+  void _setNoLines(LoadingState<List<SubtitleLine>> state) {
+    subtitleLine.value = -1;
+    subtitleInterlude.value = null;
+    subtitleLines.value = state;
   }
 
   /// The lines first, so that the focus that follows is on lines the list
