@@ -682,14 +682,13 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
       ),
     );
     if (GlassSurfaces.installed) {
-      // Under the tabs on glass, the row floats back just below them, the
-      // room above it clear so the replies show through the tabs, and
-      // slides away under them.
-      return SliverFloatingHeaderWidget(
-        backgroundColor: Colors.transparent,
+      // On glass the row stays where it stands in the list, below the room
+      // for the tabs, and scrolls under them with the replies: floating back
+      // under the floating tabs, it showed up out of its place.
+      return SliverToBoxAdapter(
         child: Padding(
           padding: const .only(top: _glassTabsExtent),
-          child: ColoredBox(color: theme.colorScheme.surface, child: child),
+          child: child,
         ),
       );
     }
