@@ -108,6 +108,12 @@ class _FakeAudioController extends AudioController {
     calls.add('playOrPause');
     return null;
   }
+
+  @override
+  Future<void>? onSeek(Duration duration) {
+    calls.add('seek ${duration.inSeconds}');
+    return null;
+  }
 }
 
 /// Pumps 听视频 over a home page, with glass on or off, and routes for the
@@ -249,6 +255,39 @@ void main() {
       }
     });
 
+    testWidgets('看MV opens the MV of the track playing when it is picked', (
+      tester,
+    ) async {
+      final controller = await _pump(tester, glass: true, mv: true);
+      await _openMore(tester);
+
+      // The next track starts while the menu is open.
+      controller.audioItem.value = DetailItem(
+        arc: BKArchive(title: '下一首'),
+        associatedItem: PlayItem(oid: Int64(880002), subId: [Int64(10)]),
+      );
+      await tester.tap(find.text('看MV'));
+      await tester.pumpAndSettle();
+
+      expect(controller.fakePlayer.pauses, 1);
+      expect(find.text('video 880002 10'), findsOneWidget);
+    });
+
+    testWidgets('看MV does nothing once the track playing has none', (
+      tester,
+    ) async {
+      final controller = await _pump(tester, glass: true, mv: true);
+      await _openMore(tester);
+
+      controller.audioItem.value = DetailItem(arc: BKArchive(title: '下一首'));
+      await tester.tap(find.text('看MV'));
+      await tester.pumpAndSettle();
+
+      expect(controller.fakePlayer.pauses, 0);
+      expect(find.textContaining('video'), findsNothing);
+      expect(find.text('下一首'), findsOneWidget);
+    });
+
     testWidgets('看MV pauses and opens the MV', (tester) async {
       final controller = await _pump(tester, glass: true, mv: true);
       await _openMore(tester);
@@ -361,6 +400,33 @@ void main() {
       // The desktop's volume is on the capsule too.
       if (PlatformUtils.isDesktop) {
         expect(_paneUnder(tester, find.byType(VolumeButton)), capsule);
+      }
+    });
+
+    testWidgets('the progress drags from anywhere on its capsule', (
+      tester,
+    ) async {
+      final controller = await _pump(tester, glass: true);
+      final capsule = _paneUnder(
+        tester,
+        find.text(DurationUtils.formatDuration(72)),
+      );
+      final bar = tester.getRect(find.byType(ProgressBar));
+      expect(bar.height, lessThan(capsule.height / 2));
+
+      // Above the bar's line, then below it, near the capsule's edges.
+      for (final y in [capsule.top + 6, capsule.bottom - 6]) {
+        controller.calls.clear();
+        await tester.dragFrom(
+          Offset(bar.left + 10, y),
+          Offset(bar.width / 2, 0),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.calls, hasLength(1), reason: 'at $y');
+        expect(controller.calls.single, startsWith('seek '));
+        // Halfway along 225 s, give or take the thumb.
+        final seconds = int.parse(controller.calls.single.split(' ').last);
+        expect(seconds, inInclusiveRange(100, 140), reason: 'at $y');
       }
     });
 

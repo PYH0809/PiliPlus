@@ -706,10 +706,14 @@ class _AudioPageState extends State<AudioPage>
           '看MV',
           icon: Icons.play_circle_outline,
           onTap: () {
+            // The MV of the track playing now, as 举报 reports that one: the
+            // track may have moved on while the menu was open.
+            final item = _controller.audioItem.value;
+            if (item == null || !item.hasMv) return;
             _controller.onPause();
             PageUtils.toVideoPage(
-              cid: audioItem.associatedItem.subId.first.toInt(),
-              aid: audioItem.associatedItem.oid.toInt(),
+              cid: item.associatedItem.subId.first.toInt(),
+              aid: item.associatedItem.oid.toInt(),
             );
           },
         ),
