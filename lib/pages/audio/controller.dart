@@ -584,24 +584,33 @@ class AudioController extends GetxController
           player.setVolume(_volumeBeforeDuck! * 0.5);
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
+          // 安卓上的 unknown 是永久失去焦点，不会再有结束（iOS 的打断开始都是 unknown）
+          final canResume =
+              event.type == AudioInterruptionType.pause || !Platform.isAndroid;
           // 在放，或者正等着下一首接着放，才算被打断
-          if (!_wantPlay) return;
+          if (!_wantPlay) {
+            // 临时打断后又永久失去了焦点，就不会再恢复了
+            if (_playInterrupted && !canResume) {
+              _playInterrupted = false;
+              _finishShutdownWaiting();
+            }
+            return;
+          }
           _wantPlay = false;
           _playRequest++;
-          // 被打断时保留音频焦点，打断结束后才能恢复。安卓上的 unknown 是
-          // 永久失去焦点，不会再有结束（iOS 的打断开始都是 unknown）
-          _playInterrupted =
-              event.type == AudioInterruptionType.pause || !Platform.isAndroid;
+          // 被打断时保留音频焦点，打断结束后才能恢复
+          _playInterrupted = canResume;
           // 降低音量后又被暂停时，不一定还会收到 duck 结束
           _restoreDuckedVolume();
           player.pause();
+          if (!canResume) _finishShutdownWaiting();
       }
     } else {
       _restoreDuckedVolume();
       if (_playInterrupted && event.type == AudioInterruptionType.pause) {
         _wantPlay = true;
-        // 还在等下一首的地址时不用播，地址回来就会接着放
-        if (!player.state.completed) player.play();
+        // 正在切曲、或者在等下一首的地址时不用播，地址回来就会接着放
+        if (!player.state.completed && !_switchingTrack) player.play();
       }
       _playInterrupted = false;
     }
