@@ -29,7 +29,11 @@ class AudioBackdrop extends StatefulWidget {
   final Color placeholder;
 
   /// How often it moves. At 0 it draws once for each cover.
-  static const fps = 30;
+  ///
+  /// As Apple's web player. On a OnePlus 7 Pro with Impeller, the glass over
+  /// it kept 95% of frames under 7 ms at 15 a second; at 30, 7% of them took
+  /// over 11.1 ms, a frame at 90 Hz.
+  static const fps = 15;
 
   /// [fps] while measuring what the glass over it costs at each rate.
   static final debugFps = ValueNotifier<int?>(null);
