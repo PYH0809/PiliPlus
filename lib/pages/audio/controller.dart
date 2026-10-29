@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:PiliPlus/common/constants.dart';
-import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/grpc/audio.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart'
     show
@@ -10,7 +9,6 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart'
         PlayURLResp,
         PlaylistSource,
         PlayInfo,
-        ThumbUpReq_ThumbType,
         ListOrder,
         DashItem,
         ResponseUrl;
@@ -19,36 +17,24 @@ import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/audio_normalization.dart';
 import 'package:PiliPlus/models/video/play/url.dart' as http_model show Volume;
-import 'package:PiliPlus/pages/common/common_intro_controller.dart'
-    show FavMixin;
-import 'package:PiliPlus/pages/dynamics_repost/view.dart';
-import 'package:PiliPlus/pages/main_reply/view.dart';
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
-import 'package:PiliPlus/pages/video/introduction/ugc/widgets/triple_mixin.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/services/shutdown_timer_service.dart';
-import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/android/android_helper.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
-import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
-import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
-import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:fixnum/fixnum.dart' show Int64;
-import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
@@ -56,8 +42,6 @@ import 'package:media_kit/media_kit.dart';
 class AudioController extends GetxController
     with
         GetTickerProviderStateMixin,
-        TripleMixin,
-        FavMixin,
         BlockConfigMixin,
         BlockMixin,
         AudioNormalizationMixin {
@@ -123,9 +107,6 @@ class AudioController extends GetxController
   }
 
   late final Rx<PlayRepeat> playMode = Pref.audioPlayMode.obs;
-
-  @override
-  late final isLogin = Accounts.main.isLogin;
 
   Duration? _start;
   VideoDetailController? _videoDetailController;
@@ -367,9 +348,6 @@ class AudioController extends GetxController
 
   void _updateCurrItem(DetailItem item) {
     audioItem.value = item;
-    hasLike.value = item.stat.hasLike_7;
-    coinNum.value = item.stat.hasCoin_8 ? 2 : 0;
-    hasFav.value = item.stat.hasFav;
     _updateMediaItem(item);
   }
 
@@ -748,226 +726,6 @@ class AudioController extends GetxController
     }
   }
 
-  @override
-  Future<void> actionLikeVideo() async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    final newVal = !hasLike.value;
-    final res = await AudioGrpc.audioThumbUp(
-      oid: oid,
-      subId: subId,
-      itemType: itemType,
-      type: newVal
-          ? ThumbUpReq_ThumbType.LIKE
-          : ThumbUpReq_ThumbType.CANCEL_LIKE,
-    );
-    if (res case Success(:final response)) {
-      hasLike.value = newVal;
-      try {
-        audioItem.value!.stat
-          ..hasLike_7 = newVal
-          ..like += newVal ? 1 : -1;
-        audioItem.refresh();
-      } catch (_) {}
-      SmartDialog.showToast(response.message);
-    } else {
-      res.toast();
-    }
-  }
-
-  @override
-  Future<void> actionTriple() async {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    final res = await AudioGrpc.audioTripleLike(
-      oid: oid,
-      subId: subId,
-      itemType: itemType,
-    );
-    if (res case Success(:final response)) {
-      hasLike.value = true;
-      if (response.coinOk && !hasCoin) {
-        coinNum.value = 2;
-        GlobalData().afterCoin(2);
-        try {
-          audioItem.value!.stat
-            ..hasCoin_8 = true
-            ..coin += 2;
-          audioItem.refresh();
-        } catch (_) {}
-      }
-      hasFav.value = true;
-      if (!hasCoin) {
-        SmartDialog.showToast('投币失败');
-      } else {
-        SmartDialog.showToast('三连成功');
-      }
-    } else {
-      res.toast();
-    }
-  }
-
-  @override
-  int get copyright => audioItem.value?.arc.copyright ?? 1;
-
-  @override
-  Future<void> onPayCoin(int coin, bool coinWithLike) async {
-    final res = await AudioGrpc.audioCoinAdd(
-      oid: oid,
-      subId: subId,
-      itemType: itemType,
-      num: coin,
-      thumbUp: coinWithLike,
-    );
-    if (res.isSuccess) {
-      final updateLike = !hasLike.value && coinWithLike;
-      if (updateLike) {
-        hasLike.value = true;
-      }
-      coinNum.value += coin;
-      try {
-        final stat = audioItem.value!.stat
-          ..hasCoin_8 = true
-          ..coin += coin;
-        if (updateLike) {
-          stat
-            ..hasLike_7 = true
-            ..like += 1;
-        }
-        audioItem.refresh();
-      } catch (_) {}
-      GlobalData().afterCoin(coin);
-    } else {
-      res.toast();
-    }
-  }
-
-  @override
-  void showFavBottomSheet(BuildContext context, {bool isLongPress = false}) {
-    if (!isLogin) {
-      SmartDialog.showToast('账号未登录');
-      return;
-    }
-    if (enableQuickFav) {
-      if (!isLongPress) {
-        actionFavVideo(isQuick: true);
-      } else {
-        PageUtils.showFavBottomSheet(context: context, ctr: this);
-      }
-    } else if (!isLongPress) {
-      PageUtils.showFavBottomSheet(context: context, ctr: this);
-    }
-  }
-
-  void showReply() {
-    MainReplyPage.toMainReplyPage(
-      oid: oid.toInt(),
-      replyType: isUgc ? 1 : 14,
-    );
-  }
-
-  void actionShareVideo(BuildContext context) {
-    final audioUrl = isUgc
-        ? '${HttpString.baseUrl}/video/${IdUtils.av2bv(oid.toInt())}'
-        : '${HttpString.baseUrl}/audio/au$oid';
-    showDialog(
-      context: context,
-      builder: (_) => SimpleDialog(
-        clipBehavior: Clip.hardEdge,
-        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        children: [
-          DialogOption(
-            child: const Text('复制链接', style: TextStyle(fontSize: 14)),
-            onPressed: () {
-              Get.back();
-              Utils.copyText(audioUrl);
-            },
-          ),
-          DialogOption(
-            child: const Text('其它app打开', style: TextStyle(fontSize: 14)),
-            onPressed: () {
-              Get.back();
-              PiliAndroidHelper.openUrl(audioUrl);
-            },
-          ),
-          if (PlatformUtils.isMobile)
-            DialogOption(
-              child: const Text('分享视频', style: TextStyle(fontSize: 14)),
-              onPressed: () {
-                Get.back();
-                if (audioItem.value case DetailItem(
-                  :final arc,
-                  :final owner,
-                )) {
-                  ShareUtils.shareText(
-                    '${arc.title} '
-                    'UP主: ${owner.name}'
-                    ' - $audioUrl',
-                  );
-                }
-              },
-            ),
-          if (isLogin)
-            DialogOption(
-              child: const Text('分享至动态', style: TextStyle(fontSize: 14)),
-              onPressed: () {
-                Get.back();
-                if (audioItem.value case DetailItem(
-                  :final arc,
-                  :final owner,
-                )) {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (context) => RepostPanel(
-                      rid: oid.toInt(),
-                      dynType: isUgc ? 8 : 256,
-                      pic: arc.cover,
-                      title: arc.title,
-                      uname: owner.name,
-                    ),
-                  );
-                }
-              },
-            ),
-          if (isUgc && isLogin)
-            DialogOption(
-              child: const Text('分享至消息', style: TextStyle(fontSize: 14)),
-              onPressed: () {
-                Get.back();
-                if (audioItem.value case DetailItem(
-                  :final arc,
-                  :final owner,
-                )) {
-                  try {
-                    PageUtils.pmShare(
-                      context,
-                      content: {
-                        "id": oid.toString(),
-                        "title": arc.title,
-                        "headline": arc.title,
-                        "source": 5,
-                        "thumb": arc.cover,
-                        "author": owner.name,
-                        "author_id": owner.mid.toString(),
-                      },
-                    );
-                  } catch (e) {
-                    SmartDialog.showToast(e.toString());
-                  }
-                }
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
   Future<void>? playOrPause() {
     if (isPlaying()) return onPause();
     return onPlay();
@@ -1035,19 +793,6 @@ class AudioController extends GetxController
         _updateCurrItem(audioItem);
       }
     });
-  }
-
-  @override
-  (Object, int) get getFavRidType => (oid, isUgc ? 2 : 12);
-
-  @override
-  void updateFavCount(int count) {
-    try {
-      audioItem.value!.stat
-        ..hasFav = count > 0
-        ..favourite += count;
-      audioItem.refresh();
-    } catch (_) {}
   }
 
   Future<void> loadPrev(BuildContext context) async {
