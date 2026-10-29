@@ -56,10 +56,10 @@ class AudioController extends GetxController
   @override
   late final bool isUgc = itemType == 1;
 
+  /// The video and part playing, once their media opened: the next one's
+  /// address may still fail, and this one plays on.
   @override
-  (int, int)? get subtitleTarget => itemType == 1 && subId.isNotEmpty
-      ? (oid.toInt(), subId.first.toInt())
-      : null;
+  (int, int)? subtitleTarget;
 
   final audioItem = Rxn<DetailItem>();
 
@@ -454,7 +454,6 @@ class AudioController extends GetxController
 
   Future<bool> _queryPlayUrl() async {
     _querySponsorBlock();
-    onSubtitleTargetChanged();
     final request = ++_urlRequest;
     // 要换曲了，还在等焦点的上一首就不用再播
     _playRequest++;
@@ -538,6 +537,12 @@ class AudioController extends GetxController
     String? referer,
     http_model.Volume? volume,
   }) async {
+    // The subtitles follow what plays from now on, whichever way it came:
+    // its address asked for, or handed over by the video page.
+    subtitleTarget = itemType == 1 && subId.isNotEmpty
+        ? (oid.toInt(), subId.first.toInt())
+        : null;
+    onSubtitleTargetChanged();
     await _initPlayerIfNeeded();
     final extras = audioFilterExtras(volume);
     player
@@ -638,6 +643,7 @@ class AudioController extends GetxController
         }
       }),
       stream.buffering.listen((bool buffering) {
+        updateSubtitleBuffering(buffering);
         if (!_playerStatus.isCompleted) {
           _stopStatusTimer();
           _updatePlaybackState();

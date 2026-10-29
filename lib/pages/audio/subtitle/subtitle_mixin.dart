@@ -55,6 +55,9 @@ mixin AudioSubtitleMixin on GetxController {
   /// The playback speed, as the lines' times pass faster or slower.
   final RxDouble subtitleRate = 1.0.obs;
 
+  /// Waiting on data while playing: the position holds still.
+  final RxBool subtitleBuffering = false.obs;
+
   /// What [subtitleLines] holds or is loading.
   (int, int)? _target;
 
@@ -100,6 +103,9 @@ mixin AudioSubtitleMixin on GetxController {
   }
 
   void updateSubtitlePlaying(bool playing) => subtitlePlaying.value = playing;
+
+  void updateSubtitleBuffering(bool buffering) =>
+      subtitleBuffering.value = buffering;
 
   void updateSubtitleRate(double rate) {
     subtitleRate.value = rate;

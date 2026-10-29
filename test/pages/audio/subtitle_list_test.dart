@@ -334,6 +334,29 @@ void main() {
       expect(_topOf(tester, 'line 12'), closeTo(0.08, 0.002));
     });
 
+    testWidgets('not while a finger holds the list', (tester) async {
+      final audio = await _pumpList(tester, at: _lines[10].from);
+      await tester.drag(find.text('line 10'), const Offset(0, 150));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      final finger = await tester.startGesture(
+        tester.getCenter(find.byType(AudioSubtitleList)),
+      );
+      await tester.pump();
+      // A line that stays dim and small, so that only the list moves it.
+      final held = _topOf(tester, 'line 14');
+      await _play(tester, audio, _lines[11].from - _s(1), _lines[11].from);
+      await tester.pump(const Duration(seconds: 1));
+      expect(_topOf(tester, 'line 14'), held);
+
+      // Let go: still a moment, then the next line takes it back.
+      await finger.up();
+      await tester.pump(const Duration(milliseconds: 600));
+      await _play(tester, audio, _lines[12].from - _s(1), _lines[12].from);
+      await tester.pumpAndSettle();
+      expect(_topOf(tester, 'line 12'), closeTo(0.08, 0.002));
+    });
+
     testWidgets('stays while the new line is out of sight', (tester) async {
       final audio = await _pumpList(tester, at: _lines[10].from);
       await tester.fling(find.text('line 10'), const Offset(0, 1500), 3000);
@@ -481,6 +504,21 @@ void main() {
       await tester.pump();
       expect(tester.binding.hasScheduledFrame, isTrue);
       expect(dots, findsNWidgets(3));
+    });
+
+    testWidgets('hold still while the player buffers', (tester) async {
+      final audio = await _pumpList(tester, lines: apart(7), at: _s(1));
+      await _play(tester, audio, _s(1.5), _s(3));
+      expect(dots, findsNWidgets(3));
+
+      audio.updateSubtitleBuffering(true);
+      // Settles: the clock stopped, though it still plays.
+      await tester.pumpAndSettle();
+      expect(audio.subtitlePlaying.value, isTrue);
+
+      audio.updateSubtitleBuffering(false);
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isTrue);
     });
 
     testWidgets('come in again after a seek back in the pause', (tester) async {

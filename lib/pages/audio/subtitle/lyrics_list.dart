@@ -148,6 +148,7 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
       ever(_controller.subtitlePosition, (_) => _clock.update()),
       ever(_controller.subtitlePlaying, (_) => _clock.update()),
       ever(_controller.subtitleRate, (_) => _clock.update()),
+      ever(_controller.subtitleBuffering, (_) => _clock.update()),
     ];
     _clock.update();
     _jumpAfterLayout();
@@ -219,7 +220,7 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
     _focus = focus;
     _stagger.ping();
     if (_browsing.value) {
-      if (_idle && _shows(focus.index)) {
+      if (_pointers == 0 && _idle && _shows(focus.index)) {
         _browsing.value = false;
         _springTo(focus);
       }
@@ -361,22 +362,36 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
         // A mouse wheel puts no pointer down to stop the move.
         _stop();
       case ScrollEndNotification() when _browsing.value:
-        _idleTimer?.cancel();
-        _idleTimer = Timer(Lyrics.snapIdle, () => _idle = true);
+        _startIdle();
     }
     return false;
+  }
+
+  void _startIdle() {
+    _idleTimer?.cancel();
+    _idleTimer = Timer(Lyrics.snapIdle, () => _idle = true);
   }
 
   void _onPointerDown(PointerDownEvent event) {
     _pointers++;
     // Or the move's jumps would end the drag starting.
     _stop();
+    // Held, it is not left alone.
+    _idleTimer?.cancel();
+    _idle = false;
   }
 
   void _onPointerUp(PointerEvent event) {
     _pointers--;
-    // A touch that did not scroll: on to where the list was going.
-    if (_pointers == 0 && !_browsing.value) _springTo(_focus);
+    if (_pointers > 0) return;
+    if (!_browsing.value) {
+      // A touch that did not scroll: on to where the list was going.
+      _springTo(_focus);
+    } else if (!(_scrollController.hasClients &&
+        _scrollController.position.isScrollingNotifier.value)) {
+      // Let go without a scroll, which would end in its own time.
+      _startIdle();
+    }
   }
 
   void _onTapLine(int index) {
@@ -532,7 +547,9 @@ class _MediaClock extends ChangeNotifier {
     final expected = position;
     final interlude = this.interlude;
     _base = _controller.subtitlePosition.value;
-    _playing = _controller.subtitlePlaying.value;
+    _playing =
+        _controller.subtitlePlaying.value &&
+        !_controller.subtitleBuffering.value;
     _rate = _controller.subtitleRate.value;
     if (interlude == null) {
       _entered = null;
