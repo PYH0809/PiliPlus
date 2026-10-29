@@ -221,18 +221,36 @@ class AudioController extends GetxController
     return player?.state.playing ?? false;
   }
 
-  Future<void>? onPlay() {
-    return player?.play();
+  Future<void>? onPlay() async {
+    if (player case final player?) {
+      if (await _requestAudioFocus()) return player.play();
+    }
   }
 
   Future<void>? onPause() {
     if (player case final player?) {
       // 主动暂停时让出音频焦点
-      _playInterrupted = false;
-      audioSessionHandler?.setActive(false);
+      _releaseAudioFocus();
       return player.pause();
     }
     return null;
+  }
+
+  /// 开播前申请音频焦点，拿不到（比如通话中）就不播
+  Future<bool> _requestAudioFocus() async {
+    final handler = audioSessionHandler;
+    if (handler == null || await handler.setActive(true)) return true;
+    // 申请失败时 audio_session 会留着这次申请，之后再申请都直接返回成功
+    handler.setActive(false);
+    return false;
+  }
+
+  void _releaseAudioFocus() {
+    _playInterrupted = false;
+    // 视频页（比如刚返回、已经续播的那个）可能正用着焦点
+    if (PlPlayerController.getPlayerStatusIfExists()?.isPlaying != true) {
+      audioSessionHandler?.setActive(false);
+    }
   }
 
   Future<void>? onSeek(Duration duration) {
@@ -378,8 +396,9 @@ class AudioController extends GetxController
         // mpv cannot clear referer option
         headers: {'Referer': ?referer},
       )
-      ..open(Media(url, start: _start, extras: extras));
+      ..open(Media(url, start: _start, extras: extras), play: false);
     _start = null;
+    onPlay();
   }
 
   PlayerStatus _playerStatus = .paused;
@@ -435,7 +454,6 @@ class AudioController extends GetxController
       }),
       stream.playing.listen((playing) {
         if (playing) {
-          audioSessionHandler?.setActive(true);
           animController.forward();
           _playerStatus = .playing;
           _stopStatusTimer();
@@ -457,14 +475,17 @@ class AudioController extends GetxController
         if (completed) {
           _playerStatus = .completed;
           _startStatusTimer();
+          // 播完不再接着放时让出音频焦点
           if (shutdownTimerService.isWaiting) {
+            _releaseAudioFocus();
             shutdownTimerService.handleWaiting();
           } else {
             switch (playMode.value) {
               case PlayRepeat.pause:
+                _releaseAudioFocus();
                 break;
               case PlayRepeat.listOrder:
-                playNext(nextPart: true);
+                if (!playNext(nextPart: true)) _releaseAudioFocus();
                 break;
               case PlayRepeat.singleCycle:
                 onPlay();
@@ -479,6 +500,7 @@ class AudioController extends GetxController
                 }
                 break;
               case PlayRepeat.autoPlayRelated:
+                _releaseAudioFocus();
                 break;
             }
           }
@@ -486,9 +508,9 @@ class AudioController extends GetxController
       }),
       if (session != null) ...[
         session.interruptionEventStream.listen(_onInterruption),
-        // 耳机拔出暂停
+        // 耳机拔出暂停，被打断暂停的也不再恢复，免得从扬声器放出来
         session.becomingNoisyEventStream.listen((_) {
-          if (isPlaying()) onPause();
+          if (isPlaying() || _playInterrupted) onPause();
         }),
       ],
     ];
@@ -744,7 +766,7 @@ class AudioController extends GetxController
 
   Future<void>? playOrPause() {
     if (isPlaying()) return onPause();
-    return player?.playOrPause();
+    return onPlay();
   }
 
   bool playPrev() {
@@ -884,10 +906,7 @@ class AudioController extends GetxController
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
     _subscriptions = null;
-    // 返回的视频页可能已经续播并申请了焦点，这时不要再让出
-    if (PlPlayerController.getPlayerStatusIfExists()?.isPlaying != true) {
-      audioSessionHandler?.setActive(false);
-    }
+    _releaseAudioFocus();
     player?.dispose();
     player = null;
     animController.dispose();

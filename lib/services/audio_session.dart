@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 class AudioSessionHandler {
   late AudioSession session;
   bool _playInterrupted = false;
+  bool _volumeDucked = false;
 
   Future<bool> setActive(bool active) {
     return session.setActive(active);
@@ -31,6 +32,7 @@ class AudioSessionHandler {
               showIndicator: false,
             );
             // player.setVolume(player.volume.value * 0.5);
+            _volumeDucked = true;
             break;
           case AudioInterruptionType.pause:
             PlPlayerController.pauseIfExists(isInterrupt: true);
@@ -46,10 +48,14 @@ class AudioSessionHandler {
       } else {
         switch (event.type) {
           case AudioInterruptionType.duck:
-            PlPlayerController.setVolumeIfExists(
-              (PlPlayerController.getVolumeIfExists() ?? 0) * 2,
-              showIndicator: false,
-            );
+            // 只恢复自己降过的音量：视频暂停时（比如在听视频）没降，
+            // 这里不能翻倍，移动端改的是系统音量
+            if (_volumeDucked) {
+              PlPlayerController.setVolumeIfExists(
+                (PlPlayerController.getVolumeIfExists() ?? 0) * 2,
+                showIndicator: false,
+              );
+            }
             // player.setVolume(player.volume.value * 2);
             break;
           case AudioInterruptionType.pause:
@@ -60,6 +66,7 @@ class AudioSessionHandler {
             break;
         }
         _playInterrupted = false;
+        _volumeDucked = false;
       }
     });
 
