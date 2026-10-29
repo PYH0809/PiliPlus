@@ -9,6 +9,7 @@ import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/menu_entries.dart';
@@ -120,7 +121,12 @@ class _AudioPageState extends State<AudioPage>
   /// Dark in either theme, as iOS's Now Playing is, over the cover's
   /// colors; the bar clear, as the page is, to show them.
   static ThemeData _pageTheme(ThemeData theme) {
-    final dark = VideoGlass.darkTheme(theme);
+    var dark = VideoGlass.darkTheme(theme);
+    // The glass menus' and alerts' text again, as ThemeUtils set it from the
+    // light colors.
+    if (!identical(dark, theme) && GlassAppBar.enabled) {
+      dark = GlassSurfaces.themed(dark);
+    }
     return dark.copyWith(
       appBarTheme: dark.appBarTheme.copyWith(
         backgroundColor: Colors.transparent,

@@ -105,6 +105,10 @@ class AudioBackdropState extends State<AudioBackdrop> {
   @visibleForTesting
   bool get isRunning => _timer != null;
 
+  /// Whether it shows a cover, not the placeholder.
+  @visibleForTesting
+  bool get hasCover => _art != null;
+
   /// Whether its last pass is drawn with the shader, loaded once.
   @visibleForTesting
   bool get hasShader => _program != null;
@@ -239,7 +243,14 @@ class AudioBackdropState extends State<AudioBackdrop> {
           ).resolve(createLocalImageConfiguration(context));
     if (stream?.key == _stream?.key && stream != null) return;
     _stream?.removeListener(_listener);
-    _stream = stream?..addListener(_listener);
+    // Before listening: a cover in the cache comes back at once, from inside
+    // addListener.
+    _stream = stream;
+    if (stream == null) {
+      _setArt(null);
+    } else {
+      stream.addListener(_listener);
+    }
   }
 
   Future<void> _onImage(ImageInfo info, bool synchronousCall) async {
@@ -250,14 +261,17 @@ class AudioBackdropState extends State<AudioBackdrop> {
       linear?.dispose();
       return;
     }
-    if (linear != null) _setArt(linear);
+    _setArt(linear);
   }
 
   void _onError(Object error, StackTrace? stack) {
-    // The placeholder stands in, as it does before the cover loads.
+    // The placeholder stands in, as it does before a cover loads.
+    _setArt(null);
   }
 
-  void _setArt(ui.Image art) {
+  /// Fades [art] in, or the placeholder for null.
+  void _setArt(ui.Image? art) {
+    if (art == null && _art == null) return;
     _previous?.dispose();
     _previous = _art;
     _art = art;

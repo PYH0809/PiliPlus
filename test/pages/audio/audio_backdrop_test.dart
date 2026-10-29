@@ -135,6 +135,55 @@ void main() {
     expect(state.dissolve, 1);
   });
 
+  testWidgets('a cover already in the cache shows too', (tester) async {
+    final cover = MemoryImage(await _png(tester, Colors.red));
+    await tester.pumpWidget(_app(image: cover));
+    await _load(tester);
+    expect(_state(tester).hasCover, isTrue);
+
+    // A new backdrop, as the page opens again: the cache answers from
+    // inside addListener.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(_app(image: cover));
+    await _load(tester);
+    expect(_state(tester).hasCover, isTrue);
+  });
+
+  testWidgets('a cover that fails fades to the placeholder', (tester) async {
+    await tester.pumpWidget(
+      _app(image: MemoryImage(await _png(tester, Colors.red))),
+    );
+    await _load(tester);
+    final state = _state(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(state.hasCover, isTrue);
+
+    await tester.pumpWidget(
+      _app(image: MemoryImage(Uint8List.fromList([1, 2, 3]))),
+    );
+    await _load(tester);
+    expect(state.hasCover, isFalse);
+    expect(state.dissolve, lessThan(1));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(state.dissolve, 1);
+  });
+
+  testWidgets('no cover fades to the placeholder', (tester) async {
+    await tester.pumpWidget(
+      _app(image: MemoryImage(await _png(tester, Colors.red))),
+    );
+    await _load(tester);
+    final state = _state(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(state.hasCover, isTrue);
+
+    await tester.pumpWidget(_app());
+    await tester.pump();
+    expect(state.hasCover, isFalse);
+    expect(state.dissolve, lessThan(1));
+  });
+
   testWidgets('at 0 a second it holds still, but fades a cover in', (
     tester,
   ) async {
