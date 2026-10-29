@@ -117,8 +117,9 @@ class AudioController extends GetxController
 
   bool _playInterrupted = false;
   double? _volumeBeforeDuck;
-  // 每次让出焦点加一，作废这之前还在等着开播的请求
-  int _focusReleases = 0;
+  // 页面要不要在放：开播、切曲时为 true；暂停、被打断、播完不再接着放时为 false。
+  // 等焦点、等播放器、等下一首地址的自动播放，开播前都再看一眼它
+  bool _wantPlay = true;
 
   Timer? _statusTimer;
 
@@ -215,7 +216,7 @@ class AudioController extends GetxController
     if (shutdownTimerService.isActive) {
       shutdownTimerService
         ..onPause = onPause
-        ..isPlaying = isPlayingOrInterrupted;
+        ..isPlaying = isPlayingOrPending;
     }
   }
 
@@ -223,26 +224,25 @@ class AudioController extends GetxController
     return player?.state.playing ?? false;
   }
 
-  /// 被打断暂停、等着恢复的也算在播放，定时关闭到点时要停掉它
-  bool isPlayingOrInterrupted() => isPlaying() || _playInterrupted;
+  /// 在放，或者等着接着放（被打断、在等下一首）；定时关闭到点时要停掉它
+  bool isPlayingOrPending() => isPlaying() || _wantPlay || _playInterrupted;
 
   Future<void>? onPlay() async {
-    if (player == null) return;
+    _wantPlay = true;
     _playInterrupted = false;
-    final releases = _focusReleases;
-    // 等焦点期间暂停或关闭了页面，就不再播放
-    if (await _requestAudioFocus() && releases == _focusReleases) {
+    if (player == null) return;
+    if (!await _requestAudioFocus()) {
+      _wantPlay = false;
+    } else if (_wantPlay) {
+      // 等焦点期间暂停或关闭了页面，就不再播放
       return player?.play();
     }
   }
 
   Future<void>? onPause() {
-    if (player case final player?) {
-      // 主动暂停时让出音频焦点
-      _releaseAudioFocus();
-      return player.pause();
-    }
-    return null;
+    // 主动暂停时让出音频焦点；播放器还没建好时，也取消之后的自动播放
+    _releaseAudioFocus();
+    return player?.pause();
   }
 
   /// 开播前申请音频焦点，拿不到（比如通话中）就不播
@@ -257,7 +257,7 @@ class AudioController extends GetxController
   }
 
   void _releaseAudioFocus() {
-    _focusReleases++;
+    _wantPlay = false;
     _playInterrupted = false;
     // 让出焦点后不会再收到 duck 结束
     _restoreDuckedVolume();
@@ -342,18 +342,15 @@ class AudioController extends GetxController
 
   Future<bool> _queryPlayUrl() async {
     _querySponsorBlock();
-    final releases = _focusReleases;
+    // 切过去就要放；等地址期间暂停了（主动暂停、拔耳机、被打断），换过去以后先不播
+    _wantPlay = true;
     final res = await AudioGrpc.audioPlayUrl(
       itemType: itemType,
       oid: oid,
       subId: subId,
     );
     if (res case Success(:final response)) {
-      // 等地址期间暂停了（主动暂停、拔耳机、被打断），换过去以后也先不播
-      final autoplay = releases == _focusReleases && !_playInterrupted;
-      if (!_onPlay(response, autoplay: autoplay)) {
-        _releaseAudioFocusIfStopped();
-      }
+      if (!_onPlay(response)) _releaseAudioFocusIfStopped();
       return true;
     } else {
       res.toast();
@@ -368,7 +365,7 @@ class AudioController extends GetxController
   }
 
   /// 打开了可以播放的媒体时返回 true
-  bool _onPlay(PlayURLResp data, {required bool autoplay}) {
+  bool _onPlay(PlayURLResp data) {
     final PlayInfo? playInfo = data.playerInfo.values.firstOrNull;
     if (playInfo != null) {
       http_model.Volume? volume;
@@ -392,11 +389,7 @@ class AudioController extends GetxController
         }
         position.value = 0;
         final audio = audios.findTargetMedia((e) => e.id, cacheAudioQa);
-        _onOpenMedia(
-          VideoUtils.getCdnUrl(audio.playUrls),
-          volume: volume,
-          autoplay: autoplay,
-        );
+        _onOpenMedia(VideoUtils.getCdnUrl(audio.playUrls), volume: volume);
         return true;
       } else if (playInfo.hasPlayUrl()) {
         final playUrl = playInfo.playUrl;
@@ -406,11 +399,7 @@ class AudioController extends GetxController
         }
         final durl = durls.first;
         position.value = 0;
-        _onOpenMedia(
-          VideoUtils.getCdnUrl(durl.playUrls),
-          volume: volume,
-          autoplay: autoplay,
-        );
+        _onOpenMedia(VideoUtils.getCdnUrl(durl.playUrls), volume: volume);
         return true;
       }
     }
@@ -422,7 +411,6 @@ class AudioController extends GetxController
     String ua = Constants.userAgentApp,
     String? referer,
     http_model.Volume? volume,
-    bool autoplay = true,
   }) async {
     await _initPlayerIfNeeded();
     final extras = audioFilterExtras(volume);
@@ -434,7 +422,7 @@ class AudioController extends GetxController
       )
       ..open(Media(url, start: _start, extras: extras), play: false);
     _start = null;
-    if (autoplay) onPlay();
+    if (_wantPlay) onPlay();
   }
 
   PlayerStatus _playerStatus = .paused;
@@ -555,13 +543,16 @@ class AudioController extends GetxController
     final player = this.player;
     if (player == null) return;
     if (event.begin) {
-      if (!player.state.playing) return;
       switch (event.type) {
         case AudioInterruptionType.duck:
+          if (!player.state.playing) return;
           _volumeBeforeDuck ??= player.state.volume;
           player.setVolume(_volumeBeforeDuck! * 0.5);
         case AudioInterruptionType.pause:
         case AudioInterruptionType.unknown:
+          // 在放，或者正等着下一首接着放，才算被打断
+          if (!_wantPlay) return;
+          _wantPlay = false;
           // 被打断时保留音频焦点，打断结束后才能恢复。安卓上的 unknown 是
           // 永久失去焦点，不会再有结束（iOS 的打断开始都是 unknown）
           _playInterrupted =
@@ -573,7 +564,9 @@ class AudioController extends GetxController
     } else {
       _restoreDuckedVolume();
       if (_playInterrupted && event.type == AudioInterruptionType.pause) {
-        player.play();
+        _wantPlay = true;
+        // 还在等下一首的地址时不用播，地址回来就会接着放
+        if (!player.state.completed) player.play();
       }
       _playInterrupted = false;
     }

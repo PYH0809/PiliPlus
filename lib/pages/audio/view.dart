@@ -131,7 +131,7 @@ class _AudioPageState extends State<AudioPage> {
             tooltip: '定时关闭',
             onPressed: () => shutdownTimerService
               ..onPause ??= _controller.onPause
-              ..isPlaying ??= _controller.isPlayingOrInterrupted
+              ..isPlaying ??= _controller.isPlayingOrPending
               ..showScheduleExitDialog(
                 context,
                 isFullScreen: false,
