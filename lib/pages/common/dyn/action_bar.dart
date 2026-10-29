@@ -100,10 +100,19 @@ ButtonStyle glassActionButtonStyle(ColorScheme colorScheme) {
 /// the icon in the theme's color, as iOS 26 floats a compose button by its
 /// toolbar. Tinted the theme's color, the glass hid what lay behind it and
 /// read as a plain disc over the bar.
+///
+/// Its glass is a little thicker than the bar's, as its icon alone, in color,
+/// says what it does: the bar's lets enough of a vivid picture through to
+/// drown it, as bright magenta drowns a light icon in dark mode.
 class GlassReplyButton extends StatelessWidget {
   const GlassReplyButton({super.key, required this.onTap});
 
   static const size = 56.0;
+
+  // How much of the glass is tint, the bar's being 0.54 in light and 0.62 in
+  // dark: enough that the icon keeps 3:1 over any color, with shader filters
+  // or without.
+  static const _tintAlpha = 0.8;
 
   final VoidCallback onTap;
 
@@ -115,6 +124,12 @@ class GlassReplyButton extends StatelessWidget {
       child: LiquidGlassButton(
         tooltip: '评论',
         onTap: onTap,
+        styleOf: (_) {
+          final glass = LiquidGlassStyle.regular(colorScheme);
+          return glass.copyWith(
+            tint: glass.tint.withValues(alpha: _tintAlpha),
+          );
+        },
         shadows: floatingGlassShadows(colorScheme),
         child: Center(
           child: Icon(Icons.reply, color: colorScheme.primary),
