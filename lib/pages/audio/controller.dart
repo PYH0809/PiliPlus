@@ -531,13 +531,13 @@ class AudioController extends GetxController
         if (completed) {
           _playerStatus = .completed;
           _startStatusTimer();
-          // 已经点了别的一首、地址还没回来：播完的是旧的那首，接着放新的就行
-          if (_switchingTrack) return;
-          // 播完不再接着放时让出音频焦点
+          // 播完不再接着放时让出音频焦点。定时关闭在等这一首播完的话先执行它，
+          // 正在切的那首也就不再自动播放
           if (shutdownTimerService.isWaiting) {
             _releaseAudioFocus();
             shutdownTimerService.handleWaiting();
-          } else {
+          } else if (!_switchingTrack) {
+            // 点了别的一首、地址还没回来时，播完的是旧的那首，接着放新的就行
             switch (playMode.value) {
               case PlayRepeat.pause:
                 _releaseAudioFocus();
