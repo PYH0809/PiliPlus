@@ -88,6 +88,15 @@ class AudioController extends GetxController
   /// Whether a page opened from here, such as 看MV's video, covers this one.
   bool isCovered = false;
 
+  /// Back on top: an item held back while covered goes to the card, which
+  /// also republishes the state.
+  void onUncovered() {
+    isCovered = false;
+    if (_isCardStale) {
+      if (audioItem.value case final item?) _updateMediaItem(item);
+    }
+  }
+
   /// Whether the card holds an item from before the part or item changed.
   bool _isCardStale = false;
 

@@ -97,7 +97,7 @@ class _AudioPageState extends State<AudioPage>
   @override
   void didPopNext() {
     super.didPopNext();
-    _controller.isCovered = false;
+    _controller.onUncovered();
   }
 
   @override
