@@ -152,6 +152,27 @@ void main() {
     expect(handler.playbackState.value.androidCompactActionIndices, isNull);
   });
 
+  test('a new item keeps the progress where playback is now, not where it '
+      'was last published', () {
+    handler
+      ..onVideoDetailChange(item(), 1, 'video')
+      ..playbackState.add(
+        PlaybackState(
+          processingState: AudioProcessingState.ready,
+          playing: true,
+          updatePosition: const Duration(seconds: 172),
+          updateTime: DateTime.now().subtract(const Duration(seconds: 10)),
+        ),
+      )
+      // Such as the intro of the next video in a playlist arriving late.
+      ..onVideoDetailChange(item(), 2, 'video');
+
+    expect(
+      handler.playbackState.value.updatePosition,
+      greaterThanOrEqualTo(const Duration(seconds: 181)),
+    );
+  });
+
   test('back on 听视频 after a video opened from it closes, the page can put '
       'its previous / next back', () async {
     handler.onVideoDetailChange(item(), 1, 'audio');

@@ -383,7 +383,8 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       state ?? current.processingState,
       playing ?? current.playing,
       item.isLive ?? false,
-      position: current.updatePosition,
+      // Where playback is now: the last update's position, run on since.
+      position: current.position,
       speed: current.speed,
     );
   }
