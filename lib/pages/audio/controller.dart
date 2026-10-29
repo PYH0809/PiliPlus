@@ -201,17 +201,15 @@ class AudioController extends GetxController
         _queryPlayUrl();
       }
     });
-    videoPlayerServiceHandler
-      ?..onPlay = onPlay
-      ..onPause = onPause
-      ..onSeek = onSeek
-      ..onSkipToNext = playNext
-      ..onSkipToPrevious = playPrev;
-    // When the card shows this page again, such as after a video opened from
-    // here closes, it gets this page's state and previous / next back.
+    _bindMediaControls();
+    // When the card shows this page again, such as after a page opened from
+    // here closes, it gets this page's controls, state and previous / next
+    // back.
     _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen((_) {
-      if (_isCardStale &&
-          videoPlayerServiceHandler!.isShowing(hashCode.toString())) {
+      if (!videoPlayerServiceHandler!.isShowing(hashCode.toString())) return;
+      // Another 听视频 opened from here unbound them as it closed.
+      _bindMediaControls();
+      if (_isCardStale) {
         if (audioItem.value case final item?) {
           // Its item goes up to date first, and that republishes the state.
           _updateMediaItem(item);
@@ -231,6 +229,16 @@ class AudioController extends GetxController
         ..onPause = onPause
         ..isPlaying = isPlaying;
     }
+  }
+
+  /// Lets the card's buttons drive this page.
+  void _bindMediaControls() {
+    videoPlayerServiceHandler
+      ?..onPlay = onPlay
+      ..onPause = onPause
+      ..onSeek = onSeek
+      ..onSkipToNext = playNext
+      ..onSkipToPrevious = playPrev;
   }
 
   bool isPlaying() {
