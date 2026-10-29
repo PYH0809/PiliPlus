@@ -233,9 +233,9 @@ class _MusicDetailPageState extends CommonDynPageState<MusicDetailPage> {
           color: color,
         ),
         style: style,
-        label: Text(
+        label: actionLabel(
           count != null ? NumUtils.numFormat(count) : text,
-          style: TextStyle(color: color),
+          color,
         ),
       );
     }

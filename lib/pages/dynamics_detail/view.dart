@@ -557,7 +557,7 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
         icon: child,
         style: btnStyle,
         onPressed: () => onPressed(child.color!),
-        label: Text(count, style: TextStyle(color: color)),
+        label: actionLabel(count, color),
       );
     }
 

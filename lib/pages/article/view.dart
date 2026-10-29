@@ -405,7 +405,7 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
           return TextButton.icon(
             style: btnStyle,
             onPressed: onPressed,
-            label: Text(count, style: TextStyle(color: color)),
+            label: actionLabel(count, color),
             icon: Icon(status ? activatedIcon : icon, size: 16, color: color),
           );
         }
