@@ -374,7 +374,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     bool? playing;
     Duration? position;
     if (!isShowing(herotag)) {
-      final holds = data is! DetailItem && _playerHolds(herotag, cid);
+      final holds = switch (data) {
+        DetailItem() => false,
+        // A room has one stream, and the player keeps no cid for it.
+        RoomInfoH5Data() => PlPlayerController.playOwner?.tag == herotag,
+        _ => _playerHolds(herotag, cid),
+      };
       playing =
           holds &&
           (PlPlayerController.getPlayerStatusIfExists()?.isPlaying ?? false);
