@@ -373,6 +373,18 @@ void main() {
       expect(_topOf(tester, 'line 12'), closeTo(0.08, 0.002));
     });
 
+    testWidgets('ends at a seek, to where it landed', (tester) async {
+      final audio = await _pumpList(tester, at: _lines[10].from);
+      await tester.fling(find.text('line 10'), const Offset(0, 1500), 3000);
+      await tester.pumpAndSettle();
+      expect(find.text('line 30'), findsNothing);
+
+      audio.onSubtitleSeek(_lines[30].from);
+      await tester.pumpAndSettle();
+      expect(_topOf(tester, 'line 30'), closeTo(0.08, 0.002));
+      expect(_blurOf(tester, 'line 31'), closeTo(1.5, 1e-3));
+    });
+
     testWidgets('stays while the new line is out of sight', (tester) async {
       final audio = await _pumpList(tester, at: _lines[10].from);
       await tester.fling(find.text('line 10'), const Offset(0, 1500), 3000);

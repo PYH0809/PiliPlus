@@ -151,7 +151,10 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
         _clock.update();
         _retime();
       }),
-      ever(_controller.subtitleSeeks, (_) => _clock.seeked()),
+      ever(_controller.subtitleSeeks, (_) {
+        _clock.seeked();
+        _onSeeked();
+      }),
       ever(_controller.subtitleBuffering, (_) => _clock.update()),
     ];
     _clock.update();
@@ -409,6 +412,15 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
       // Let go without a scroll, which would end in its own time.
       _startIdle();
     }
+  }
+
+  /// A seek shows where it landed, though the list was scrolled by hand, and
+  /// springs there, as its focus may have moved a line on or not at all.
+  void _onSeeked() {
+    if (_pointers > 0) return;
+    _idleTimer?.cancel();
+    _browsing.value = false;
+    _springTo(_controller.subtitleFocus.value);
   }
 
   void _onTapLine(int index) {
