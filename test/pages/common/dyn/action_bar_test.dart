@@ -113,6 +113,34 @@ void main() {
     expect(reply.bottom, capsule.top - 12);
   });
 
+  testWidgets(
+    "the reply button is of the bar's glass, thicker, its icon the theme's",
+    (tester) async {
+      await _pump(tester, const _Bottom(glass: true));
+      Color tintOf(Type type) => tester
+          .widget<LiquidGlass>(
+            find.descendant(
+              of: find.byType(type),
+              matching: find.byType(LiquidGlass),
+            ),
+          )
+          .style
+          .tint;
+      final reply = tintOf(GlassReplyButton);
+      final bar = tintOf(DynActionBar);
+      expect(reply.withValues(alpha: 1), bar.withValues(alpha: 1));
+      expect(reply.a, greaterThan(bar.a));
+      final button = find.byType(GlassReplyButton);
+      final icon = tester.widget<Icon>(
+        find.descendant(of: button, matching: find.byIcon(Icons.reply)),
+      );
+      expect(
+        icon.color,
+        Theme.of(tester.element(button)).colorScheme.primary,
+      );
+    },
+  );
+
   testWidgets('in landscape, the capsule keeps to the end, narrower', (
     tester,
   ) async {
@@ -177,6 +205,65 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
     expect(taps, 1);
+  });
+
+  testWidgets('on a narrow phone, labels keep to one line in their buttons', (
+    tester,
+  ) async {
+    // A phone with its display size turned up, as the one that broke 分享
+    // and a four-figure count over two lines.
+    const width = 337.0;
+    tester.view
+      ..physicalSize = const Size(width, _height)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const colorScheme = ColorScheme.light();
+    final style = glassActionButtonStyle(colorScheme);
+    Widget button(String label) => Expanded(
+      child: TextButton.icon(
+        style: style,
+        onPressed: () {},
+        icon: const Icon(Icons.reply, size: 16),
+        label: glassActionLabel(label, colorScheme.onSurfaceVariant),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: .bottomCenter,
+            child: DynActionBar(
+              glass: true,
+              bottom: 0,
+              child: Row(
+                children: [
+                  button('2'),
+                  button('分享'),
+                  button('2080'),
+                  button('2.1万'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final line = tester.getSize(find.text('2')).height;
+    for (final label in ['分享', '2080', '2.1万']) {
+      final text = find.text(label);
+      final rect = tester.getRect(text);
+      final cell = tester.getRect(
+        find.ancestor(of: text, matching: find.byType(TextButton)),
+      );
+      expect(rect.height, lessThanOrEqualTo(line), reason: label);
+      expect(rect.left, greaterThanOrEqualTo(cell.left), reason: label);
+      expect(rect.right, lessThanOrEqualTo(cell.right), reason: label);
+    }
+    // 分享 has room enough not to shrink.
+    expect(
+      tester.getRect(find.text('分享')).size,
+      tester.getSize(find.text('分享')),
+    );
   });
 
   test('buttons on glass: no ripple, a platter only under a press', () {

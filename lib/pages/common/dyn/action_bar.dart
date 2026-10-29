@@ -77,11 +77,15 @@ class DynActionBar extends StatelessWidget {
 
 /// The action bar's buttons on glass: no ripples, a platter under a press, as
 /// rows on glass have.
+///
+/// Each button fills its share of the capsule, so its padding only shows when
+/// that share is tight: kept small, a narrow phone still has room for 分享 or
+/// a count of four figures beside the icon.
 ButtonStyle glassActionButtonStyle(ColorScheme colorScheme) {
   final platter = glassPlatterColor(colorScheme);
   return TextButton.styleFrom(
     tapTargetSize: .padded,
-    padding: const EdgeInsets.symmetric(horizontal: 15),
+    padding: const EdgeInsets.symmetric(horizontal: 4),
     foregroundColor: colorScheme.onSurfaceVariant,
     splashFactory: NoSplash.splashFactory,
     shape: const StadiumBorder(),
@@ -96,11 +100,23 @@ ButtonStyle glassActionButtonStyle(ColorScheme colorScheme) {
   );
 }
 
-/// The button to write a reply on glass: a circle tinted the theme's color.
+/// The button to write a reply on glass: a circle of the action bar's glass,
+/// the icon in the theme's color, as iOS 26 floats a compose button by its
+/// toolbar. Tinted the theme's color, the glass hid what lay behind it and
+/// read as a plain disc over the bar.
+///
+/// Its glass is a little thicker than the bar's, as its icon alone, in color,
+/// says what it does: the bar's lets enough of a vivid picture through to
+/// drown it, as bright magenta drowns a light icon in dark mode.
 class GlassReplyButton extends StatelessWidget {
   const GlassReplyButton({super.key, required this.onTap});
 
   static const size = 56.0;
+
+  // How much of the glass is tint, the bar's being 0.54 in light and 0.62 in
+  // dark: enough that the icon keeps 3:1 over any color, with shader filters
+  // or without.
+  static const _tintAlpha = 0.8;
 
   final VoidCallback onTap;
 
@@ -112,11 +128,15 @@ class GlassReplyButton extends StatelessWidget {
       child: LiquidGlassButton(
         tooltip: '评论',
         onTap: onTap,
-        styleOf: (colorScheme) =>
-            LiquidGlassStyle.tinted(colorScheme, colorScheme.primary),
+        styleOf: (_) {
+          final glass = LiquidGlassStyle.regular(colorScheme);
+          return glass.copyWith(
+            tint: glass.tint.withValues(alpha: _tintAlpha),
+          );
+        },
         shadows: floatingGlassShadows(colorScheme),
         child: Center(
-          child: Icon(Icons.reply, color: colorScheme.onPrimary),
+          child: Icon(Icons.reply, color: colorScheme.primary),
         ),
       ),
     );
@@ -156,3 +176,11 @@ class GlassSortButton extends StatelessWidget {
     );
   }
 }
+
+/// A label of the action bar on glass, [text] in [color] on one line: squeezed,
+/// it shrinks to fit rather than break, as a count broken over two lines
+/// reads as two.
+Widget glassActionLabel(String text, Color color) => FittedBox(
+  fit: .scaleDown,
+  child: Text(text, maxLines: 1, style: TextStyle(color: color)),
+);
