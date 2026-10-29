@@ -617,6 +617,7 @@ class AudioController extends GetxController
         this.duration.value = duration.inSeconds;
       }),
       stream.playing.listen((playing) {
+        updateSubtitlePlaying(playing);
         if (playing) {
           animController.forward();
           _playerStatus = .playing;

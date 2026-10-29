@@ -10,6 +10,7 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/video/video_subtitle/subtitle_line.dart';
 import 'package:PiliPlus/pages/audio/controller.dart';
+import 'package:PiliPlus/pages/audio/subtitle/lyrics_list.dart';
 import 'package:PiliPlus/pages/audio/subtitle/subtitle_view.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
 import 'package:PiliPlus/pages/audio/volume_button.dart';
@@ -692,11 +693,11 @@ void main() {
       final list = tester.getRect(find.byType(AudioSubtitleList));
       expect(list.top, greaterThan(header.bottom));
       expect(list.bottom, lessThanOrEqualTo(controlsTop));
-      // the line 72 seconds in, in the middle of them
+      // the line 72 seconds in, its top 8% down them
       expect(controller.subtitleLine.value, 36);
       expect(
-        tester.getCenter(find.text('第 36 句')).dy,
-        moreOrLessEquals(list.center.dy, epsilon: 1),
+        tester.getTopLeft(find.text('第 36 句')).dy,
+        moreOrLessEquals(list.top + list.height * Lyrics.anchor, epsilon: 1),
       );
     });
   });

@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
 import 'package:PiliPlus/models_new/video/video_subtitle/subtitle_line.dart';
+
 import 'package:collection/collection.dart' show IterableExtension, mergeSort;
 
 enum SubtitleFormat implements EnumWithLabel {
@@ -67,9 +70,12 @@ abstract final class SubtitleUtils {
     return lines;
   }
 
-  /// The line being spoken at [position]: the last one that has started, so
-  /// a line stays current through the pause after it. -1 before the first.
-  static int lineIndexAt(List<SubtitleLine> lines, Duration position) {
+  /// A pause this long or longer between lines, or before the first, is an
+  /// interlude: the line before it dims, and dots wait for the next one.
+  static const interlude = Duration(seconds: 7);
+
+  /// The last line that has started at [position], -1 before the first.
+  static int lastStartedAt(List<SubtitleLine> lines, Duration position) {
     var low = 0;
     var high = lines.length;
     while (low < high) {
@@ -81,6 +87,79 @@ abstract final class SubtitleUtils {
       }
     }
     return low - 1;
+  }
+
+  /// The line lit at [position]: the last one that has started, and it stays
+  /// lit through a short pause after it. -1 before the first, in an
+  /// [interlude] and after the last.
+  static int lineIndexAt(List<SubtitleLine> lines, Duration position) {
+    final index = lastStartedAt(lines, position);
+    if (index == -1) return -1;
+    final line = lines[index];
+    if (position < line.to) return index;
+    if (index + 1 == lines.length) return -1;
+    return lines[index + 1].from - line.to >= interlude ? -1 : index;
+  }
+
+  /// The [interlude] before line [index]: from the end of the line before,
+  /// or the start, to its own. Null when the pause is shorter.
+  static ({Duration start, Duration end})? interludeBefore(
+    List<SubtitleLine> lines,
+    int index,
+  ) {
+    final start = index == 0 ? Duration.zero : lines[index - 1].to;
+    final end = lines[index].from;
+    return end - start >= interlude ? (start: start, end: end) : null;
+  }
+
+  /// The [interlude] [position] is in, and the line it waits for.
+  static ({int next, Duration start, Duration end})? interludeAt(
+    List<SubtitleLine> lines,
+    Duration position,
+  ) {
+    final next = lastStartedAt(lines, position) + 1;
+    if (next >= lines.length) return null;
+    final pause = interludeBefore(lines, next);
+    if (pause == null || position < pause.start) return null;
+    return (next: next, start: pause.start, end: pause.end);
+  }
+
+  /// How long the list takes to move on to line [index]: 480 ms when it
+  /// starts 200 ms or less after the line before it, 750 ms for 750 ms or
+  /// more, and in between in proportion.
+  static Duration moveTo(List<SubtitleLine> lines, int index) {
+    if (index <= 0) return const Duration(milliseconds: 750);
+    final gap = (lines[index].from - lines[index - 1].from).inMilliseconds;
+    final ms = gap <= 200
+        ? 480
+        : gap >= 750
+        ? 750
+        : 480 + (gap - 200) * 270 ~/ 550;
+    return Duration(milliseconds: ms);
+  }
+
+  /// Where the list heads at [position]: the line lit, and the next one as
+  /// soon as moving there would land just as it starts, though never before
+  /// the line before it starts; in an interlude, the dots above the line it
+  /// waits for. -1 without lines.
+  static ({int index, bool dots}) targetAt(
+    List<SubtitleLine> lines,
+    Duration position,
+  ) {
+    if (lines.isEmpty) return (index: -1, dots: false);
+    if (interludeAt(lines, position) case (:final next, start: _, end: _)) {
+      return (index: next, dots: true);
+    }
+    final index = lastStartedAt(lines, position);
+    final next = index + 1;
+    if (next < lines.length) {
+      final early = lines[next].from - moveTo(lines, next);
+      final earliest = index == -1 ? Duration.zero : lines[index].from;
+      if (position >= (early > earliest ? early : earliest)) {
+        return (index: next, dots: false);
+      }
+    }
+    return (index: math.max(index, 0), dots: false);
   }
 
   /// Which of [subtitles] to show: the language [lan] picked last time, else

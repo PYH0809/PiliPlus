@@ -34,8 +34,23 @@ mixin AudioSubtitleMixin on GetxController {
   final Rx<LoadingState<List<SubtitleLine>>> subtitleLines =
       Rx<LoadingState<List<SubtitleLine>>>(LoadingState.loading());
 
-  /// The line being spoken, see [SubtitleUtils.lineIndexAt].
+  /// The line lit, see [SubtitleUtils.lineIndexAt].
   final RxInt subtitleLine = (-1).obs;
+
+  /// Where the list heads, see [SubtitleUtils.targetAt].
+  final Rx<({int index, bool dots})> subtitleFocus = Rx((
+    index: -1,
+    dots: false,
+  ));
+
+  /// The interlude playing, see [SubtitleUtils.interludeAt].
+  final Rxn<({int next, Duration start, Duration end})> subtitleInterlude =
+      Rxn();
+
+  /// The position as the player last told it.
+  final Rx<Duration> subtitlePosition = Rx(.zero);
+
+  final RxBool subtitlePlaying = false.obs;
 
   /// What [subtitleLines] holds or is loading.
   (int, int)? _target;
@@ -64,6 +79,9 @@ mixin AudioSubtitleMixin on GetxController {
     subtitles.clear();
     subtitleIndex.value = -1;
     subtitleLine.value = -1;
+    subtitleInterlude.value = null;
+    subtitleFocus.value = (index: -1, dots: false);
+    subtitlePosition.value = .zero;
     subtitleLines.value = LoadingState.loading();
     if (showSubtitle.value) {
       _loadSubtitles();
@@ -72,9 +90,19 @@ mixin AudioSubtitleMixin on GetxController {
 
   void updateSubtitlePosition(Duration position) {
     _position = position;
+    subtitlePosition.value = position;
     if (subtitleLines.value case Success(:final response)) {
-      subtitleLine.value = SubtitleUtils.lineIndexAt(response, position);
+      _follow(response);
     }
+  }
+
+  void updateSubtitlePlaying(bool playing) => subtitlePlaying.value = playing;
+
+  /// The lit line first, as the list reads it when its focus moves.
+  void _follow(List<SubtitleLine> lines) {
+    subtitleLine.value = SubtitleUtils.lineIndexAt(lines, _position);
+    subtitleInterlude.value = SubtitleUtils.interludeAt(lines, _position);
+    subtitleFocus.value = SubtitleUtils.targetAt(lines, _position);
   }
 
   /// Seeks to the start of [index], and plays from there.
@@ -159,7 +187,7 @@ mixin AudioSubtitleMixin on GetxController {
   }
 
   void _setLines(List<SubtitleLine> lines) {
-    subtitleLine.value = SubtitleUtils.lineIndexAt(lines, _position);
+    _follow(lines);
     subtitleLines.value = Success(lines);
   }
 

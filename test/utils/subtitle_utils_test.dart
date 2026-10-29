@@ -91,8 +91,20 @@ void main() {
       expect(SubtitleUtils.lineIndexAt(lines, _ms(6000)), 2);
     });
 
-    test('the last line stays current after the end', () {
-      expect(SubtitleUtils.lineIndexAt(lines, const Duration(hours: 1)), 2);
+    test('the last line dims once it ends', () {
+      expect(SubtitleUtils.lineIndexAt(lines, _ms(6999)), 2);
+      expect(SubtitleUtils.lineIndexAt(lines, _ms(7000)), -1);
+      expect(SubtitleUtils.lineIndexAt(lines, const Duration(hours: 1)), -1);
+    });
+
+    test('a line dims for an interlude of 7 seconds, not for 6', () {
+      final interlude = [_line(0, 1000), _line(8000, 9000)];
+      expect(SubtitleUtils.lineIndexAt(interlude, _ms(999)), 0);
+      expect(SubtitleUtils.lineIndexAt(interlude, _ms(1000)), -1);
+      expect(SubtitleUtils.lineIndexAt(interlude, _ms(8000)), 1);
+      final pause = [_line(0, 1000), _line(7000, 8000)];
+      expect(SubtitleUtils.lineIndexAt(pause, _ms(1000)), 0);
+      expect(SubtitleUtils.lineIndexAt(pause, _ms(6999)), 0);
     });
 
     test('no line is current without lines', () {
@@ -100,22 +112,114 @@ void main() {
     });
 
     test('overlapping lines: the one started last is current', () {
-      final overlapping = [_line(0, 5000), _line(1000, 2000)];
+      final overlapping = [
+        _line(0, 5000),
+        _line(1000, 2000),
+        _line(4000, 6000),
+      ];
       expect(SubtitleUtils.lineIndexAt(overlapping, _ms(1500)), 1);
       expect(SubtitleUtils.lineIndexAt(overlapping, _ms(3000)), 1);
     });
 
-    test('finds the same line as a scan, all along a long video', () {
+    test('finds the line last started as a scan, all along a long video', () {
       final long = [
         for (var i = 0; i < 1000; i++) _line(i * 2300, i * 2300 + 1800),
       ];
       for (var ms = 0; ms < 2400000; ms += 137) {
         expect(
-          SubtitleUtils.lineIndexAt(long, _ms(ms)),
+          SubtitleUtils.lastStartedAt(long, _ms(ms)),
           _scan(long, _ms(ms)),
           reason: 'at ${ms}ms',
         );
       }
+    });
+  });
+
+  group('SubtitleUtils.interludeAt', () {
+    final lines = [_line(8000, 9000), _line(9500, 10000), _line(20000, 21000)];
+
+    test('before the first line, when it comes 7 seconds or more in', () {
+      expect(
+        SubtitleUtils.interludeAt(lines, _ms(3000)),
+        (next: 0, start: Duration.zero, end: _ms(8000)),
+      );
+      expect(SubtitleUtils.interludeAt([_line(6000, 7000)], _ms(3000)), isNull);
+    });
+
+    test('between lines 7 seconds or more apart, from the end of one', () {
+      expect(SubtitleUtils.interludeAt(lines, _ms(9999)), isNull);
+      expect(
+        SubtitleUtils.interludeAt(lines, _ms(10000)),
+        (next: 2, start: _ms(10000), end: _ms(20000)),
+      );
+      expect(SubtitleUtils.interludeAt(lines, _ms(20000)), isNull);
+    });
+
+    test('none after the last line', () {
+      expect(SubtitleUtils.interludeAt(lines, _ms(60000)), isNull);
+    });
+  });
+
+  group('SubtitleUtils.moveTo', () {
+    List<SubtitleLine> apart(int ms) => [_line(0, 100), _line(ms, ms + 100)];
+
+    test('480 ms up to 200 ms after the line before, 750 from 750', () {
+      expect(SubtitleUtils.moveTo(apart(100), 1), _ms(480));
+      expect(SubtitleUtils.moveTo(apart(200), 1), _ms(480));
+      expect(SubtitleUtils.moveTo(apart(750), 1), _ms(750));
+      expect(SubtitleUtils.moveTo(apart(5000), 1), _ms(750));
+    });
+
+    test('in proportion between', () {
+      expect(SubtitleUtils.moveTo(apart(475), 1), _ms(615));
+    });
+  });
+
+  group('SubtitleUtils.targetAt', () {
+    final lines = [_line(1000, 2000), _line(3000, 4000), _line(3300, 3600)];
+
+    test('heads for the next line early, to land as it starts', () {
+      // 2 seconds apart: a 750 ms move, from 2.25 s
+      expect(SubtitleUtils.targetAt(lines, _ms(2249)), (index: 0, dots: false));
+      expect(SubtitleUtils.targetAt(lines, _ms(2250)), (index: 1, dots: false));
+    });
+
+    test('but not before the line before it starts', () {
+      // 300 ms apart, a 529 ms move: no sooner than 3 s
+      expect(SubtitleUtils.targetAt(lines, _ms(3000)).index, 2);
+      expect(SubtitleUtils.targetAt(lines, _ms(2999)).index, 1);
+    });
+
+    test('waits on the first line, and stays on the last', () {
+      expect(SubtitleUtils.targetAt(lines, Duration.zero), (
+        index: 0,
+        dots: false,
+      ));
+      expect(SubtitleUtils.targetAt(lines, _ms(60000)), (
+        index: 2,
+        dots: false,
+      ));
+      expect(SubtitleUtils.targetAt(const [], Duration.zero).index, -1);
+    });
+
+    test('rests on the dots of an interlude', () {
+      final interlude = [_line(0, 1000), _line(9000, 10000)];
+      expect(SubtitleUtils.targetAt(interlude, _ms(500)), (
+        index: 0,
+        dots: false,
+      ));
+      expect(SubtitleUtils.targetAt(interlude, _ms(1000)), (
+        index: 1,
+        dots: true,
+      ));
+      expect(SubtitleUtils.targetAt(interlude, _ms(8999)), (
+        index: 1,
+        dots: true,
+      ));
+      expect(SubtitleUtils.targetAt(interlude, _ms(9000)), (
+        index: 1,
+        dots: false,
+      ));
     });
   });
 
