@@ -353,6 +353,7 @@ class AudioController extends GetxController
 
   @override
   Future<void>? onSeek(Duration duration) {
+    onSubtitleSeek(duration);
     _updatePlaybackState(position: duration);
     return player?.seek(duration);
   }

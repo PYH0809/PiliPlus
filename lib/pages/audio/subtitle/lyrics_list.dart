@@ -147,7 +147,11 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
       ever(_controller.subtitleInterlude, (_) => _clock.update()),
       ever(_controller.subtitlePosition, (_) => _clock.update()),
       ever(_controller.subtitlePlaying, (_) => _clock.update()),
-      ever(_controller.subtitleRate, (_) => _clock.update()),
+      ever(_controller.subtitleRate, (_) {
+        _clock.update();
+        _retime();
+      }),
+      ever(_controller.subtitleSeeks, (_) => _clock.seeked()),
       ever(_controller.subtitleBuffering, (_) => _clock.update()),
     ];
     _clock.update();
@@ -276,20 +280,33 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
     _stagger.ping();
   }
 
+  /// A move in time with the lines, when the speed changes on the way:
+  /// to land as its line starts at the new one.
+  void _retime() {
+    final index = _focus.index;
+    if (!_timed.isAnimating || index < 0 || index >= _lines.length) return;
+    final left =
+        (_lines[index].from - _controller.subtitlePosition.value) *
+        (1 / _controller.subtitleRate.value);
+    final done = _timed.value;
+    if (left <= Duration.zero || done >= 1) return;
+    _timed
+      ..duration = left * (1 / (1 - done))
+      ..forward(from: done);
+  }
+
   /// How far row [rows] below the focus lags behind it in a timed move.
   double lagOf(int rows) {
     if (rows <= 0 || !_timed.isAnimating) return 0;
     final target = _offsetOf(_focus);
     final total = _timed.duration;
-    final elapsed = _timed.lastElapsedDuration;
-    if (target == null || total == null || elapsed == null) return 0;
-    final delay = Duration(
-      milliseconds: Lyrics.stagger[math.min(rows, Lyrics.stagger.length) - 1],
-    );
-    double at(Duration time) => Lyrics.moveCurve.transform(
-      (time.inMicroseconds / total.inMicroseconds).clamp(0.0, 1.0),
-    );
-    return (target - _from) * (at(elapsed) - at(elapsed - delay));
+    if (target == null || total == null) return 0;
+    final delay =
+        Lyrics.stagger[math.min(rows, Lyrics.stagger.length) - 1] /
+        total.inMilliseconds;
+    // By how far it has gone, as a move re-timed on the way starts over.
+    double at(double done) => Lyrics.moveCurve.transform(done.clamp(0.0, 1.0));
+    return (target - _from) * (at(_timed.value) - at(_timed.value - delay));
   }
 
   void _springTo(({int index, bool dots}) focus) {
@@ -541,6 +558,12 @@ class _MediaClock extends ChangeNotifier {
       250,
     );
     return opened * (1 - shut);
+  }
+
+  /// After a seek, the dots come in again from where it landed.
+  void seeked() {
+    _enteredFor = null;
+    update();
   }
 
   void update() {

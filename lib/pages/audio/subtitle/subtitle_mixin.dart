@@ -58,6 +58,9 @@ mixin AudioSubtitleMixin on GetxController {
   /// Waiting on data while playing: the position holds still.
   final RxBool subtitleBuffering = false.obs;
 
+  /// Counts the seeks, after which what eases with the position starts over.
+  final RxInt subtitleSeeks = 0.obs;
+
   /// What [subtitleLines] holds or is loading.
   (int, int)? _target;
 
@@ -104,6 +107,12 @@ mixin AudioSubtitleMixin on GetxController {
 
   void updateSubtitlePlaying(bool playing) => subtitlePlaying.value = playing;
 
+  /// Call as the player seeks to [position].
+  void onSubtitleSeek(Duration position) {
+    updateSubtitlePosition(position);
+    subtitleSeeks.value++;
+  }
+
   void updateSubtitleBuffering(bool buffering) =>
       subtitleBuffering.value = buffering;
 
@@ -129,7 +138,7 @@ mixin AudioSubtitleMixin on GetxController {
   void seekToSubtitleLine(int index) {
     if (subtitleLines.value case Success(:final response)) {
       final from = response[index].from;
-      updateSubtitlePosition(from);
+      onSubtitleSeek(from);
       onSeek(from);
       if (!isPlaying()) {
         onPlay();

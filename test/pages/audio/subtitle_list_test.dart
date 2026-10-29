@@ -246,6 +246,22 @@ void main() {
     expect(_topOf(tester, 'line 6'), closeTo(0.08, 0.003));
   });
 
+  testWidgets('a speed change on the way still lands as the line starts', (
+    tester,
+  ) async {
+    final audio = await _pumpList(tester, at: _lines[5].from);
+    final next = _lines[6].from;
+    // Under way at 1x, from 750 ms before; then twice as fast.
+    await _play(tester, audio, next - _s(1), next - _s(0.5));
+    audio.updateSubtitleRate(2);
+    for (var at = next - _s(0.4); at <= next; at += _s(0.1)) {
+      audio.updateSubtitlePosition(at);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(audio.subtitleLine.value, 6);
+    expect(_topOf(tester, 'line 6'), closeTo(0.08, 0.002));
+  });
+
   testWidgets('the rows below set off later, the ones above together', (
     tester,
   ) async {
@@ -519,6 +535,20 @@ void main() {
       audio.updateSubtitleBuffering(false);
       await tester.pump();
       expect(tester.binding.hasScheduledFrame, isTrue);
+    });
+
+    testWidgets('come in again after a short seek back', (tester) async {
+      final audio = await _pumpList(tester, lines: apart(7), at: _s(1));
+      audio.updateSubtitlePosition(_s(8.2));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(dots, findsNothing);
+
+      // 400 ms back, to 1.2 s before the line.
+      audio.onSubtitleSeek(_s(7.8));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(dots, findsNWidgets(3));
     });
 
     testWidgets('come in again after a seek back in the pause', (tester) async {
