@@ -17,6 +17,7 @@ import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/audio_normalization.dart';
 import 'package:PiliPlus/models/video/play/url.dart' as http_model show Volume;
+import 'package:PiliPlus/pages/audio/subtitle/subtitle_mixin.dart';
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
@@ -44,7 +45,8 @@ class AudioController extends GetxController
         GetTickerProviderStateMixin,
         BlockConfigMixin,
         BlockMixin,
-        AudioNormalizationMixin {
+        AudioNormalizationMixin,
+        AudioSubtitleMixin {
   late Int64 id;
   late Int64 oid;
   late List<Int64> subId;
@@ -53,6 +55,11 @@ class AudioController extends GetxController
   late final PlaylistSource from;
   @override
   late final bool isUgc = itemType == 1;
+
+  @override
+  (int, int)? get subtitleTarget => itemType == 1 && subId.isNotEmpty
+      ? (oid.toInt(), subId.first.toInt())
+      : null;
 
   final audioItem = Rxn<DetailItem>();
 
@@ -290,6 +297,7 @@ class AudioController extends GetxController
       ..onSkipToPrevious = null;
   }
 
+  @override
   bool isPlaying() {
     return player?.state.playing ?? false;
   }
@@ -297,6 +305,7 @@ class AudioController extends GetxController
   /// 在放，或者等着接着放（被打断、在等下一首）；定时关闭到点时要停掉它
   bool isPlayingOrPending() => isPlaying() || _wantPlay || _playInterrupted;
 
+  @override
   Future<void>? onPlay() async {
     _wantPlay = true;
     _playInterrupted = false;
@@ -341,6 +350,7 @@ class AudioController extends GetxController
     audioSessionHandler?.setActive(false, owner: this);
   }
 
+  @override
   Future<void>? onSeek(Duration duration) {
     _updatePlaybackState(position: duration);
     return player?.seek(duration);
@@ -443,6 +453,7 @@ class AudioController extends GetxController
 
   Future<bool> _queryPlayUrl() async {
     _querySponsorBlock();
+    onSubtitleTargetChanged();
     final request = ++_urlRequest;
     // 要换曲了，还在等焦点的上一首就不用再播
     _playRequest++;
@@ -591,6 +602,7 @@ class AudioController extends GetxController
     final stream = player!.stream;
     _subscriptions = [
       stream.position.listen((position) {
+        updateSubtitlePosition(position);
         if (isDragging) return;
         final seconds = position.inSeconds;
         if (seconds != this.position.value) {

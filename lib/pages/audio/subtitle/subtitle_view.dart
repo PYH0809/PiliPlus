@@ -19,69 +19,77 @@ class AudioSubtitlePanel extends StatelessWidget {
     super.key,
     required this.controller,
     required this.item,
+    this.padding = .zero,
   });
 
   final AudioSubtitleMixin controller;
   final DetailItem item;
 
+  /// What the bars floating on glass cover: the lines stop and fade out
+  /// above them, as they are text to read.
+  final EdgeInsets padding;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
-    return Column(
-      crossAxisAlignment: .start,
-      children: [
-        Row(
-          spacing: 12,
-          children: [
-            Expanded(
-              child: GestureDetector(
-                behavior: .opaque,
-                onTap: controller.toggleSubtitle,
-                child: Row(
-                  spacing: 12,
-                  children: [
-                    NetworkImgLayer(
-                      src: item.arc.cover.http2https,
-                      width: 48,
-                      height: 48,
-                    ),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: .min,
-                        crossAxisAlignment: .start,
-                        children: [
-                          Text(
-                            item.arc.title,
-                            maxLines: 1,
-                            overflow: .ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: .bold,
-                            ),
-                          ),
-                          if (item.owner.hasName())
+    return Padding(
+      padding: padding,
+      child: Column(
+        crossAxisAlignment: .start,
+        children: [
+          Row(
+            spacing: 12,
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: .opaque,
+                  onTap: controller.toggleSubtitle,
+                  child: Row(
+                    spacing: 12,
+                    children: [
+                      NetworkImgLayer(
+                        src: item.arc.cover.http2https,
+                        width: 48,
+                        height: 48,
+                      ),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: .min,
+                          crossAxisAlignment: .start,
+                          children: [
                             Text(
-                              item.owner.name,
+                              item.arc.title,
                               maxLines: 1,
                               overflow: .ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: colorScheme.outline,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: .bold,
                               ),
                             ),
-                        ],
+                            if (item.owner.hasName())
+                              Text(
+                                item.owner.name,
+                                maxLines: 1,
+                                overflow: .ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: colorScheme.outline,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _SubtitleLanguage(controller: controller),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Expanded(child: AudioSubtitleList(controller: controller)),
-      ],
+              _SubtitleLanguage(controller: controller),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(child: AudioSubtitleList(controller: controller)),
+        ],
+      ),
     );
   }
 }

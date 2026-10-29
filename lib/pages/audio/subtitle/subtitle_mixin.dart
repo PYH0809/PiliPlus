@@ -60,6 +60,7 @@ mixin AudioSubtitleMixin on GetxController {
     _generation++;
     _target = null;
     _cache = const [];
+    _position = .zero;
     subtitles.clear();
     subtitleIndex.value = -1;
     subtitleLine.value = -1;
