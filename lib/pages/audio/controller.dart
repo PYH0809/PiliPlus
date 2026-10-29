@@ -85,6 +85,12 @@ class AudioController extends GetxController
   List<StreamSubscription>? _subscriptions;
   StreamSubscription? _mediaItemSubscription;
 
+  /// Whether a page opened from here, such as 看MV's video, covers this one.
+  bool isCovered = false;
+
+  /// Whether the card holds an item from before the part or item changed.
+  bool _isCardStale = false;
+
   int? index;
   List<DetailItem>? playlist;
 
@@ -203,9 +209,17 @@ class AudioController extends GetxController
       ..onSkipToPrevious = playPrev;
     // When the card shows this page again, such as after a video opened from
     // here closes, it gets this page's state and previous / next back.
-    _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen(
-      (_) => onPlaylistChanged(),
-    );
+    _mediaItemSubscription = videoPlayerServiceHandler?.mediaItem.listen((_) {
+      if (_isCardStale &&
+          videoPlayerServiceHandler!.isShowing(hashCode.toString())) {
+        if (audioItem.value case final item?) {
+          // Its item goes up to date first, and that republishes the state.
+          _updateMediaItem(item);
+          return;
+        }
+      }
+      onPlaylistChanged();
+    });
 
     animController = AnimationController(
       vsync: this,
@@ -248,10 +262,20 @@ class AudioController extends GetxController
   void _updateMediaItem(DetailItem item) {
     // A request that returns after the page left must not bring its card back.
     if (isClosed) return;
-    videoPlayerServiceHandler?.onVideoDetailChange(
+    final handler = videoPlayerServiceHandler;
+    if (handler == null) return;
+    final tag = hashCode.toString();
+    // While a page opened from here has the card, the item waits till the card
+    // shows this page again.
+    if (isCovered && !handler.isShowing(tag)) {
+      _isCardStale = true;
+      return;
+    }
+    _isCardStale = false;
+    handler.onVideoDetailChange(
       item,
       (subId.firstOrNull ?? oid).toInt(),
-      hashCode.toString(),
+      tag,
     );
   }
 
