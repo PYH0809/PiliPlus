@@ -234,7 +234,8 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
         !focus.dots &&
         !previous.dots &&
         previous.index >= 0 &&
-        focus.index == previous.index + 1;
+        focus.index == previous.index + 1 &&
+        focus.index < _lines.length;
     _springNext = false;
     if (inTime) {
       _moveTo(SubtitleUtils.moveTo(_lines, focus.index));
@@ -350,6 +351,8 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
         _idleTimer?.cancel();
         _idle = false;
         _browsing.value = true;
+        // A mouse wheel puts no pointer down to stop the move.
+        _stop();
       case ScrollEndNotification() when _browsing.value:
         _idleTimer?.cancel();
         _idleTimer = Timer(Lyrics.snapIdle, () => _idle = true);
@@ -479,11 +482,17 @@ class _MediaClock extends ChangeNotifier {
   Duration _base = .zero;
   Duration _baseAt = .zero;
 
-  /// When the interlude showing came into view, by the player's clock.
-  Duration? _entered;
+  bool _playing = false;
 
-  Duration get position =>
-      _base + (_controller.subtitlePlaying.value ? _now - _baseAt : .zero);
+  /// When the interlude showing came into view, by the player's clock, and
+  /// which it is.
+  Duration? _entered;
+  ({int next, Duration start, Duration end})? _enteredFor;
+
+  /// Off from where it was heading by more, the player sought.
+  static const _seekJump = Duration(milliseconds: 500);
+
+  Duration get position => _base + (_playing ? _now - _baseAt : .zero);
 
   ({int next, Duration start, Duration end})? get interlude =>
       _controller.subtitleInterlude.value;
@@ -510,16 +519,26 @@ class _MediaClock extends ChangeNotifier {
   }
 
   void update() {
+    final expected = position;
+    final interlude = this.interlude;
+    if (interlude != null && !_ticker.isActive) {
+      // Its time starts over with the ticker.
+      _now = .zero;
+      _ticker.start();
+    }
     _base = _controller.subtitlePosition.value;
     _baseAt = _now;
-    final interlude = this.interlude;
+    _playing = _controller.subtitlePlaying.value;
     if (interlude == null) {
       _entered = null;
+      _enteredFor = null;
       _ticker.stop();
-    } else {
-      final start = _base < interlude.start ? interlude.start : _base;
-      _entered ??= start;
-      if (!_ticker.isActive) _ticker.start();
+    } else if (interlude != _enteredFor ||
+        (_base - expected).abs() > _seekJump) {
+      // Another interlude, or a seek in this one: the dots come in again
+      // from here.
+      _entered = _base < interlude.start ? interlude.start : _base;
+      _enteredFor = interlude;
     }
     notifyListeners();
   }

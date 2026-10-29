@@ -186,9 +186,11 @@ mixin AudioSubtitleMixin on GetxController {
     }
   }
 
+  /// The lines first, so that the focus that follows is on lines the list
+  /// has.
   void _setLines(List<SubtitleLine> lines) {
-    _follow(lines);
     subtitleLines.value = Success(lines);
+    _follow(lines);
   }
 
   static Future<LoadingState<List<Subtitle>>> _querySubtitles(

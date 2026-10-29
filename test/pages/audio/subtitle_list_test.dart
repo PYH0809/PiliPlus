@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/video/video_subtitle/subtitle_line.dart';
 import 'package:PiliPlus/pages/audio/subtitle/lyrics_list.dart';
@@ -352,6 +354,39 @@ void main() {
     await gesture.up();
   });
 
+  testWidgets('a mouse wheel stops a move too', (tester) async {
+    final audio = await _pumpList(tester, at: _lines[10].from);
+    audio.updateSubtitlePosition(_lines[20].from);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    final wheel = TestPointer(1, PointerDeviceKind.mouse);
+    final center = tester.getCenter(find.byType(AudioSubtitleList));
+    await tester.sendEventToBinding(wheel.hover(center));
+    await tester.sendEventToBinding(wheel.scroll(const Offset(0, -100)));
+    await tester.pump();
+    final scrolled = tester.getTopLeft(find.text('line 12')).dy;
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.getTopLeft(find.text('line 12')).dy, scrolled);
+  });
+
+  testWidgets('a focus that comes before its lines does not move the list', (
+    tester,
+  ) async {
+    final audio = await _pumpList(tester, at: _lines[10].from);
+    // Another language, still loading, and the focus a line on.
+    audio.subtitleLines.value = LoadingState.loading();
+    await tester.pump();
+    audio.subtitleFocus.value = (index: 11, dots: false);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    audio
+      ..subtitleLines.value = Success(_lines)
+      ..updateSubtitlePosition(_lines[11].from);
+    await tester.pumpAndSettle();
+    expect(_topOf(tester, 'line 11'), closeTo(Lyrics.anchor, 0.01));
+  });
+
   group('interlude dots', () {
     final dots = find.byWidgetPredicate(
       (widget) =>
@@ -409,6 +444,19 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(audio.subtitleInterlude.value, isNotNull);
       expect(dots, findsNothing);
+    });
+
+    testWidgets('come in again after a seek back in the pause', (tester) async {
+      final audio = await _pumpList(tester, lines: apart(7), at: _s(1));
+      audio.updateSubtitlePosition(_s(8.2));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(dots, findsNothing);
+
+      audio.updateSubtitlePosition(_s(3));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(dots, findsNWidgets(3));
     });
   });
 }
