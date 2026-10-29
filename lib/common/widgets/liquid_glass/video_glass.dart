@@ -146,11 +146,13 @@ class VideoGlass extends StatelessWidget {
 
   /// [theme] for the controls on this glass: dark, as the glass is in either
   /// theme, so that their menus read so too, and without ripples.
-  static ThemeData controlsTheme(ThemeData theme) {
+  static ThemeData controlsTheme(ThemeData theme) =>
+      GlassSurfaces.withoutRipples(darkTheme(theme));
+
+  /// [theme] made dark from its own seed, for what is dark in either theme.
+  static ThemeData darkTheme(ThemeData theme) {
     final colorScheme = theme.colorScheme;
-    if (colorScheme.brightness == Brightness.dark) {
-      return GlassSurfaces.withoutRipples(theme);
-    }
+    if (colorScheme.brightness == Brightness.dark) return theme;
     final dark = _darkSchemes.putIfAbsent(
       colorScheme.primary,
       () => ColorScheme.fromSeed(
@@ -160,15 +162,13 @@ class VideoGlass extends StatelessWidget {
     );
     // The text and icons too, or a menu item without a color of its own
     // stays dark on the dark glass.
-    return GlassSurfaces.withoutRipples(
-      theme.copyWith(
-        colorScheme: dark,
-        textTheme: theme.textTheme.apply(
-          bodyColor: dark.onSurface,
-          displayColor: dark.onSurface,
-        ),
-        iconTheme: theme.iconTheme.copyWith(color: dark.onSurfaceVariant),
+    return theme.copyWith(
+      colorScheme: dark,
+      textTheme: theme.textTheme.apply(
+        bodyColor: dark.onSurface,
+        displayColor: dark.onSurface,
       ),
+      iconTheme: theme.iconTheme.copyWith(color: dark.onSurfaceVariant),
     );
   }
 

@@ -272,6 +272,7 @@ flutter:
 
   shaders:
     - shaders/liquid_glass.frag
+    - shaders/audio_backdrop.frag
 
   fonts:
     - family: digital_id_num

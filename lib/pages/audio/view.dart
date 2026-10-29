@@ -10,6 +10,7 @@ import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/menu_entries.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/audio_video_progress_bar.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
@@ -21,6 +22,7 @@ import 'package:PiliPlus/common/widgets/selection_text.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/image_type.dart';
+import 'package:PiliPlus/pages/audio/backdrop/audio_backdrop.dart';
 import 'package:PiliPlus/pages/audio/controller.dart';
 import 'package:PiliPlus/pages/audio/volume_button.dart';
 import 'package:PiliPlus/pages/audio/widgets/glass_controls.dart';
@@ -43,6 +45,7 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/utils.dart';
+import 'package:cached_network_image_ce/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
@@ -114,12 +117,53 @@ class _AudioPageState extends State<AudioPage>
     _controller.didChangeDependencies(context);
   }
 
+  /// Dark in either theme, as iOS's Now Playing is, over the cover's
+  /// colors; the bar clear, as the page is, to show them.
+  static ThemeData _pageTheme(ThemeData theme) {
+    final dark = VideoGlass.darkTheme(theme);
+    return dark.copyWith(
+      appBarTheme: dark.appBarTheme.copyWith(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Theme(
+      data: _pageTheme(Theme.of(context)),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Builder(
+              builder: (context) {
+                final placeholder = ColorScheme.of(context).surface;
+                return Obx(() {
+                  final cover = _controller.audioItem.value?.arc.cover;
+                  return AudioBackdrop(
+                    image: cover == null || cover.isEmpty
+                        ? null
+                        : CachedNetworkImageProvider(cover.http2https),
+                    placeholder: placeholder,
+                  );
+                });
+              },
+            ),
+          ),
+          Builder(builder: _buildPage),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     final isPortrait = MediaQuery.sizeOf(context).isPortrait;
     final padding = MediaQuery.viewPaddingOf(context);
     return SimpleScaffold(
+      backgroundColor: Colors.transparent,
       appBar: GlassAppBar(
         actions: [
           if (_controller.isUgc && _controller.enableSponsorBlock)

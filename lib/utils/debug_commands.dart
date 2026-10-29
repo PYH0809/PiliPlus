@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:PiliPlus/common/widgets/frame_stats.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/pages/audio/backdrop/audio_backdrop.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -30,6 +31,9 @@ import 'package:get/get.dart';
 /// - `ext.piliplus.layers`: the layer tree the screen last drew, a layer a
 ///   line with what it clips, filters, offsets or draws, to tell what each
 ///   offscreen pass holds.
+/// - `ext.piliplus.audioBackdropFps?value=`: how often 听视频's background
+///   moves, to measure what the glass over it costs at each rate; no value
+///   for the default.
 /// - `ext.piliplus.frames?seconds=`: draws a frame every vsync for that long,
 ///   though nothing changed, and answers once done: the overlay then counts
 ///   what the screen costs a frame, as a video's every new frame redraws it,
@@ -49,6 +53,11 @@ abstract final class DebugCommands {
       }
       await GStorage.setting.put(key, value);
       return '$key = $value';
+    });
+    _register('audioBackdropFps', (params) async {
+      final fps = int.tryParse(params['value'] ?? '');
+      AudioBackdrop.debugFps.value = fps;
+      return '${fps ?? AudioBackdrop.fps}';
     });
     _register('open', (params) async {
       final url = params['url'];
