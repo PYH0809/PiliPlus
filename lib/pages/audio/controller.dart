@@ -271,6 +271,8 @@ class AudioController extends GetxController
           this.index = index;
           _updateCurrItem(response.list[index]);
           playlist = response.list;
+          // Playback may have started before the item reached the media card.
+          if (player != null) _updatePlaybackState();
         }
       } else if (isLoadPrev) {
         _prev = response.reachStart ? null : response.paginationReply.prev;
@@ -380,6 +382,7 @@ class AudioController extends GetxController
       false,
       position: position ?? player!.state.position,
       speed: speed,
+      canSkip: (playlist?.length ?? 0) > 1,
       debugLabel: debugLabel,
     );
   }
@@ -721,6 +724,7 @@ class AudioController extends GetxController
             _queryPlayUrl().then((res) {
               if (res) {
                 _videoDetailController = null;
+                if (audioItem.value case final item?) _updateCurrItem(item);
               }
             });
             return true;

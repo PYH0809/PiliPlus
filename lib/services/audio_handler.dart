@@ -59,6 +59,7 @@ typedef _StatusConfig = (
   bool isBuffering,
   bool isLive,
   double speed,
+  bool canSkip,
 );
 
 class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
@@ -157,6 +158,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     bool isLive, {
     required Duration position,
     required double speed,
+    bool canSkip = false,
     String? debugLabel,
   }) {
     if (!enableBackgroundPlay || _item.isEmpty) {
@@ -165,7 +167,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
     if (onPlay != null && debugLabel == 'onVideoPaused') return;
 
-    final newConfig = (status, isBuffering, isLive, speed);
+    final newConfig = (status, isBuffering, isLive, speed, canSkip);
     if (_lastConfig == newConfig) {
       if (_lastPos != null) {
         final pos = position.inSeconds;
@@ -195,15 +197,18 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       isLive,
       position: position,
       speed: speed,
+      canSkip: canSkip,
     );
   }
 
+  /// [canSkip] adds previous / next, for a page with its own playlist.
   void _updateState(
     AudioProcessingState state,
     bool playing,
     bool isLive, {
     required Duration position,
     required double speed,
+    bool canSkip = false,
   }) {
     playbackState.add(
       playbackState.value.copyWith(
@@ -217,6 +222,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
               label: 'Rewind',
               action: .rewind,
             ),
+          if (canSkip)
+            const MediaControl(
+              androidIcon: 'drawable/ic_player_skip_previous',
+              label: 'Previous',
+              action: .skipToPrevious,
+            ),
           if (playing)
             const MediaControl(
               androidIcon: 'drawable/ic_player_pause',
@@ -229,6 +240,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
               label: 'Play',
               action: .play,
             ),
+          if (canSkip)
+            const MediaControl(
+              androidIcon: 'drawable/ic_player_skip_next',
+              label: 'Next',
+              action: .skipToNext,
+            ),
           if (!isLive)
             const MediaControl(
               androidIcon: 'drawable/ic_player_fast_forward_10s',
@@ -236,6 +253,11 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
               action: .fastForward,
             ),
         ],
+        // Android 12 and lower fold the notification to three buttons:
+        // previous, play / pause and next, as music apps do.
+        androidCompactActionIndices: canSkip && !isLive
+            ? const [1, 2, 3]
+            : null,
         playing: playing,
         systemActions: const {.seek},
       ),
@@ -315,12 +337,15 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
           duration: Duration(seconds: data.duration ?? 0),
           artUri: getUri(cover),
         );
-      case DetailItem(:final arc):
+      case DetailItem(:final arc, :final parts):
+        final part = parts.length > 1
+            ? parts.firstWhereOrNull((e) => e.subId.toInt() == cid)
+            : null;
         mediaItem = MediaItem(
           id: id,
-          title: arc.title,
+          title: part?.title ?? arc.title,
           artist: data.owner.name,
-          duration: Duration(seconds: arc.duration.toInt()),
+          duration: Duration(seconds: (part?.duration ?? arc.duration).toInt()),
           artUri: getUri(arc.cover),
         );
       case BiliDownloadEntryInfo():
