@@ -465,13 +465,22 @@ class AudioController extends GetxController
   }) async {
     await _initPlayerIfNeeded();
     final extras = audioFilterExtras(volume);
+    // A late answer must not start playing under a page opened from here that
+    // has the card: that page's sound would mix with this, out of the card's
+    // reach.
+    final play =
+        videoPlayerServiceHandler?.isShowingPageAbove(hashCode.toString()) !=
+        true;
     player
       ?..setMediaHeader(
         userAgent: ua,
         // mpv cannot clear referer option
         headers: {'Referer': ?referer},
       )
-      ..open(Media(url, start: _start, extras: extras));
+      ..open(
+        Media(url, start: _start, extras: extras),
+        play: play,
+      );
     _start = null;
   }
 

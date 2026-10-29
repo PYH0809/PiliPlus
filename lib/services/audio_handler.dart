@@ -367,17 +367,18 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         return;
     }
     // A page taking the card from another neither plays because that one did
-    // nor starts from where that one was: a video takes where it has got to
-    // itself, and its player's status once it owns the shared player; 听视频
-    // republishes its own state on hearing its item.
+    // nor starts from where that one was: a video takes its player's status
+    // and position once the shared player holds its video, and where it has
+    // got to itself before; 听视频 republishes its own state on hearing its
+    // item.
     bool? playing;
     Duration? position;
     if (!isShowing(herotag)) {
+      final holds = data is! DetailItem && _playerHolds(herotag, cid);
       playing =
-          data is! DetailItem &&
-          PlPlayerController.playOwner?.tag == herotag &&
+          holds &&
           (PlPlayerController.getPlayerStatusIfExists()?.isPlaying ?? false);
-      position = _savedPosition(herotag);
+      position = _positionOf(herotag, holds);
     }
     _item.add(mediaItem);
     _resetControls(mediaItem, playing: playing, position: position);
@@ -413,14 +414,21 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
     if (_item.isNotEmpty) {
       final item = _item.last;
-      // The page underneath shows where it was itself, not where the shared
+      // The page underneath shows where it is itself, not where the shared
       // player was for the page that left; 听视频 republishes its own state on
       // hearing its item.
+      final tag = _pages.lastWhereOrNull(item.id.endsWith);
+      final cid = tag == null
+          ? null
+          : int.tryParse(item.id.substring(0, item.id.length - tag.length));
       _resetControls(
         item,
         state: .ready,
         playing: false,
-        position: _savedPosition(_pages.lastWhereOrNull(item.id.endsWith)),
+        position: _positionOf(
+          tag,
+          tag != null && cid != null && _playerHolds(tag, cid),
+        ),
       );
       setMediaItem(item);
     }
@@ -434,9 +442,21 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// order they opened.
   final List<String> _pages = [];
 
-  /// Where the video page tagged [herotag] has got to, kept by the page
+  /// Whether the shared player holds the video [cid] of the page tagged
+  /// [herotag], rather than one of the page it served before.
+  static bool _playerHolds(String herotag, int cid) =>
+      PlPlayerController.playOwner?.tag == herotag &&
+      PlPlayerController.instance?.cid == cid;
+
+  /// Where the video page tagged [herotag] has got to: the shared player's
+  /// position when it [holds] the page's video, else what the page kept
   /// itself; zero for other pages.
-  static Duration _savedPosition(String? herotag) {
+  static Duration _positionOf(String? herotag, bool holds) {
+    if (holds) {
+      return Duration(
+        milliseconds: PlPlayerController.instance!.positionInMilliseconds,
+      );
+    }
     if (herotag == null ||
         !Get.isRegistered<VideoDetailController>(tag: herotag)) {
       return Duration.zero;
