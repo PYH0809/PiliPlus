@@ -1,3 +1,4 @@
+import 'dart:async' show Timer;
 import 'dart:io' show File, Platform;
 import 'dart:ui' show PlatformDispatcher;
 
@@ -22,7 +23,7 @@ import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:collection/collection.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_instance/src/extension_instance.dart';
 import 'package:jni/jni.dart' show JStringExtension;
@@ -42,18 +43,25 @@ Future<VideoPlayerServiceHandler> initAudioService() {
   }
   return AudioService.init(
     builder: VideoPlayerServiceHandler.new,
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.piliplus.audio',
-      androidNotificationChannelName: 'Audio Service ${Constants.appName}',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
-      fastForwardInterval: Duration(seconds: 10),
-      rewindInterval: Duration(seconds: 10),
-      androidNotificationChannelDescription: 'Media notification channel',
-      androidNotificationIcon: 'drawable/ic_notification_icon',
-    ),
+    config: audioServiceConfig,
   );
 }
+
+const audioServiceConfig = AudioServiceConfig(
+  androidNotificationChannelId: 'com.example.piliplus.audio',
+  androidNotificationChannelName: 'Audio Service ${Constants.appName}',
+  // The foreground service stays while paused. Without it, Android stops the
+  // service about a minute after the app pauses in the background, and play
+  // on the lock screen or in the control center then has to start it again
+  // from the background, which Android 12 and later refuse. A paused card
+  // gives it up after a while (pausedCardLifetime) or when the app is swiped
+  // away from recents.
+  androidStopForegroundOnPause: false,
+  fastForwardInterval: Duration(seconds: 10),
+  rewindInterval: Duration(seconds: 10),
+  androidNotificationChannelDescription: 'Media notification channel',
+  androidNotificationIcon: 'drawable/ic_notification_icon',
+);
 
 typedef _StatusConfig = (
   PlayerStatus status,
@@ -65,6 +73,7 @@ typedef _StatusConfig = (
 
 class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   VideoPlayerServiceHandler() {
+    playbackState.listen(_onPlaybackState);
     if (Platform.isAndroid) {
       final jStr = AndroidHelper.manufacturer();
       if (jStr != null &&
@@ -489,6 +498,33 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (!enableBackgroundPlay) return;
     if (_item.isEmpty) clear();
   }
+
+  /// How long a paused card keeps the foreground service, and the wake lock
+  /// audio_service holds with it, before it goes. The pages keep their items,
+  /// so playing again brings it back.
+  @visibleForTesting
+  Duration pausedCardLifetime = const Duration(minutes: 10);
+  Timer? _pausedCardTimer;
+
+  void _onPlaybackState(PlaybackState state) {
+    _pausedCardTimer?.cancel();
+    if (!state.playing && state.processingState != .idle) {
+      _pausedCardTimer = Timer(pausedCardLifetime, _endPausedCard);
+    }
+  }
+
+  /// Lets a paused card go, and the foreground service with it.
+  void _endPausedCard() {
+    final state = playbackState.value;
+    if (!state.playing && state.processingState != .idle) {
+      playbackState.add(state.copyWith(processingState: .idle));
+    }
+  }
+
+  /// Swiped away from recents, a paused card goes at once; a playing one
+  /// stays, playing on in the background.
+  @override
+  Future<void> onTaskRemoved() async => _endPausedCard();
 
   void clear() {
     if (!enableBackgroundPlay) return;

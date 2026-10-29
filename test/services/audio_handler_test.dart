@@ -238,6 +238,79 @@ void main() {
     expect(actions(), contains(MediaAction.skipToNext));
   });
 
+  test('a paused card keeps its foreground service, so that play on it does '
+      'not have to start the service again from the background', () {
+    expect(audioServiceConfig.androidStopForegroundOnPause, isFalse);
+  });
+
+  test('a paused card gives up its foreground service after a while, and '
+      'playing again brings it back', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+
+    play();
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    play();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('swiped away from recents, a paused card goes and a playing one '
+      'stays', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    await handler.onTaskRemoved();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    // The page still has its item: playing again brings the card back.
+    play();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
   test('leaving the page takes the card away', () {
     handler.onVideoDetailChange(item(), 1, 'audio');
     play(canSkip: true);
