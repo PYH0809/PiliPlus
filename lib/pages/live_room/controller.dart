@@ -512,6 +512,7 @@ class LiveRoomController extends GetxController {
 
   @override
   void onClose() {
+    videoPlayerServiceHandler?.onPageClose(heroTag);
     _stopSizeSub();
     closeLiveMsg();
     cancelLikeTimer();

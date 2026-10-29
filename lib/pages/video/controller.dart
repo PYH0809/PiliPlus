@@ -1281,6 +1281,7 @@ class VideoDetailController extends GetxController
 
   @override
   void onClose() {
+    videoPlayerServiceHandler?.onPageClose(heroTag);
     cid.close();
     if (isFileSource) {
       cacheLocalProgress();

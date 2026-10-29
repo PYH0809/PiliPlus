@@ -198,7 +198,7 @@ void main() {
       ..onPageOpen('above');
     addTearDown(() {
       for (final tag in ['below', 'listen', 'above']) {
-        handler.onVideoDetailDispose(tag);
+        handler.onPageClose(tag);
       }
     });
 
@@ -207,6 +207,12 @@ void main() {
 
     // Such as the intro of the video below arriving late.
     handler.onVideoDetailChange(item(), 2, 'below');
+    expect(handler.isShowingPageAbove('listen'), isFalse);
+
+    // A page closed, also by 返回主页, no longer counts.
+    handler
+      ..onVideoDetailChange(item(), 3, 'above')
+      ..onPageClose('above');
     expect(handler.isShowingPageAbove('listen'), isFalse);
   });
 

@@ -398,7 +398,6 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   }
 
   void onVideoDetailDispose(String herotag) {
-    _pages.remove(herotag);
     if (!enableBackgroundPlay) return;
 
     if (_item.isNotEmpty) {
@@ -421,6 +420,9 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   /// Notes a page that can put an item on the card as it opens.
   void onPageOpen(String herotag) => _pages.add(herotag);
+
+  /// Forgets a page noted with [onPageOpen] as it closes.
+  void onPageClose(String herotag) => _pages.remove(herotag);
 
   /// Whether the card shows a page opened after the one tagged [herotag], and
   /// so above it.

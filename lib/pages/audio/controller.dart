@@ -944,7 +944,8 @@ class AudioController extends GetxController
     _unbindMediaControls();
     videoPlayerServiceHandler
       ?..onVideoDetailDispose(hashCode.toString())
-      ..clearIfNeeded();
+      ..clearIfNeeded()
+      ..onPageClose(hashCode.toString());
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
     _subscriptions = null;
