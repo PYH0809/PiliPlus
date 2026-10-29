@@ -8,7 +8,20 @@ class AudioSessionHandler {
   bool _volumeDucked = false;
 
   Future<bool> setActive(bool active) {
+    // 让出焦点后不会再收到 duck 结束
+    if (!active) _restoreDuckedVolume();
     return session.setActive(active);
+  }
+
+  // 只恢复自己降过的音量：视频暂停时（比如在听视频）不会降，
+  // 这时不能翻倍，移动端改的是系统音量
+  void _restoreDuckedVolume() {
+    if (!_volumeDucked) return;
+    _volumeDucked = false;
+    PlPlayerController.setVolumeIfExists(
+      (PlPlayerController.getVolumeIfExists() ?? 0) * 2,
+      showIndicator: false,
+    );
   }
 
   AudioSessionHandler() {
@@ -43,19 +56,15 @@ class AudioSessionHandler {
             PlPlayerController.pauseIfExists(isInterrupt: true);
             // player.pause(isInterrupt: true);
             _playInterrupted = true;
+            // 永久失去焦点，不会再有结束
+            _restoreDuckedVolume();
             break;
         }
       } else {
+        // duck 后又被暂停时，只会收到一次暂停的结束
+        _restoreDuckedVolume();
         switch (event.type) {
           case AudioInterruptionType.duck:
-            // 只恢复自己降过的音量：视频暂停时（比如在听视频）没降，
-            // 这里不能翻倍，移动端改的是系统音量
-            if (_volumeDucked) {
-              PlPlayerController.setVolumeIfExists(
-                (PlPlayerController.getVolumeIfExists() ?? 0) * 2,
-                showIndicator: false,
-              );
-            }
             // player.setVolume(player.volume.value * 2);
             break;
           case AudioInterruptionType.pause:
@@ -66,7 +75,6 @@ class AudioSessionHandler {
             break;
         }
         _playInterrupted = false;
-        _volumeDucked = false;
       }
     });
 

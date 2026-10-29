@@ -117,7 +117,8 @@ class AudioController extends GetxController
 
   bool _playInterrupted = false;
   double? _volumeBeforeDuck;
-  int _playRequest = 0;
+  // 每次让出焦点加一，作废这之前还在等着开播的请求
+  int _focusReleases = 0;
 
   Timer? _statusTimer;
 
@@ -224,9 +225,9 @@ class AudioController extends GetxController
 
   Future<void>? onPlay() async {
     if (player == null) return;
-    final request = ++_playRequest;
+    final releases = _focusReleases;
     // 等焦点期间暂停或关闭了页面，就不再播放
-    if (await _requestAudioFocus() && request == _playRequest) {
+    if (await _requestAudioFocus() && releases == _focusReleases) {
       return player?.play();
     }
   }
@@ -250,7 +251,7 @@ class AudioController extends GetxController
   }
 
   void _releaseAudioFocus() {
-    _playRequest++;
+    _focusReleases++;
     _playInterrupted = false;
     // 让出焦点后不会再收到 duck 结束
     _restoreDuckedVolume();
@@ -337,13 +338,18 @@ class AudioController extends GetxController
 
   Future<bool> _queryPlayUrl() async {
     _querySponsorBlock();
+    final releases = _focusReleases;
     final res = await AudioGrpc.audioPlayUrl(
       itemType: itemType,
       oid: oid,
       subId: subId,
     );
     if (res case Success(:final response)) {
-      if (!_onPlay(response)) _releaseAudioFocusIfStopped();
+      // 等地址期间暂停了（主动暂停、拔耳机、被打断），换过去以后也先不播
+      final autoplay = releases == _focusReleases && !_playInterrupted;
+      if (!_onPlay(response, autoplay: autoplay)) {
+        _releaseAudioFocusIfStopped();
+      }
       return true;
     } else {
       res.toast();
@@ -358,7 +364,7 @@ class AudioController extends GetxController
   }
 
   /// 打开了可以播放的媒体时返回 true
-  bool _onPlay(PlayURLResp data) {
+  bool _onPlay(PlayURLResp data, {required bool autoplay}) {
     final PlayInfo? playInfo = data.playerInfo.values.firstOrNull;
     if (playInfo != null) {
       http_model.Volume? volume;
@@ -382,7 +388,11 @@ class AudioController extends GetxController
         }
         position.value = 0;
         final audio = audios.findTargetMedia((e) => e.id, cacheAudioQa);
-        _onOpenMedia(VideoUtils.getCdnUrl(audio.playUrls), volume: volume);
+        _onOpenMedia(
+          VideoUtils.getCdnUrl(audio.playUrls),
+          volume: volume,
+          autoplay: autoplay,
+        );
         return true;
       } else if (playInfo.hasPlayUrl()) {
         final playUrl = playInfo.playUrl;
@@ -392,7 +402,11 @@ class AudioController extends GetxController
         }
         final durl = durls.first;
         position.value = 0;
-        _onOpenMedia(VideoUtils.getCdnUrl(durl.playUrls), volume: volume);
+        _onOpenMedia(
+          VideoUtils.getCdnUrl(durl.playUrls),
+          volume: volume,
+          autoplay: autoplay,
+        );
         return true;
       }
     }
@@ -404,6 +418,7 @@ class AudioController extends GetxController
     String ua = Constants.userAgentApp,
     String? referer,
     http_model.Volume? volume,
+    bool autoplay = true,
   }) async {
     await _initPlayerIfNeeded();
     final extras = audioFilterExtras(volume);
@@ -415,7 +430,7 @@ class AudioController extends GetxController
       )
       ..open(Media(url, start: _start, extras: extras), play: false);
     _start = null;
-    onPlay();
+    if (autoplay) onPlay();
   }
 
   PlayerStatus _playerStatus = .paused;
