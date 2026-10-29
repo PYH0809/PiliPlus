@@ -29,6 +29,7 @@ import 'package:PiliPlus/models_new/video/video_relation/data.dart';
 import 'package:PiliPlus/models_new/video/video_shot/data.dart';
 import 'package:PiliPlus/models_new/video/video_subtitle/subtitle_line.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
@@ -882,6 +883,8 @@ abstract final class VideoHttp {
     required int cid,
     dynamic seasonId,
     dynamic epId,
+    // Without a toast on failure, for a caller that shows it itself.
+    bool silent = false,
   }) async {
     assert(aid != null || bvid != null);
     final res = await Request().get(
@@ -893,6 +896,9 @@ abstract final class VideoHttp {
         'season_id': ?seasonId,
         'ep_id': ?epId,
       }),
+      options: silent
+          ? Options(extra: const {AccountManager.silent: true})
+          : null,
     );
     if (res.data['code'] == 0) {
       return Success(PlayInfoData.fromJson(res.data['data']));

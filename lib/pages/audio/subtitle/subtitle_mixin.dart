@@ -234,7 +234,12 @@ mixin AudioSubtitleMixin on GetxController {
     int aid,
     int cid,
   ) async {
-    final res = await VideoHttp.playInfo(aid: aid.toString(), cid: cid);
+    // The panel shows the failure, with 点击重试.
+    final res = await VideoHttp.playInfo(
+      aid: aid.toString(),
+      cid: cid,
+      silent: true,
+    );
     if (res case final Error error) return error;
     if (res.dataOrNull?.subtitle?.subtitles case final subtitles?
         when subtitles.isNotEmpty) {
