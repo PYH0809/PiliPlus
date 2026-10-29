@@ -307,8 +307,9 @@ class LiquidGlassStyle {
     );
   }
 
-  LiquidGlassStyle copyWith({double? blur}) => LiquidGlassStyle(
-    tint: tint,
+  // PiliPlus: takes a tint too, for a pane thicker than its style.
+  LiquidGlassStyle copyWith({double? blur, Color? tint}) => LiquidGlassStyle(
+    tint: tint ?? this.tint,
     contrast: contrast,
     blur: blur ?? this.blur,
     haze: haze,

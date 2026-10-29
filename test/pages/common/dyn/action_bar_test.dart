@@ -113,6 +113,34 @@ void main() {
     expect(reply.bottom, capsule.top - 12);
   });
 
+  testWidgets(
+    "the reply button is of the bar's glass, thicker, its icon the theme's",
+    (tester) async {
+      await _pump(tester, const _Bottom(glass: true));
+      Color tintOf(Type type) => tester
+          .widget<LiquidGlass>(
+            find.descendant(
+              of: find.byType(type),
+              matching: find.byType(LiquidGlass),
+            ),
+          )
+          .style
+          .tint;
+      final reply = tintOf(GlassReplyButton);
+      final bar = tintOf(DynActionBar);
+      expect(reply.withValues(alpha: 1), bar.withValues(alpha: 1));
+      expect(reply.a, greaterThan(bar.a));
+      final button = find.byType(GlassReplyButton);
+      final icon = tester.widget<Icon>(
+        find.descendant(of: button, matching: find.byIcon(Icons.reply)),
+      );
+      expect(
+        icon.color,
+        Theme.of(tester.element(button)).colorScheme.primary,
+      );
+    },
+  );
+
   testWidgets('in landscape, the capsule keeps to the end, narrower', (
     tester,
   ) async {
