@@ -46,6 +46,7 @@ import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:fixnum/fixnum.dart' show Int64;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
@@ -113,6 +114,9 @@ class AudioController extends GetxController
 
   double? _lastVolume;
   late final RxDouble desktopVolume = RxDouble(Pref.desktopVolume);
+
+  bool _playInterrupted = false;
+  double? _volumeBeforeDuck;
 
   Timer? _statusTimer;
 
@@ -222,7 +226,13 @@ class AudioController extends GetxController
   }
 
   Future<void>? onPause() {
-    return player?.pause();
+    if (player case final player?) {
+      // 主动暂停时让出音频焦点
+      _playInterrupted = false;
+      audioSessionHandler?.setActive(false);
+      return player.pause();
+    }
+    return null;
   }
 
   Future<void>? onSeek(Duration duration) {
@@ -388,6 +398,9 @@ class AudioController extends GetxController
     if (_hasInit) return;
     _hasInit = true;
     assert(player == null, _subscriptions = null);
+    final session = audioSessionHandler == null
+        ? null
+        : await AudioSession.instance;
     player = await Player.create(
       configuration: PlayerConfiguration(
         options: {
@@ -422,6 +435,7 @@ class AudioController extends GetxController
       }),
       stream.playing.listen((playing) {
         if (playing) {
+          audioSessionHandler?.setActive(true);
           animController.forward();
           _playerStatus = .playing;
           _stopStatusTimer();
@@ -470,7 +484,42 @@ class AudioController extends GetxController
           }
         }
       }),
+      if (session != null) ...[
+        session.interruptionEventStream.listen(_onInterruption),
+        // 耳机拔出暂停
+        session.becomingNoisyEventStream.listen((_) {
+          if (isPlaying()) onPause();
+        }),
+      ],
     ];
+  }
+
+  void _onInterruption(AudioInterruptionEvent event) {
+    final player = this.player;
+    if (player == null) return;
+    if (event.begin) {
+      if (!player.state.playing) return;
+      switch (event.type) {
+        case AudioInterruptionType.duck:
+          _volumeBeforeDuck ??= player.state.volume;
+          player.setVolume(_volumeBeforeDuck! * 0.5);
+        case AudioInterruptionType.pause:
+        case AudioInterruptionType.unknown:
+          // 被打断时保留音频焦点，打断结束后才能恢复
+          _playInterrupted = true;
+          player.pause();
+      }
+    } else {
+      // 降低音量后可能又被暂停，这时只会收到一次（暂停的）结束
+      if (_volumeBeforeDuck case final volume?) {
+        _volumeBeforeDuck = null;
+        player.setVolume(volume);
+      }
+      if (_playInterrupted && event.type == AudioInterruptionType.pause) {
+        player.play();
+      }
+      _playInterrupted = false;
+    }
   }
 
   @override
@@ -694,6 +743,7 @@ class AudioController extends GetxController
   }
 
   Future<void>? playOrPause() {
+    if (isPlaying()) return onPause();
     return player?.playOrPause();
   }
 
@@ -834,6 +884,10 @@ class AudioController extends GetxController
     _subscriptions?.forEach((e) => e.cancel());
     _subscriptions?.clear();
     _subscriptions = null;
+    // 返回的视频页可能已经续播并申请了焦点，这时不要再让出
+    if (PlPlayerController.getPlayerStatusIfExists()?.isPlaying != true) {
+      audioSessionHandler?.setActive(false);
+    }
     player?.dispose();
     player = null;
     animController.dispose();
