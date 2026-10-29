@@ -29,6 +29,7 @@ abstract final class SettingBoxKey {
       pauseOnMinimize = 'pauseOnMinimize',
       pgcSkipType = 'pgcSkipType',
       audioPlayMode = 'audioPlayMode',
+      audioSubtitleLan = 'audioSubtitleLan',
       showBatteryLevel = 'showBatteryLevel',
       playerVolume = 'playerVolume',
       maxVolume = 'maxVolume';

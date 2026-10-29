@@ -27,6 +27,7 @@ import 'package:PiliPlus/models_new/video/video_note_list/data.dart';
 import 'package:PiliPlus/models_new/video/video_play_info/data.dart';
 import 'package:PiliPlus/models_new/video/video_relation/data.dart';
 import 'package:PiliPlus/models_new/video/video_shot/data.dart';
+import 'package:PiliPlus/models_new/video/video_subtitle/subtitle_line.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
@@ -916,6 +917,17 @@ abstract final class VideoHttp {
       }
     }
     return null;
+  }
+
+  static Future<LoadingState<List<SubtitleLine>>> subtitleLines(
+    String subtitleUrl,
+  ) async {
+    final res = await Request().get("https:$subtitleUrl");
+    return switch (res.data) {
+      {'body': final List body} => Success(SubtitleUtils.parseLines(body)),
+      {'message': final String message} => Error(message),
+      _ => const Error('字幕加载失败'),
+    };
   }
 
   // 视频排行

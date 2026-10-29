@@ -1022,6 +1022,9 @@ abstract final class Pref {
       PlayRepeat.values[_setting.get(SettingBoxKey.audioPlayMode) ??
           PlayRepeat.listOrder.index];
 
+  static String? get audioSubtitleLan =>
+      _setting.get(SettingBoxKey.audioSubtitleLan);
+
   static bool get enablePlayAll =>
       _setting.get(SettingBoxKey.enablePlayAll, defaultValue: true);
 
