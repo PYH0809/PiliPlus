@@ -247,7 +247,7 @@ mixin AudioSubtitleMixin on GetxController {
     }
     // playinfo leaves the subtitles out when logged out, dm view has them
     if (!Accounts.main.isLogin) {
-      final res = await DmGrpc.dmView(aid, cid);
+      final res = await DmGrpc.dmView(aid, cid, silent: true);
       if (res case Success(:final response)) {
         if (response.hasSubtitle()) {
           return Success(

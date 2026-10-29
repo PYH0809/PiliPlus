@@ -5,6 +5,7 @@ import 'package:PiliPlus/grpc/bilibili/rpc.pb.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:archive/archive.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, compute;
@@ -17,6 +18,11 @@ abstract final class GrpcReq {
   static final options = Options(
     contentType: 'application/grpc',
     responseType: ResponseType.bytes,
+  );
+
+  /// [options] without a toast on failure, see [AccountManager.silent].
+  static final _silentOptions = options.copyWith(
+    extra: const {AccountManager.silent: true},
   );
 
   static Uint8List compressProtobuf(Uint8List proto) {
@@ -56,11 +62,13 @@ abstract final class GrpcReq {
     GeneratedMessage request,
     T Function(Uint8List) grpcParser, {
     bool isolate = false,
+    // Without a toast on failure, for a caller that shows it itself.
+    bool silent = false,
   }) async {
     final response = await Request().post<Uint8List>(
       HttpString.appBaseUrl + url,
       data: compressProtobuf(request.writeToBuffer()),
-      options: options,
+      options: silent ? _silentOptions : options,
     );
 
     if (response.data case final Map map) {
