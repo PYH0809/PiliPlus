@@ -133,6 +133,9 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
   int _pointers = 0;
   bool _springNext = false;
 
+  /// A move in time stopped by a pause or buffering, to go on with them.
+  bool _held = false;
+
   /// The player's position between its updates, while dots show.
   late final _clock = _MediaClock(this, _controller);
 
@@ -146,16 +149,22 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
       ever(_controller.subtitleLines, (_) => _jumpAfterLayout()),
       ever(_controller.subtitleInterlude, (_) => _clock.update()),
       ever(_controller.subtitlePosition, (_) => _clock.update()),
-      ever(_controller.subtitlePlaying, (_) => _clock.update()),
+      ever(_controller.subtitlePlaying, (_) {
+        _clock.update();
+        _holdOrGoOn();
+      }),
       ever(_controller.subtitleRate, (_) {
         _clock.update();
-        _retime();
+        if (_timed.isAnimating) _retime();
       }),
       ever(_controller.subtitleSeeks, (_) {
         _clock.seeked();
         _onSeeked();
       }),
-      ever(_controller.subtitleBuffering, (_) => _clock.update()),
+      ever(_controller.subtitleBuffering, (_) {
+        _clock.update();
+        _holdOrGoOn();
+      }),
     ];
     _clock.update();
     _jumpAfterLayout();
@@ -213,6 +222,7 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
   }
 
   void _stop() {
+    _held = false;
     _timed.stop();
     if (_scrollController.hasClients) {
       _syncing = true;
@@ -246,18 +256,25 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
         focus.index == previous.index + 1 &&
         focus.index < _lines.length;
     _springNext = false;
-    if (inTime) {
-      _moveTo(
-        SubtitleUtils.moveTo(
-          _lines,
-          focus.index,
-          rate: _controller.subtitleRate.value,
-        ),
-      );
+    final rate = _controller.subtitleRate.value;
+    final left = inTime ? _leftUntil(focus.index) : Duration.zero;
+    if (left >= _shortestMove) {
+      // As the gap before the line asks, but no longer than until it
+      // starts: a focus that moved on late lands in time too.
+      final move = SubtitleUtils.moveTo(_lines, focus.index, rate: rate);
+      _moveTo(left < move ? left : move);
     } else {
       _springTo(focus);
     }
   }
+
+  /// Below this, a move in time would look like a jump: it springs.
+  static const _shortestMove = Duration(milliseconds: 100);
+
+  /// The real time until line [index] starts, as played now.
+  Duration _leftUntil(int index) =>
+      (_lines[index].from - _controller.subtitlePosition.value) *
+      (1 / _controller.subtitleRate.value);
 
   bool _shows(int index) {
     if (!_listController.isAttached) return false;
@@ -283,19 +300,36 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
     _stagger.ping();
   }
 
-  /// A move in time with the lines, when the speed changes on the way:
-  /// to land as its line starts at the new one.
+  /// A move in time with the lines, when the speed changes on the way or it
+  /// goes on after a pause: to land as its line starts.
   void _retime() {
     final index = _focus.index;
-    if (!_timed.isAnimating || index < 0 || index >= _lines.length) return;
-    final left =
-        (_lines[index].from - _controller.subtitlePosition.value) *
-        (1 / _controller.subtitleRate.value);
     final done = _timed.value;
-    if (left <= Duration.zero || done >= 1) return;
+    if (index < 0 || index >= _lines.length || done >= 1) return;
+    final left = _leftUntil(index);
+    if (left < _shortestMove) {
+      _springTo(_focus);
+      return;
+    }
     _timed
       ..duration = left * (1 / (1 - done))
       ..forward(from: done);
+  }
+
+  /// A move in time stops with the media, and goes on with it.
+  void _holdOrGoOn() {
+    final going =
+        _controller.subtitlePlaying.value &&
+        !_controller.subtitleBuffering.value;
+    if (!going) {
+      if (_timed.isAnimating) {
+        _timed.stop();
+        _held = true;
+      }
+    } else if (_held) {
+      _held = false;
+      _retime();
+    }
   }
 
   /// How far row [rows] below the focus lags behind it in a timed move.
@@ -313,6 +347,7 @@ class _AudioSubtitleListState extends State<AudioSubtitleList>
   }
 
   void _springTo(({int index, bool dots}) focus) {
+    _held = false;
     _timed.stop();
     final target = _offsetOf(focus);
     if (target == null || !_scrollController.hasClients) return;

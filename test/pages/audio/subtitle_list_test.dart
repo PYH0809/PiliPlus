@@ -262,6 +262,52 @@ void main() {
     expect(_topOf(tester, 'line 6'), closeTo(0.08, 0.002));
   });
 
+  testWidgets('a pause holds a move, and it goes on with the media', (
+    tester,
+  ) async {
+    final audio = await _pumpList(tester, at: _lines[5].from);
+    final next = _lines[6].from;
+    await _play(tester, audio, next - _s(1), next - _s(0.5));
+    double offset() =>
+        tester.widget<Scrollable>(find.byType(Scrollable)).controller!.offset;
+    audio
+      ..playing = false
+      ..updateSubtitlePlaying(false);
+    await tester.pump();
+    final held = offset();
+    await tester.pump(const Duration(seconds: 1));
+    expect(offset(), held);
+
+    audio
+      ..playing = true
+      ..updateSubtitlePlaying(true);
+    await _play(tester, audio, next - _s(0.45), next);
+    expect(_topOf(tester, 'line 6'), closeTo(0.08, 0.003));
+  });
+
+  testWidgets('a move that sets off late still lands as its line starts', (
+    tester,
+  ) async {
+    final audio = await _pumpList(tester, at: _lines[0].from)
+      ..updateSubtitleRate(0.5);
+    // At half speed it would set off 375 ms before line 1.
+    for (var at = _lines[0].from; at <= _s(2.5); at += _s(0.025)) {
+      audio.updateSubtitlePosition(at);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(audio.subtitleFocus.value.index, 0);
+    // Twice as fast: it sets off now, 250 ms before the line.
+    audio.updateSubtitleRate(2);
+    expect(audio.subtitleFocus.value.index, 1);
+    for (var at = _s(2.6); at <= _lines[1].from; at += _s(0.1)) {
+      audio.updateSubtitlePosition(at);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    // And a frame, as a ticker starts on the next one.
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(_topOf(tester, 'line 1'), closeTo(0.08, 0.002));
+  });
+
   testWidgets('the rows below set off later, the ones above together', (
     tester,
   ) async {
