@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/models/common/episode_panel_type.dart';
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/episode_panel/view.dart';
@@ -245,6 +246,18 @@ void main() {
         tester.getTopLeft(find.text('P1 第1集')).dy,
         greaterThanOrEqualTo(_barBottom(tester)),
       );
+    });
+
+    testWidgets('on the video\'s glass, as full screen, the bar stays plain', (
+      tester,
+    ) async {
+      // As PageUtils.showVideoBottomSheet lays the panel over the video.
+      await _pump(tester, VideoGlass(radius: 24, child: _panel()));
+
+      expect(find.byType(GlassAppBar), findsNothing);
+      expect(find.byTooltip('更多'), findsOneWidget);
+      expect(find.byTooltip('关闭'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('P1 第1集')).dy, lessThan(80));
     });
 
     testWidgets('no tabs pill for a single list', (tester) async {

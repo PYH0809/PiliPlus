@@ -11,6 +11,7 @@ import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/menu_entries.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
     show tabBarScrollPhysics;
@@ -213,9 +214,13 @@ class _EpisodePanelState extends State<EpisodePanel>
       widget.type == EpisodeType.season && widget.list.length > 1;
 
   // On glass the sheet's bar floats over its list, but not where the panel
-  // is glass already, as over the video, since glass never lies on glass.
+  // is glass already, as the full-screen one on the video's VideoGlass,
+  // since glass never lies on glass. As GlassFab tells.
   late final bool _floatingBar =
-      showTitle && GlassAppBar.enabled && !GlassSurfaces.onGlass(context);
+      showTitle &&
+      GlassAppBar.enabled &&
+      !GlassSurfaces.onGlass(context) &&
+      context.findAncestorWidgetOfExactType<VideoGlass>() == null;
 
   /// How far the floating bar covers the top of the list.
   double get _barInset =>
@@ -628,11 +633,12 @@ class _EpisodePanelState extends State<EpisodePanel>
       isFav: isFav,
       seasonId: widget.seasonId,
     );
-    if (!mounted) return;
     if (res.isSuccess) {
       SmartDialog.showToast('${isFav ? '取消' : ''}订阅成功');
-      _favState!.value = Success(!isFav);
+      // The page's cache follows the server even if the panel has closed,
+      // so that it opens again with the right action.
       widget.ugcIntroController?.seasonFavState[widget.seasonId] = !isFav;
+      if (mounted) _favState!.value = Success(!isFav);
     } else {
       res.toast();
     }
