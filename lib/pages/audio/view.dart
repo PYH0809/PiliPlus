@@ -184,16 +184,6 @@ class _AudioPageState extends State<AudioPage>
               }
               return const SizedBox.shrink();
             }),
-          if (_controller.isUgc)
-            Obx(
-              () => IconButton(
-                tooltip: '字幕',
-                isSelected: _controller.showSubtitle.value,
-                onPressed: _controller.toggleSubtitle,
-                icon: const Icon(Icons.subtitles_outlined, size: 22),
-                selectedIcon: const Icon(Icons.subtitles, size: 22),
-              ),
-            ),
           Builder(
             builder: (context) {
               return PopupMenuButton<ListOrder>(
@@ -968,28 +958,35 @@ class _AudioPageState extends State<AudioPage>
     );
   }
 
-  /// The cover, title and the rest; its list keeps [padding] clear, the
-  /// room the glass bars over it leave.
+  /// The cover, title and the rest, or the subtitles, which a tap on it
+  /// switches between; its list keeps [padding] clear, the room the glass
+  /// bars over it leave.
   Widget _buildInfo(ColorScheme colorScheme, EdgeInsets padding) {
     return Obx(() {
       final audioItem = _controller.audioItem.value;
       if (audioItem != null) {
         final cover = audioItem.arc.cover.http2https;
+        final showSubtitle = _controller.showSubtitle.value;
+        Widget child = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: showSubtitle
+              ? AudioSubtitlePanel(
+                  controller: _controller,
+                  item: audioItem,
+                  padding: padding,
+                )
+              : _buildCover(colorScheme, audioItem, cover, padding),
+        );
+        if (_controller.isUgc) {
+          child = AudioSubtitleToggle(
+            showing: showSubtitle,
+            padding: padding,
+            onToggle: _controller.toggleSubtitle,
+            child: child,
+          );
+        }
         return Column(
-          children: [
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: _controller.showSubtitle.value
-                    ? AudioSubtitlePanel(
-                        controller: _controller,
-                        item: audioItem,
-                        padding: padding,
-                      )
-                    : _buildCover(colorScheme, audioItem, cover, padding),
-              ),
-            ),
-          ],
+          children: [Expanded(child: child)],
         );
       }
       return const SizedBox.shrink();

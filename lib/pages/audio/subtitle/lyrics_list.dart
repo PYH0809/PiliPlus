@@ -734,15 +734,23 @@ class _LyricLineState extends State<_LyricLine> {
         },
       );
     });
-    child = InkWell(
-      onTap: () => list._onTapLine(index),
-      borderRadius: const .all(.circular(12)),
-      child: Padding(
-        padding: const .symmetric(
-          horizontal: Lyrics.inset,
-          vertical: Lyrics.gap / 2,
+    // Only the line seeks: a tap beside it or between the lines goes back
+    // to the cover (AudioSubtitleToggle).
+    child = Padding(
+      padding: const .symmetric(vertical: Lyrics.gap / 4),
+      child: Align(
+        alignment: .centerLeft,
+        child: InkWell(
+          onTap: () => list._onTapLine(index),
+          borderRadius: const .all(.circular(12)),
+          child: Padding(
+            padding: const .symmetric(
+              horizontal: Lyrics.inset,
+              vertical: Lyrics.gap / 4,
+            ),
+            child: child,
+          ),
         ),
-        child: Align(alignment: .centerLeft, child: child),
       ),
     );
     if (widget.dots) {

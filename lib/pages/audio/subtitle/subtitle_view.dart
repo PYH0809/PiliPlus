@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart' show DetailItem;
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
@@ -85,6 +88,88 @@ class AudioSubtitlePanel extends StatelessWidget {
           const SizedBox(height: 8),
           Expanded(child: AudioSubtitleList(controller: controller)),
         ],
+      ),
+    );
+  }
+}
+
+/// Switches between the cover and the subtitles on a tap anywhere on [child]
+/// that its own controls do not take, as music players do: the cover and
+/// the room around it, the room beside and between the lines. A tap under
+/// the glass bars, within [padding], does nothing, nor one that stops a
+/// list scrolling.
+class AudioSubtitleToggle extends StatefulWidget {
+  const AudioSubtitleToggle({
+    super.key,
+    required this.showing,
+    required this.onToggle,
+    this.padding = .zero,
+    required this.child,
+  });
+
+  /// Whether the subtitles show.
+  final bool showing;
+  final VoidCallback onToggle;
+  final EdgeInsets padding;
+  final Widget child;
+
+  @override
+  State<AudioSubtitleToggle> createState() => _AudioSubtitleToggleState();
+}
+
+class _AudioSubtitleToggleState extends State<AudioSubtitleToggle> {
+  /// Lists under it now scrolling, and whether one was as the touch began.
+  int _scrolling = 0;
+  bool _stopsScroll = false;
+
+  /// A list's scroll ended in the event being handled: a touch holding it
+  /// still ends it before this hears of the touch.
+  bool _endedNow = false;
+
+  bool _onScroll(ScrollNotification notification) {
+    switch (notification) {
+      case ScrollStartNotification():
+        _scrolling++;
+      case ScrollEndNotification():
+        _scrolling = math.max(0, _scrolling - 1);
+        _endedNow = true;
+        scheduleMicrotask(() => _endedNow = false);
+    }
+    return false;
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    final size = context.size;
+    if (_stopsScroll ||
+        size == null ||
+        !widget.padding
+            .deflateRect(Offset.zero & size)
+            .contains(details.localPosition)) {
+      return;
+    }
+    widget.onToggle();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Without the icon it took the place of, its action for screen readers.
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      button: true,
+      label: widget.showing ? '显示封面' : '显示字幕',
+      onTap: widget.onToggle,
+      child: Listener(
+        onPointerDown: (_) => _stopsScroll = _scrolling > 0 || _endedNow,
+        child: GestureDetector(
+          behavior: .opaque,
+          excludeFromSemantics: true,
+          onTapUp: _onTapUp,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _onScroll,
+            child: widget.child,
+          ),
+        ),
       ),
     );
   }
