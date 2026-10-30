@@ -728,7 +728,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     Volume? volume,
     bool autoFullScreenFlag = false,
     int? rotate,
-    Future<void> Function()? onSourceExpired,
+    Future<void> Function({bool fromStart})? onSourceExpired,
     DateTime? sourceFetchedAt,
   }) async {
     try {
@@ -1255,14 +1255,15 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   /// to try it without waiting hours.
   static DateTime Function() clock = DateTime.now;
 
-  Future<void> Function()? _onSourceExpired;
+  Future<void> Function({bool fromStart})? _onSourceExpired;
   SourceExpiry? _sourceExpiry;
 
   /// Opens the source afresh through its page, playing from where it stood,
   /// instead of playing on, when its links have run out while it was paused:
   /// the player would play what it had buffered and stop there, its progress
-  /// still moving. True if it did.
-  bool reopenIfExpired() {
+  /// still moving, or from the start with [fromStart], to play it again. True
+  /// if it did.
+  bool reopenIfExpired({bool fromStart = false}) {
     final onExpired = _onSourceExpired;
     if (onExpired == null ||
         isLive ||
@@ -1270,14 +1271,14 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         !(_sourceExpiry?.isExpiredAt(clock()) ?? false)) {
       return false;
     }
-    onExpired();
+    onExpired(fromStart: fromStart);
     return true;
   }
 
   /// 播放视频
   Future<void> play({bool repeat = false, bool hideControls = true}) async {
     if (_playerCount == 0) return;
-    if (!repeat && reopenIfExpired()) return;
+    if (reopenIfExpired(fromStart: repeat)) return;
     // 播放时自动隐藏控制条
     controls = !hideControls;
     // repeat为true，将从头播放
@@ -1437,6 +1438,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   // 双击播放、暂停
   Future<void> onDoubleTapCenter() async {
     if (!isLive && isCompleted) {
+      if (reopenIfExpired(fromStart: true)) return;
       await videoPlayerController!.seek(Duration.zero);
       videoPlayerController!.play();
     } else if (videoPlayerController!.state.playing || !reopenIfExpired()) {

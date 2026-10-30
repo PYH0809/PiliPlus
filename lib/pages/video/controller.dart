@@ -890,10 +890,10 @@ class VideoDetailController extends GetxController
   bool isPageShowing = true;
 
   /// Fetches fresh links for what is open, at the quality it plays, and
-  /// opens them where it stood, playing: the old ones ran out while it was
-  /// paused. Only the links are fetched, so that a part opened meanwhile
+  /// opens them where it stood, or from the start with [fromStart], playing:
+  /// the old ones ran out while it was paused. Only the links are fetched, so that a part opened meanwhile
   /// fetches its own as usual.
-  Future<void> _reopenExpiredSource() async {
+  Future<void> _reopenExpiredSource({bool fromStart = false}) async {
     // A second press while the links come leaves it to the first.
     if (_reopening) return;
     _reopening = true;
@@ -916,8 +916,9 @@ class VideoDetailController extends GetxController
           _linksFetchedAt = PlPlayerController.clock();
           // Where it stands now, as the user may have seeked meanwhile, if
           // the player is still this page's; else where it stood.
-          playedTime =
-              isPageShowing && PlPlayerController.playOwner?.tag == heroTag
+          playedTime = fromStart
+              ? Duration.zero
+              : isPageShowing && PlPlayerController.playOwner?.tag == heroTag
               ? plPlayerController.videoPlayerController?.state.position
               : position;
           // As a normal query picks them: the quality may have to fall back,
