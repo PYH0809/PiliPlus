@@ -933,6 +933,8 @@ class VideoDetailController extends GetxController
     // Pressed in the background (the lock screen's card, a headset), play
     // was asked for there, so it plays there.
     final askedInFront = WidgetsBinding.instance.lifecycleState == .resumed;
+    // Likewise from the media card with another page over this one.
+    final askedShowing = isPageShowing;
     // Where this video stood, before another page might take the player.
     final position = plPlayerController.videoPlayerController?.state.position;
     bool movedOn() =>
@@ -950,10 +952,12 @@ class VideoDetailController extends GetxController
           _linksFetchedAt = PlPlayerController.clock();
           // Where it stands now, as the user may have seeked meanwhile, if
           // the player is still this page's; else where it stood.
-          // The player is this page's still: on screen and not taken by
-          // another, as by the page under this one while this one leaves.
+          // The player is this page's still: not taken by another, as by the
+          // page under this one while this one leaves, and not left since
+          // play was pressed on it.
           final ownsPlayer =
-              isPageShowing && PlPlayerController.playOwner?.tag == heroTag;
+              PlPlayerController.playOwner?.tag == heroTag &&
+              (isPageShowing || !askedShowing);
           final now = ownsPlayer
               ? plPlayerController.videoPlayerController?.state.position
               : position;
