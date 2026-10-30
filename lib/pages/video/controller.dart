@@ -742,7 +742,13 @@ class VideoDetailController extends GetxController
     plPlayerController
       ..isBuffering.value = false
       ..buffered.value = 0;
+    _pickLinks(currentVideoQa);
+    playerInit();
+  }
 
+  /// Picks the links of [currentVideoQa] and the current audio quality from
+  /// [data].
+  void _pickLinks(VideoQuality currentVideoQa) {
     firstVideo = findVideoByQa(currentVideoQa.code, setCodecs: true);
     videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
 
@@ -754,8 +760,6 @@ class VideoDetailController extends GetxController
       );
       audioUrl = VideoUtils.getCdnUrl(firstAudio.playUrls, isAudio: true);
     }
-
-    playerInit();
   }
 
   Future<void>? initPlayerIfNeeded(bool autoFullScreenFlag) {
@@ -775,16 +779,6 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
-    // Fresh links that came after the user moved on are not opened: on
-    // another part they would play the wrong one; on a page opened over this
-    // one they would play behind it, or take the shared player from another
-    // video. Coming back opens them, as didPopNext does.
-    if (_reopening &&
-        (cid.value != _reopenedCid ||
-            !videoState.value ||
-            PlPlayerController.playOwner?.tag != heroTag)) {
-      return;
-    }
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();
@@ -850,24 +844,45 @@ class VideoDetailController extends GetxController
   DateTime? _linksFetchedAt;
 
   bool _reopening = false;
-  int? _reopenedCid;
 
-  /// Fetches fresh links for what is open and opens them where it stood,
-  /// playing: the old ones ran out while it was paused.
+  /// Whether this page is the one on screen, not covered by another page.
+  bool isPageShowing = true;
+
+  /// Fetches fresh links for what is open, at the quality it plays, and
+  /// opens them where it stood, playing: the old ones ran out while it was
+  /// paused. Only the links are fetched, so that a part opened meanwhile
+  /// fetches its own as usual.
   Future<void> _reopenExpiredSource() async {
-    // A second press while the links come leaves the first refresh to it.
+    // A second press while the links come leaves it to the first.
     if (_reopening) return;
-    playedTime = plPlayerController.videoPlayerController?.state.position;
-    _autoPlay.value = true;
     _reopening = true;
-    _reopenedCid = cid.value;
+    final cid = this.cid.value;
+    bool movedOn() => isClosed || this.cid.value != cid;
     try {
-      await queryVideoUrl(fromReset: true);
+      final result = await _getVideoUrl(VideoQuality.hdrVivid.code);
+      if (movedOn()) return;
+      if (result case Success(:final response) when response.dash != null) {
+        data = response;
+        await _supplementVideoQualities();
+        if (movedOn()) return;
+        _linksFetchedAt = PlPlayerController.clock();
+        final currentVideoQa = this.currentVideoQa.value;
+        if (currentVideoQa == null) return;
+        // Played on only where the user still is: covered by another page,
+        // or in the background without background play, the links are kept
+        // for coming back, as didPopNext opens them.
+        final foreground =
+            WidgetsBinding.instance.lifecycleState == .resumed ||
+            plPlayerController.continuePlayInBackground.value;
+        if (isPageShowing && foreground) {
+          updatePlayer();
+        } else {
+          playedTime = plPlayerController.videoPlayerController?.state.position;
+          _pickLinks(currentVideoQa);
+        }
+      }
     } finally {
       _reopening = false;
-      // Another part opened while the links came: its own query was turned
-      // away as this one ran (isQuerying), so it goes now.
-      if (!isClosed && cid.value != _reopenedCid) queryVideoUrl();
     }
   }
 

@@ -390,6 +390,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   void didPushNext() {
     super.didPushNext();
     isShowing = false;
+    videoDetailController.isPageShowing = false;
 
     removeObserverMobile(this);
 
@@ -423,6 +424,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     }
 
     isShowing = true;
+    videoDetailController.isPageShowing = true;
 
     addObserverMobile(this);
 
