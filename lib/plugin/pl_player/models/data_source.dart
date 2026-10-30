@@ -63,14 +63,15 @@ class FileSource extends DataSource {
 /// connections close in that time, and the links can't open new ones once
 /// expired.
 ///
-/// A source that already looks expired as it opens, as on a phone whose clock
-/// runs hours ahead, is never judged expired, so that it isn't opened afresh
-/// over and over.
+/// Links that already look expired when they are fetched, as on a phone whose
+/// clock runs hours ahead, are never judged expired, so that they aren't
+/// fetched afresh over and over. Links fetched long ago and opened again keep
+/// their age, as [fetchedAt] says when they came.
 class SourceExpiry {
-  SourceExpiry(DataSource source, DateTime openedAt)
+  SourceExpiry(DataSource source, DateTime fetchedAt)
     : _expiresAt = switch (source) {
         NetworkSource(:final expiresAt?)
-            when openedAt.isBefore(expiresAt.subtract(margin)) =>
+            when fetchedAt.isBefore(expiresAt.subtract(margin)) =>
           expiresAt,
         _ => null,
       };

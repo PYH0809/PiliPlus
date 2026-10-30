@@ -92,11 +92,18 @@ void main() {
       expect(open.isExpiredAt(_at(deadline * 2)), isFalse);
     });
 
-    test('never when it looked expired as it opened, as on a clock running '
-        'hours ahead, so it is not reopened over and over', () {
+    test('never when the links looked expired as they were fetched, as on a '
+        'clock running hours ahead, so they are not fetched over and over', () {
       final ahead = SourceExpiry(source, _at(deadline + 3600));
       expect(ahead.isExpiredAt(_at(deadline + 3600)), isFalse);
       expect(ahead.isExpiredAt(_at(deadline + 5 * 3600)), isFalse);
+    });
+
+    test('links fetched long ago and opened again keep their age, as on '
+        'coming back to a page hours later', () {
+      // Fetched two hours before they expire, opened again three hours on.
+      final reopened = SourceExpiry(source, _at(deadline - 7200));
+      expect(reopened.isExpiredAt(_at(deadline + 3 * 3600)), isTrue);
     });
 
     test('never for a file', () {

@@ -775,6 +775,10 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    // Fresh links for a page the user has since left, as for another video
+    // opened over it, would take the shared player from that page; this one
+    // opens them on its return.
+    if (_reopening && PlPlayerController.playOwner?.tag != heroTag) return;
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();
@@ -813,6 +817,7 @@ class VideoDetailController extends GetxController
       autoFullScreenFlag: autoFullScreenFlag,
       rotate: _rotate,
       onSourceExpired: isFileSource ? null : _reopenExpiredSource,
+      sourceFetchedAt: _linksFetchedAt,
     );
 
     if (isClosed) return;
@@ -834,12 +839,23 @@ class VideoDetailController extends GetxController
     defaultST = null;
   }
 
+  /// When the open links were fetched, which judges when they run out: links
+  /// opened again later, as on coming back to this page, keep their age.
+  DateTime? _linksFetchedAt;
+
+  bool _reopening = false;
+
   /// Fetches fresh links for what is open and opens them where it stood,
   /// playing: the old ones ran out while it was paused.
-  Future<void> _reopenExpiredSource() {
+  Future<void> _reopenExpiredSource() async {
     playedTime = plPlayerController.videoPlayerController?.state.position;
     _autoPlay.value = true;
-    return queryVideoUrl(fromReset: true);
+    _reopening = true;
+    try {
+      await queryVideoUrl(fromReset: true);
+    } finally {
+      _reopening = false;
+    }
   }
 
   bool isQuerying = false;
@@ -923,6 +939,7 @@ class VideoDetailController extends GetxController
     final result = await _getVideoUrl(VideoQuality.hdrVivid.code);
 
     if (result case Success(:final response)) {
+      _linksFetchedAt = PlPlayerController.clock();
       data = response;
       if (data.dash != null) await _supplementVideoQualities();
 

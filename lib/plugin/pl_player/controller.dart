@@ -729,6 +729,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     bool autoFullScreenFlag = false,
     int? rotate,
     Future<void> Function()? onSourceExpired,
+    DateTime? sourceFetchedAt,
   }) async {
     try {
       _processing = true;
@@ -736,7 +737,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       _onSourceExpired = onSourceExpired;
       _sourceExpiry = onSourceExpired == null
           ? null
-          : SourceExpiry(dataSource, clock());
+          : SourceExpiry(dataSource, sourceFetchedAt ?? clock());
       _videoType = videoType ?? VideoType.ugc;
       this.width = width;
       this.height = height;
