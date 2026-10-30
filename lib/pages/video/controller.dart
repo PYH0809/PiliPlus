@@ -912,7 +912,12 @@ class VideoDetailController extends GetxController
           if (movedOn()) return;
           data = response;
           _linksFetchedAt = PlPlayerController.clock();
-          playedTime = position;
+          // Where it stands now, as the user may have seeked meanwhile, if
+          // the player is still this page's; else where it stood.
+          playedTime =
+              isPageShowing && PlPlayerController.playOwner?.tag == heroTag
+              ? plPlayerController.videoPlayerController?.state.position
+              : position;
           // As a normal query picks them: the quality may have to fall back,
           // as when a membership ran out meanwhile.
           _pickTargetLinks(response.dash!);
