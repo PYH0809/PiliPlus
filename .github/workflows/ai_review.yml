@@ -313,13 +313,15 @@ jobs:
                         });
                         if (!response.ok) throw new Error(`HTTP ${response.status}`);
                         const key = (await response.json()).data;
+                        // null is a key without a limit; a missing field is not.
+                        if (!key || !('limit' in key)) throw new Error('no limit in the response');
                         const usd = (n) => {
                           if (n == null || !Number.isFinite(Number(n))) throw new Error(`not an amount: ${n}`);
                           return `$${Number(n).toFixed(2)}`;
                         };
                         const reset = { daily: '每天', weekly: '每周', monthly: '每月' }[key.limit_reset];
                         left =
-                          key.limit == null
+                          key.limit === null
                             ? `key 不限额，本月已用 ${usd(key.usage_monthly)}`
                             : `key 额度剩 ${usd(key.limit_remaining)} / ${usd(key.limit)}${reset ? `，${reset}重置` : ''}`;
                       } catch (error) {
