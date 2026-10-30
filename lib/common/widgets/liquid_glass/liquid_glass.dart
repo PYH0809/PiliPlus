@@ -1264,6 +1264,10 @@ class _LiquidGlassLayer extends Layer {
 
   int _capturedPass = -1;
   ui.Picture? _captured;
+  // PiliPlus: _captured with the frost's rims as paths, for the captures of
+  // the panes over it to read, which scale it down: the image's rims would
+  // sample to nothing there. Null while _captured draws them as paths.
+  ui.Picture? _capturedPaths;
   ui.FragmentShader? _captureShader;
   // PiliPlus: and the image the frost's rims were drawn from.
   (ui.Image, Path?, BlendMode, ui.FragmentProgram?, List<double>, ui.Image?)?
@@ -1426,6 +1430,14 @@ class _LiquidGlassLayer extends Layer {
       }
     }
     _hold(recorder.endRecording());
+    // PiliPlus: see _capturedPaths.
+    _capturedPaths?.dispose();
+    _capturedPaths = null;
+    if (overlay != null) {
+      final paths = ui.PictureRecorder();
+      _frostFrom(Canvas(paths), atlas, mapping, blendMode, style, null);
+      _capturedPaths = paths.endRecording();
+    }
     // PiliPlus: overlay, as above.
     _captureKey = (atlas, outline, blendMode, program, uniforms, overlay);
   }
@@ -1497,6 +1509,9 @@ class _LiquidGlassLayer extends Layer {
   // The shader samples the last atlas set on it until it is disposed.
   void _dropCaptured() {
     _hold(null);
+    // PiliPlus: see _capturedPaths.
+    _capturedPaths?.dispose();
+    _capturedPaths = null;
     _captureKey = null;
     _captureShader?.dispose();
     _captureShader = null;

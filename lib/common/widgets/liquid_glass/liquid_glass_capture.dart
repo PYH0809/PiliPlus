@@ -1001,7 +1001,9 @@ class _Replay {
           reached = true;
         case final _LiquidGlassLayer pane
             when pane._capturedPass == _LiquidGlassHostLayer._pass:
-          if (pane._captured case final picture? when _shows(pane.rect)) {
+          // PiliPlus: its rims as paths, see _capturedPaths.
+          if (pane._capturedPaths ?? pane._captured
+              case final picture? when _shows(pane.rect)) {
             _draw(picture);
           }
         case final PictureLayer recorded:

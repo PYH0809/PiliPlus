@@ -88,6 +88,7 @@ class _DeviceImage {
     _made++;
     picture.dispose();
     _key = asked;
+    _asked = asked;
     _rect = Rect.fromLTRB(
       (x - m[12]) / m[0],
       (y - m[13]) / m[5],
@@ -115,6 +116,9 @@ class _DeviceImage {
       _live--;
     }
     _key = null;
+    // A pane back after it is cleared, as from beyond the host's bounds,
+    // waits two passes again.
+    _asked = null;
   }
 }
 

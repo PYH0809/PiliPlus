@@ -41,6 +41,7 @@ Widget _app({
   double left = 40.5,
   Brightness brightness = Brightness.light,
   bool panel = false,
+  bool stacked = false,
 }) {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: Colors.blue,
@@ -75,6 +76,18 @@ Widget _app({
                   shadows: floatingGlassShadows(colorScheme),
                 ),
         ),
+        // One over it, which reads it in its capture.
+        if (stacked)
+          Positioned(
+            left: left + 50,
+            top: 90.25,
+            width: 200,
+            height: 48,
+            child: LiquidGlass(
+              style: LiquidGlassStyle.regular(colorScheme),
+              shadows: floatingGlassShadows(colorScheme),
+            ),
+          ),
       ],
     ),
   );
@@ -206,6 +219,52 @@ void main() {
         await tester.pumpWidget(_app());
       }
       expect(LiquidGlassHost.debugDeviceImagesMade, made);
+    },
+  );
+
+  testWidgets(
+    'a pane over another reads its rims as they were, not from the image',
+    (tester) async {
+      _view(tester);
+      Future<Uint8List> upper() async {
+        final atlas = LiquidGlassHost.debugLastCapture!.panes
+            .firstWhere((pane) => pane.level == 1)
+            .atlas;
+        return (await tester.runAsync(() async {
+          final data = await atlas.toByteData();
+          return data!.buffer.asUint8List();
+        }))!;
+      }
+
+      LiquidGlassHost.debugImagesOverride = false;
+      await tester.pumpWidget(_app(stacked: true));
+      await _frame(tester);
+      final paths = await upper();
+
+      LiquidGlassHost.debugImagesOverride = true;
+      await tester.pumpWidget(_app(left: 41, stacked: true));
+      await tester.pumpWidget(_app(stacked: true));
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImages, greaterThan(0));
+      expect(_largestDifference(paths, await upper()), 0);
+    },
+    skip: ui.ImageFilter.isShaderFilterSupported,
+  );
+
+  testWidgets(
+    'a pane back from beyond the host waits two frames for its images',
+    (tester) async {
+      _view(tester);
+      LiquidGlassHost.debugImagesOverride = true;
+      await tester.pumpWidget(_app());
+      await _frame(tester);
+      await tester.pumpWidget(_app(left: -400.5));
+      await _frame(tester);
+      final made = LiquidGlassHost.debugDeviceImagesMade;
+      await tester.pumpWidget(_app());
+      expect(LiquidGlassHost.debugDeviceImagesMade, made);
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImagesMade, greaterThan(made));
     },
   );
 
