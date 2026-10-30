@@ -775,10 +775,16 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
-    // Fresh links for a page the user has since left, as for another video
-    // opened over it, would take the shared player from that page; this one
-    // opens them on its return.
-    if (_reopening && PlPlayerController.playOwner?.tag != heroTag) return;
+    // Fresh links that came after the user moved on are not opened: on
+    // another part they would play the wrong one; on a page opened over this
+    // one they would play behind it, or take the shared player from another
+    // video. Coming back opens them, as didPopNext does.
+    if (_reopening &&
+        (cid.value != _reopenedCid ||
+            !videoState.value ||
+            PlPlayerController.playOwner?.tag != heroTag)) {
+      return;
+    }
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();
@@ -844,6 +850,7 @@ class VideoDetailController extends GetxController
   DateTime? _linksFetchedAt;
 
   bool _reopening = false;
+  int? _reopenedCid;
 
   /// Fetches fresh links for what is open and opens them where it stood,
   /// playing: the old ones ran out while it was paused.
@@ -853,10 +860,14 @@ class VideoDetailController extends GetxController
     playedTime = plPlayerController.videoPlayerController?.state.position;
     _autoPlay.value = true;
     _reopening = true;
+    _reopenedCid = cid.value;
     try {
       await queryVideoUrl(fromReset: true);
     } finally {
       _reopening = false;
+      // Another part opened while the links came: its own query was turned
+      // away as this one ran (isQuerying), so it goes now.
+      if (!isClosed && cid.value != _reopenedCid) queryVideoUrl();
     }
   }
 
