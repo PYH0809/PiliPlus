@@ -943,8 +943,11 @@ class VideoDetailController extends GetxController
           _linksFetchedAt = PlPlayerController.clock();
           // Where it stands now, as the user may have seeked meanwhile, if
           // the player is still this page's; else where it stood.
-          final now =
-              isPageShowing && PlPlayerController.playOwner?.tag == heroTag
+          // The player is this page's still: on screen and not taken by
+          // another, as by the page under this one while this one leaves.
+          final ownsPlayer =
+              isPageShowing && PlPlayerController.playOwner?.tag == heroTag;
+          final now = ownsPlayer
               ? plPlayerController.videoPlayerController?.state.position
               : position;
           // A replay starts over, unless the user seeked meanwhile.
@@ -972,7 +975,7 @@ class VideoDetailController extends GetxController
               plPlayerController.continuePlayInBackground.value ||
               (Platform.isIOS && IOSPipHelper.isActive) ||
               (Platform.isAndroid && AndroidHelper.isPipMode);
-          if (isPageShowing && foreground) {
+          if (ownsPlayer && foreground) {
             _autoPlay.value = true;
             plPlayerController
               ..isBuffering.value = false
