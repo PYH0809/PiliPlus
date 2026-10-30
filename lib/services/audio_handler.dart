@@ -449,7 +449,8 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       final item = _item.last;
       // The page underneath shows where it is itself, not where the shared
       // player was for the page that left; 听视频 republishes its own state on
-      // hearing its item.
+      // hearing its item, which a card gone with the page above must take.
+      _cardGone = false;
       final tag = _pages.lastWhereOrNull(item.id.endsWith);
       final cid = tag == null
           ? null
@@ -639,7 +640,8 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
   }
 
-  /// Whether the paused card went after its time or a swipe.
+  /// Whether the paused card went after its time or a swipe. Its item coming
+  /// back, or another's, brings it back.
   bool _cardGone = false;
 
   /// How long after a swipe a paused card whose player says it goes on by

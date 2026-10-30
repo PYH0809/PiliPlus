@@ -319,6 +319,47 @@ void main() {
     );
   });
 
+  test('back on 听视频 after a video above it went with its time and closes, '
+      'the card takes 听视频\'s own state again', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+    handler.onVideoDetailChange(item(), 2, 'video');
+    play();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    handler
+      ..onVideoDetailDispose('video')
+      // What 听视频 does when the card shows its item again, paused.
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 90),
+        speed: 1,
+        canSkip: true,
+      );
+
+    expect(handler.isShowing('audio'), isTrue);
+    expect(
+      handler.playbackState.value.updatePosition,
+      const Duration(seconds: 90),
+    );
+    expect(actions(), contains(MediaAction.skipToNext));
+  });
+
   test('swiped away from recents, a paused card goes and a playing one '
       'stays', () async {
     handler.onVideoDetailChange(item(), 1, 'video');
