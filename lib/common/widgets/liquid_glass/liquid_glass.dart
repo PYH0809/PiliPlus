@@ -15,6 +15,8 @@ import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 
 part 'liquid_glass_capture.dart';
+// PiliPlus: what panes draw from images without Impeller.
+part 'liquid_glass_skia.dart';
 
 const _shaderAsset = 'shaders/liquid_glass.frag';
 const _glowIn = Duration(milliseconds: 120);
@@ -1066,6 +1068,8 @@ class LiquidGlassPane {
   final VoidCallback onReady;
 
   final _layer = LayerHandle<_LiquidGlassLayer>();
+  // PiliPlus: the shadows, in a layer of their own without Impeller.
+  final _shadowLayer = LayerHandle<_LiquidGlassShadowLayer>();
   Path? _profiled;
   List<double> _profile = _flatProfile;
 
@@ -1099,7 +1103,9 @@ class LiquidGlassPane {
         );
         _profiled = null;
         if (hold == null && shadows.isNotEmpty) {
-          _paintShadows(context.canvas, rect, corners, shadows);
+          // PiliPlus: cast through _castShadows, which draws them from an
+          // image without Impeller.
+          _castShadows(context, rect, corners, shadows);
         }
         pane
           ..corners = corners
@@ -1138,11 +1144,16 @@ class LiquidGlassPane {
       ..group = group;
     context.addLayer(pane);
     if (hold != null && shadows.isNotEmpty) {
-      _paintShadows(context.canvas, rect, pane.corners, shadows);
+      // PiliPlus: as above.
+      _castShadows(context, rect, pane.corners, shadows);
     }
   }
 
-  void clear() => _layer.layer = null;
+  // PiliPlus: drops the shadows' layer too.
+  void clear() {
+    _layer.layer = null;
+    _shadowLayer.layer = null;
+  }
 
   void dispose() {
     _GlassProgram.forget(onReady);
@@ -1254,7 +1265,12 @@ class _LiquidGlassLayer extends Layer {
   int _capturedPass = -1;
   ui.Picture? _captured;
   ui.FragmentShader? _captureShader;
-  (ui.Image, Path?, BlendMode, ui.FragmentProgram?, List<double>)? _captureKey;
+  // PiliPlus: and the image the frost's rims were drawn from.
+  (ui.Image, Path?, BlendMode, ui.FragmentProgram?, List<double>, ui.Image?)?
+  _captureKey;
+
+  // PiliPlus: the frost's rims as an image, without Impeller.
+  final _overlay = _DeviceImage();
 
   @override
   bool get alwaysNeedsAddToScene => true;
@@ -1263,6 +1279,8 @@ class _LiquidGlassLayer extends Layer {
   void dispose() {
     _frost?.dispose();
     _dropCaptured();
+    // PiliPlus: and the frost's image.
+    _overlay.clear();
     super.dispose();
   }
 
@@ -1350,9 +1368,16 @@ class _LiquidGlassLayer extends Layer {
     List<double> mapping,
     BlendMode blendMode,
     LiquidGlassStyle style,
+    // PiliPlus: where the pane lies on the device, to draw its frost's tint
+    // and rims from an image without Impeller.
+    Matrix4? toDevice,
   ) {
     _capturedPass = pass;
     final program = this.program;
+    // PiliPlus: see liquid_glass_skia.dart.
+    final overlay = program == null && toDevice != null
+        ? _frostImage(toDevice)
+        : null;
     final uniforms = <double>[
       atlas.width.toDouble(),
       atlas.height.toDouble(),
@@ -1364,19 +1389,29 @@ class _LiquidGlassLayer extends Layer {
       ..._look(style),
     ];
     if (_captureKey
-        case (final image, final path, final mode, final shaded, final values)?
+        case (
+          final image,
+          final path,
+          final mode,
+          final shaded,
+          final values,
+          // PiliPlus: as above.
+          final frost,
+        )?
         when _captured != null &&
             identical(image, atlas) &&
             identical(path, outline) &&
             mode == blendMode &&
             identical(shaded, program) &&
-            listEquals(values, uniforms)) {
+            listEquals(values, uniforms) &&
+            identical(frost, overlay)) {
       return;
     }
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     if (program == null) {
-      _frostFrom(canvas, atlas, mapping, blendMode, style);
+      // PiliPlus: overlay, as above.
+      _frostFrom(canvas, atlas, mapping, blendMode, style, overlay);
     } else {
       final shader = _captureShader ??= program.fragmentShader();
       shader.setImageSampler(0, atlas, filterQuality: FilterQuality.low);
@@ -1393,7 +1428,8 @@ class _LiquidGlassLayer extends Layer {
       }
     }
     _hold(recorder.endRecording());
-    _captureKey = (atlas, outline, blendMode, program, uniforms);
+    // PiliPlus: overlay, as above.
+    _captureKey = (atlas, outline, blendMode, program, uniforms, overlay);
   }
 
   /// Frosts the pane, without bending it, from the part of [atlas] behind it,
@@ -1404,6 +1440,8 @@ class _LiquidGlassLayer extends Layer {
     List<double> mapping,
     BlendMode blendMode,
     LiquidGlassStyle style,
+    // PiliPlus: the rims as an image, see liquid_glass_skia.dart.
+    ui.Image? overlay,
   ) {
     canvas.save();
     if (outline case final outline?) {
@@ -1441,7 +1479,13 @@ class _LiquidGlassLayer extends Layer {
     if (veil.a > 0) {
       canvas.drawPaint(Paint()..color = veil);
     }
-    _drawFrost(canvas, overCapture: true);
+    // PiliPlus: the rims from the image when there is one.
+    if (overlay != null) {
+      _drawFrost(canvas, overCapture: true, lines: false);
+      _overlay.draw(canvas);
+    } else {
+      _drawFrost(canvas, overCapture: true);
+    }
     canvas.restore();
   }
 
@@ -1476,12 +1520,31 @@ class _LiquidGlassLayer extends Layer {
 
   /// Thickens the tint to stand in for the frost, unless the pane lies
   /// [overCapture], which holds the blur.
-  void _drawFrost(Canvas canvas, {bool overCapture = false}) {
+  // PiliPlus: [tinted] and [lines] draw the tint or the rims alone, as Skia
+  // draws the rims from an image (liquid_glass_skia.dart).
+  void _drawFrost(
+    Canvas canvas, {
+    bool overCapture = false,
+    bool tinted = true,
+    bool lines = true,
+  }) {
     final tint = style.tint;
     final fill = Paint()
       ..color = overCapture
           ? tint
           : tint.withValues(alpha: math.min(1, tint.a + 0.2));
+    // PiliPlus: see tinted and lines.
+    if (!lines) {
+      if (outline case final outline?) {
+        canvas.drawPath(outline, fill);
+      } else {
+        canvas.drawRSuperellipse(corners.toRSuperellipse(rect), fill);
+      }
+      return;
+    }
+    if (!tinted) {
+      fill.color = const Color(0x00000000);
+    }
     final rim = style.rim;
     final stroke = Paint()
       ..style = PaintingStyle.stroke

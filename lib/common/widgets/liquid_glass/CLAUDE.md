@@ -12,6 +12,11 @@ turns on every glass part. It only takes effect after a restart.
 - Refraction needs Impeller's shader filters (`ImageFilter.isShaderFilterSupported`). Without them, as in release
   Android builds and on macOS, panes fall back to a thickened tint with a rim, not a blur. Check how a change looks
   both ways; the Android dev flavor has Impeller on.
+- **Without Impeller, what holds still draws from images** (`liquid_glass_skia.dart`): Flutter hands Skia a new path
+  every frame, so Skia would mask and blur every pane's shadows and stroke its rims again each frame. A pane's
+  shadows go into a layer of their own, which the host lays on whole device pixels, and the frost's rims into the
+  pane's capture, each drawn once into an image after two frames asking for the same, so a pane on the move keeps its
+  paths. The tint stays a path. `ext.piliplus.glassImages?on=` turns it on or off to measure.
 - **Over the video** the host sees nothing: the video is a texture, not a picture it can replay. `VideoGlass` is a
   backdrop filter instead: an engine blur, shared by the panes of a `BackdropGroup`, and nested in it the glass
   shader, which bends and tints the blur (`liquidGlassProgram`, `liquidGlassLook`). Without shader filters it
@@ -140,6 +145,7 @@ lays it over the body. The two are as tall, so the content stays put as they swa
 | File | Role | Edit? |
 | ---- | ---- | ----- |
 | `liquid_glass.dart`, `liquid_glass_capture.dart` (part), `shaders/liquid_glass.frag` | Glass core, ported from FlClash (GPL-3.0) | Only with a `// PiliPlus:` comment on each change. Don't reformat |
+| `liquid_glass_skia.dart` (part) | Without Impeller, shadows and rims drawn from images on the device's pixels | Yes |
 | `goo.dart` | Two shapes flowing together as one outline, ported from FlClash's `lib/ui/goo.dart` (GPL-3.0) | Same as the core |
 | `glass_support.dart` | The FlClash helpers the core imports (tone shift, motion, radii, shapes) | Yes |
 | `glass_spring.dart` | `GlassSpring`, a retargetable spring that is a `ValueListenable<double>` | Yes |

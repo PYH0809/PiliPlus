@@ -60,6 +60,15 @@ class LiquidGlassHost extends StatelessWidget {
   @visibleForTesting
   static bool? debugCarryBandsOverride;
 
+  /// PiliPlus: whether panes draw their shadows and their frost's rims from
+  /// images, in place of the renderer's choice: only without Impeller
+  /// (liquid_glass_skia.dart). Set by tests and the debug commands.
+  static bool? debugImagesOverride;
+
+  /// PiliPlus: how many such images are held.
+  @visibleForTesting
+  static int get debugDeviceImages => _DeviceImage._live;
+
   /// How many panes hold a capture, under a host or not.
   @visibleForTesting
   static int get debugHeldCaptures => _LiquidGlassLayer._capturesHeld;
@@ -389,6 +398,10 @@ class _LiquidGlassHostLayer extends ContainerLayer {
   // would hold the atlas it last drew from until it painted again.
   var _panes = <_LiquidGlassLayer>{};
 
+  // PiliPlus: where this pass lays the host on the device, when panes draw
+  // from images (liquid_glass_skia.dart).
+  Matrix4? _hostToDevice;
+
   @override
   void addToScene(ui.SceneBuilder builder) {
     _capture();
@@ -413,6 +426,8 @@ class _LiquidGlassHostLayer extends ContainerLayer {
   /// as glass.
   void _capture() {
     _pass++;
+    // PiliPlus: see _hostToDevice.
+    _hostToDevice = _drawsFromImages ? _toDevice(this) : null;
     final found = <_Behind>[];
     _gather(this, Matrix4.identity(), this, Matrix4.identity(), [], found);
     final panes = {for (final entry in found) entry.pane};
@@ -519,6 +534,11 @@ class _LiquidGlassHostLayer extends ContainerLayer {
               chain.toSet(),
             ),
           );
+        // PiliPlus: shadows lie on the device's pixels, to draw from an image.
+        case final _LiquidGlassShadowLayer shadow:
+          if (_hostToDevice case final hostToDevice?) {
+            shadow.align(hostToDevice.multiplied(toHost));
+          }
         case final ContainerLayer container:
           final offscreen = _drawsOffscreen(container);
           _gather(
@@ -782,6 +802,8 @@ class _LiquidGlassHostLayer extends ContainerLayer {
       ],
       identical(entry.root, this) ? BlendMode.srcOver : BlendMode.src,
       entry.style,
+      // PiliPlus: see _hostToDevice.
+      _hostToDevice?.multiplied(entry.toHost),
     );
   }
 
@@ -966,6 +988,12 @@ class _Replay {
         case final PictureLayer recorded:
           if (recorded.picture case final picture?
               when _shows(recorded.canvasBounds.inflate(_overflow))) {
+            _draw(picture);
+          }
+        // PiliPlus: a pane's shadows, from their paths: their image lies on
+        // the device's pixels, not the capture's.
+        case final _LiquidGlassShadowLayer shadow:
+          if (shadow.paths case final picture? when _shows(shadow.bounds)) {
             _draw(picture);
           }
         // PiliPlus: what the host cannot see, as glass drawing the video's
