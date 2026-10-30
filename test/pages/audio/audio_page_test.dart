@@ -757,6 +757,36 @@ void main() {
         expect(controller.calls, isEmpty);
       });
 
+      testWidgets('$mode: a tap at the side holds the lines still', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final list = tester.getRect(find.byType(AudioSubtitleList));
+        await tester.flingFrom(
+          Offset(_width - 32, list.center.dy),
+          const Offset(0, -300),
+          2000,
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tapAt(Offset(8, list.center.dy));
+        await tester.pump();
+        final line = find.textContaining('句').first;
+        final held = tester.getTopLeft(line).dy;
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(tester.getTopLeft(line).dy, held);
+        expect(controller.showSubtitle.value, isTrue);
+
+        // Held still, the next tap there switches.
+        await tester.pumpAndSettle();
+        await tester.tapAt(Offset(8, list.center.dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+      });
+
       testWidgets('$mode: lines gone while they scrolled leave the taps be', (
         tester,
       ) async {

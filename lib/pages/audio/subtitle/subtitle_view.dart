@@ -184,6 +184,13 @@ class _AudioSubtitleToggleState extends State<AudioSubtitleToggle> {
           onPointerDown: (_) {
             _scrolling.removeWhere((context) => !context.mounted);
             _stopsScroll = _scrolling.isNotEmpty || _endedNow;
+            // A touch beside a list still scrolling, as at the page's
+            // sides, holds it still as one on it does.
+            for (final context in _scrolling.toList()) {
+              if (Scrollable.maybeOf(context)?.position case final position?) {
+                position.jumpTo(position.pixels);
+              }
+            }
           },
           child: GestureDetector(
             behavior: .opaque,
