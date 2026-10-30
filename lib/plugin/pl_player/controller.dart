@@ -728,10 +728,15 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     Volume? volume,
     bool autoFullScreenFlag = false,
     int? rotate,
+    Future<void> Function()? onSourceExpired,
   }) async {
     try {
       _processing = true;
       this.isLive = isLive;
+      _onSourceExpired = onSourceExpired;
+      _sourceExpiry = onSourceExpired == null
+          ? null
+          : SourceExpiry(dataSource, clock());
       _videoType = videoType ?? VideoType.ugc;
       this.width = width;
       this.height = height;
@@ -1245,9 +1250,33 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     }
   }
 
+  /// The time [reopenIfExpired] goes by, moved on by the `clock` debug command
+  /// to try it without waiting hours.
+  static DateTime Function() clock = DateTime.now;
+
+  Future<void> Function()? _onSourceExpired;
+  SourceExpiry? _sourceExpiry;
+
+  /// Opens the source afresh through its page, playing from where it stood,
+  /// instead of playing on, when its links have run out while it was paused:
+  /// the player would play what it had buffered and stop there, its progress
+  /// still moving. True if it did.
+  bool reopenIfExpired() {
+    final onExpired = _onSourceExpired;
+    if (onExpired == null ||
+        isLive ||
+        _playerCount == 0 ||
+        !(_sourceExpiry?.isExpiredAt(clock()) ?? false)) {
+      return false;
+    }
+    onExpired();
+    return true;
+  }
+
   /// 播放视频
   Future<void> play({bool repeat = false, bool hideControls = true}) async {
     if (_playerCount == 0) return;
+    if (!repeat && reopenIfExpired()) return;
     // 播放时自动隐藏控制条
     controls = !hideControls;
     // repeat为true，将从头播放
@@ -1409,7 +1438,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     if (!isLive && isCompleted) {
       await videoPlayerController!.seek(Duration.zero);
       videoPlayerController!.play();
-    } else {
+    } else if (videoPlayerController!.state.playing || !reopenIfExpired()) {
       videoPlayerController!.playOrPause();
     }
   }

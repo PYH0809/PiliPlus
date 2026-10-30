@@ -6,6 +6,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/pages/audio/backdrop/audio_backdrop.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
+import 'package:PiliPlus/plugin/pl_player/models/data_source.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter/foundation.dart';
@@ -26,8 +27,11 @@ import 'package:get/get.dart';
 ///   back.
 /// - `ext.piliplus.controls?on=`: shows or hides the open player's controls.
 /// - `ext.piliplus.play`: plays the open player.
+/// - `ext.piliplus.clock?offsetMinutes=`: moves the player's clock on, so that
+///   play links seem to have expired without waiting hours; 0 puts it back.
 /// - `ext.piliplus.state`: the open player's state, the frames the
-///   performance overlay counted and what the glass over the video drew.
+///   performance overlay counted, what the glass over the video drew and when
+///   the open links expire.
 /// - `ext.piliplus.resetFrames`: starts the overlay's count over.
 /// - `ext.piliplus.layers`: the layer tree the screen last drew, a layer a
 ///   line with what it clips, filters, offsets or draws, to tell what each
@@ -43,6 +47,19 @@ import 'package:get/get.dart';
 ///   what the screen costs a frame, as a video's every new frame redraws it,
 ///   which the overlay does not see.
 abstract final class DebugCommands {
+  /// When the open player's links expire; null before it has a source.
+  static DateTime? _expiresAt(PlPlayerController? player) {
+    try {
+      return switch (player?.dataSource) {
+        NetworkSource(:final expiresAt) => expiresAt,
+        _ => null,
+      };
+    } catch (_) {
+      // dataSource is late: no source opened yet.
+      return null;
+    }
+  }
+
   static void register() {
     if (kReleaseMode) return;
     _register('setting', (params) async {
@@ -101,6 +118,13 @@ abstract final class DebugCommands {
       await player.play(hideControls: false);
       return '${player.playerStatus.isPlaying}';
     });
+    _register('clock', (params) async {
+      final minutes = int.tryParse(params['offsetMinutes'] ?? '') ?? 0;
+      PlPlayerController.clock = minutes == 0
+          ? DateTime.now
+          : () => DateTime.now().add(Duration(minutes: minutes));
+      return '${PlPlayerController.clock()}';
+    });
     _register('state', (params) async {
       final player = PlPlayerController.instance;
       return jsonEncode({
@@ -112,6 +136,7 @@ abstract final class DebugCommands {
         'controls': player?.showControls.value,
         'frames': FrameStats.measure(),
         'glass': VideoGlass.debugInfo.value,
+        'expiresAt': _expiresAt(player)?.toIso8601String(),
       });
     });
     _register('layers', (params) async {

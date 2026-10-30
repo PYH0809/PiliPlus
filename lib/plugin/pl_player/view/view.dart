@@ -362,7 +362,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       } else {
         if (_pauseDueToPauseUponEnteringBackgroundMode) {
           _pauseDueToPauseUponEnteringBackgroundMode = false;
-          player?.play();
+          if (!plPlayerController.reopenIfExpired()) player?.play();
         }
       }
     }

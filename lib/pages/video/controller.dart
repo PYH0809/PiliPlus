@@ -812,6 +812,7 @@ class VideoDetailController extends GetxController
       volume: volume,
       autoFullScreenFlag: autoFullScreenFlag,
       rotate: _rotate,
+      onSourceExpired: isFileSource ? null : _reopenExpiredSource,
     );
 
     if (isClosed) return;
@@ -831,6 +832,14 @@ class VideoDetailController extends GetxController
     }
 
     defaultST = null;
+  }
+
+  /// Fetches fresh links for what is open and opens them where it stood,
+  /// playing: the old ones ran out while it was paused.
+  Future<void> _reopenExpiredSource() {
+    playedTime = plPlayerController.videoPlayerController?.state.position;
+    _autoPlay.value = true;
+    return queryVideoUrl(fromReset: true);
   }
 
   bool isQuerying = false;
