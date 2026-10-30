@@ -185,7 +185,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
     // Only a player playing settles it, not the card's state sent again,
     // such as with the next one's details while the end is on its way.
-    if (status == .playing) videoGoesOn = false;
+    if (status == .playing) goesOn = false;
 
     final newConfig = (status, isBuffering, isLive, speed, canSkip);
     if (_lastConfig == newConfig) {
@@ -543,15 +543,14 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (!_isPaused(state)) {
       _pausedCardTimer?.cancel();
       _pausedCardTimer = null;
+      _swipeTimer?.cancel();
     } else if (_pausedCardTimer == null && pausedCardExpires) {
+      _pausedCardTimer = Timer(pausedCardLifetime, _onPausedCardTimeout);
       final taskRemovedAt = _taskRemovedAt;
-      final swipedAway =
-          taskRemovedAt != null &&
-          DateTime.now().difference(taskRemovedAt) < _latePause;
-      _pausedCardTimer = Timer(
-        swipedAway && !_swipeLeaves ? .zero : pausedCardLifetime,
-        _onPausedCardTimeout,
-      );
+      if (taskRemovedAt != null &&
+          DateTime.now().difference(taskRemovedAt) < _latePause) {
+        _endSwipedAwayCard();
+      }
     }
   }
 
@@ -562,10 +561,11 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// Whether 听视频 plays or is about to, such as while the next one loads.
   bool Function()? aboutToPlay;
 
-  /// Whether the video page, having played one through, goes on to the next
-  /// one or plays it again, also once a related one it asks for arrives. A
-  /// player playing or the card going clears it.
-  bool videoGoesOn = false;
+  /// Whether a player says it goes on by itself: the video page, having
+  /// played one through, with the next one or the same one again (also once
+  /// a related one it asks for arrives), or a player whose wait for a call is
+  /// over. A player playing or the card going clears it.
+  bool goesOn = false;
 
   /// Whether a player waits out a call or the like, to play on by itself
   /// after it, from the background. A paused card stays meanwhile: had it
@@ -578,11 +578,14 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// A player that waited out a call or the like no longer does: it plays on
   /// as the call ends, which takes a moment, or it never will, such as with
   /// focus lost for good. Either way the clock starts again, so that the card
-  /// neither goes meanwhile nor before its full time. A pause still on its
-  /// way to the card came from the wait, not from before a swipe.
+  /// neither goes meanwhile nor before its full time, and a swipe meanwhile
+  /// gives it [goingOnTime] to play. A pause still on its way to the card
+  /// came from the wait, not from before a swipe.
   void onWaitOver() {
     _taskRemovedAt = null;
+    goesOn = true;
     _restartPausedCardClock();
+    if (_swipeTimer?.isActive ?? false) _waitForSwipedCardToPlay();
   }
 
   void _onPausedCardTimeout() {
@@ -597,6 +600,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// swipe, a pause from here is a new one, which keeps the card.
   void _onControl() {
     _taskRemovedAt = null;
+    _swipeTimer?.cancel();
     _restartPausedCardClock();
   }
 
@@ -612,30 +616,57 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   /// Unplugged headphones pause the players without the card. After the
   /// swipe, that is a new pause too, which keeps the card.
-  void onBecomingNoisy() => _taskRemovedAt = null;
+  void onBecomingNoisy() {
+    _taskRemovedAt = null;
+    _swipeTimer?.cancel();
+  }
 
   /// Lets a paused card go, and the foreground service with it.
   void _endPausedCard() {
     final state = playbackState.value;
     if (_isPaused(state)) {
-      videoGoesOn = false;
+      goesOn = false;
       playbackState.add(state.copyWith(processingState: .idle));
     }
   }
 
-  /// Whether a swipe leaves the paused card, as its player still plays on by
-  /// itself, from the background: it waits out a call or the like, the video
-  /// page goes on to the next one, or 听视频 is about to play. The clock still
-  /// bounds it.
-  bool get _swipeLeaves =>
-      _waitsToPlayOn || videoGoesOn || (aboutToPlay?.call() ?? false);
+  /// How long after a swipe a paused card whose player says it goes on by
+  /// itself stays for it to play: past it, the next one is not coming, such
+  /// as when its details or its address could not be had.
+  @visibleForTesting
+  Duration goingOnTime = const Duration(seconds: 30);
+  Timer? _swipeTimer;
 
-  /// Swiped away from recents, a paused card goes at once, unless
-  /// [_swipeLeaves] it; a playing one stays, playing on in the background.
+  /// Lets a paused card go after a swipe: at once, or, when its player says
+  /// it goes on by itself ([goesOn], [aboutToPlay]), if it has not played
+  /// within [goingOnTime]. One whose player waits out a call stays, its clock
+  /// bounding it.
+  void _endSwipedAwayCard() {
+    if (_waitsToPlayOn) return;
+    if (goesOn || (aboutToPlay?.call() ?? false)) {
+      _waitForSwipedCardToPlay();
+    } else {
+      _endPausedCard();
+    }
+  }
+
+  /// Gives a swiped card [goingOnTime] from now to play, or it goes. Its
+  /// player has just said it goes on, so its clock starts again too, and
+  /// cannot end it sooner.
+  void _waitForSwipedCardToPlay() {
+    _restartPausedCardClock();
+    _swipeTimer?.cancel();
+    _swipeTimer = Timer(goingOnTime, () {
+      if (!_waitsToPlayOn) _endPausedCard();
+    });
+  }
+
+  /// Swiped away from recents, a paused card goes ([_endSwipedAwayCard]); a
+  /// playing one stays, playing on in the background.
   @override
   Future<void> onTaskRemoved() async {
     _taskRemovedAt = DateTime.now();
-    if (!_swipeLeaves) _endPausedCard();
+    if (_isPaused(playbackState.value)) _endSwipedAwayCard();
   }
 
   void clear() {
@@ -646,7 +677,8 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     _lastConfig = null;
     _taskRemovedAt = null;
     _pausedWhileBuffering = false;
-    videoGoesOn = false;
+    goesOn = false;
+    _swipeTimer?.cancel();
     /**
      * if (playbackState.processingState == AudioProcessingState.idle &&
             previousState?.processingState != AudioProcessingState.idle) {

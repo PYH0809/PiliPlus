@@ -731,10 +731,10 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     } else {
       relatedCtr = Get.put(RelatedController(autoQuery: false), tag: heroTag)
         ..queryData().whenComplete(() {
-          if (!playRelated()) videoPlayerServiceHandler?.videoGoesOn = false;
+          if (!playRelated()) videoPlayerServiceHandler?.goesOn = false;
         });
       // 相关视频回来就接着放，这期间划掉任务也要留着媒体卡片
-      videoPlayerServiceHandler?.videoGoesOn = true;
+      videoPlayerServiceHandler?.goesOn = true;
       return false;
     }
 
