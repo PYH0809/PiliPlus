@@ -65,9 +65,11 @@ class LiquidGlassHost extends StatelessWidget {
   /// (liquid_glass_skia.dart). Set by tests and the debug commands.
   static bool? debugImagesOverride;
 
-  /// PiliPlus: how many such images are held.
+  /// PiliPlus: how many such images are held, and have been drawn.
   @visibleForTesting
   static int get debugDeviceImages => _DeviceImage._live;
+  @visibleForTesting
+  static int get debugDeviceImagesMade => _DeviceImage._made;
 
   /// How many panes hold a capture, under a host or not.
   @visibleForTesting

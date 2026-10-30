@@ -19,6 +19,7 @@ const int _maxImageSide = 4096;
 /// that lies on whole device pixels, so that copying it changes no pixel.
 class _DeviceImage {
   static int _live = 0;
+  static int _made = 0;
 
   ui.Image? _image;
 
@@ -67,6 +68,8 @@ class _DeviceImage {
     }
     final asked = (key, m[0], m[5], left - x, top - y, width, height);
     if (_image != null && asked == _key) {
+      // Else, between two places, the one not held would look asked twice.
+      _asked = asked;
       return true;
     }
     if (asked != _asked) {
@@ -82,6 +85,7 @@ class _DeviceImage {
     clear();
     _image = picture.toImageSync(width, height);
     _live++;
+    _made++;
     picture.dispose();
     _key = asked;
     _rect = Rect.fromLTRB(

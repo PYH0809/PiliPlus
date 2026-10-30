@@ -194,6 +194,22 @@ void main() {
   );
 
   testWidgets(
+    'a pane going back and forth between two places draws no new images',
+    (tester) async {
+      _view(tester);
+      LiquidGlassHost.debugImagesOverride = true;
+      await tester.pumpWidget(_app());
+      await _frame(tester);
+      final made = LiquidGlassHost.debugDeviceImagesMade;
+      for (var i = 0; i < 6; i++) {
+        await tester.pumpWidget(_app(left: 41));
+        await tester.pumpWidget(_app());
+      }
+      expect(LiquidGlassHost.debugDeviceImagesMade, made);
+    },
+  );
+
+  testWidgets(
     'a page covered by another lets its glass\'s images go, and takes them '
     'again once it shows',
     (tester) async {
