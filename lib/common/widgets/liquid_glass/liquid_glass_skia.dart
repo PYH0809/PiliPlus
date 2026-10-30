@@ -126,7 +126,9 @@ class _LiquidGlassShadowLayer extends Layer {
   final _image = _DeviceImage();
   ui.Picture? _copy;
   ui.Image? _copied;
-  int _alignedPass = -1;
+
+  /// The host's pass that found the image ready, where it lays the shadows.
+  int _readyPass = -1;
 
   /// Records [record]'s [shadows] of [rect], which reach [bounds], unless
   /// they are those it holds.
@@ -153,16 +155,14 @@ class _LiquidGlassShadowLayer extends Layer {
   /// Lays the shadows where [toDevice] puts them, for this pass of the host.
   void align(Matrix4 toDevice) {
     final paths = _paths;
-    if (paths == null) {
-      return;
-    }
-    _alignedPass = _LiquidGlassHostLayer._pass;
-    if (!_image.update(
-      _bounds,
-      toDevice,
-      paths,
-      (canvas) => canvas.drawPicture(paths),
-    )) {
+    if (paths == null ||
+        !_image.update(
+          _bounds,
+          toDevice,
+          paths,
+          (canvas) => canvas.drawPicture(paths),
+        )) {
+      // The image left from before shows where the pane was.
       return;
     }
     final image = _image.image;
@@ -173,16 +173,13 @@ class _LiquidGlassShadowLayer extends Layer {
       _copy = recorder.endRecording();
       _copied = image;
     }
+    _readyPass = _LiquidGlassHostLayer._pass;
   }
 
   /// What it draws: the image while the host keeps it on the device's
   /// pixels, the paths otherwise.
   ui.Picture? get picture =>
-      _alignedPass == _LiquidGlassHostLayer._pass &&
-          identical(_copied, _image.image) &&
-          _image.image != null
-      ? _copy
-      : _paths;
+      _readyPass == _LiquidGlassHostLayer._pass ? _copy : _paths;
 
   /// The shadows as painted.
   ui.Picture? get paths => _paths;
@@ -248,7 +245,9 @@ extension on _LiquidGlassLayer {
   /// it is ready; null for their paths. The tint stays a path: an image of
   /// it would round its every pixel to the image's eight bits.
   ui.Image? _frostImage(Matrix4 toDevice) {
-    if (!_drawsFromImages) {
+    // A menu's or an alert's shine adds its light to what lies under it,
+    // which an image laid over would not.
+    if (!_drawsFromImages || rim != null) {
       return null;
     }
     // A stroke reaches past an outline, where the frost's clip ends it.

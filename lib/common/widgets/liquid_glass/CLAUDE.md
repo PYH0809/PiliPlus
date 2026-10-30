@@ -16,7 +16,8 @@ turns on every glass part. It only takes effect after a restart.
   every frame, so Skia would mask and blur every pane's shadows and stroke its rims again each frame. A pane's
   shadows go into a layer of their own, which the host lays on whole device pixels, and the frost's rims into the
   pane's capture, each drawn once into an image after two frames asking for the same, so a pane on the move keeps its
-  paths. The tint stays a path. `ext.piliplus.glassImages?on=` turns it on or off to measure.
+  paths. The tint stays a path, and so do the rims of a pane with a `LiquidGlassRim`, whose shine adds its light.
+  `ext.piliplus.glassImages?on=` turns it on or off to measure.
 - **Over the video** the host sees nothing: the video is a texture, not a picture it can replay. `VideoGlass` is a
   backdrop filter instead: an engine blur, shared by the panes of a `BackdropGroup`, and nested in it the glass
   shader, which bends and tints the blur (`liquidGlassProgram`, `liquidGlassLook`). Without shader filters it

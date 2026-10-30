@@ -3,6 +3,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_panel.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:flutter/rendering.dart';
@@ -34,8 +35,12 @@ class _Stripes extends CustomPainter {
 final _boundary = GlobalKey();
 
 /// A pill with shadows over stripes, [left] off a whole pixel, as layout
-/// leaves panes.
-Widget _app({double left = 40.5, Brightness brightness = Brightness.light}) {
+/// leaves panes; or a menu's [panel], whose rim shines.
+Widget _app({
+  double left = 40.5,
+  Brightness brightness = Brightness.light,
+  bool panel = false,
+}) {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: Colors.blue,
     brightness: brightness,
@@ -56,10 +61,18 @@ Widget _app({double left = 40.5, Brightness brightness = Brightness.light}) {
           top: 60.25,
           width: 200,
           height: 48,
-          child: LiquidGlass(
-            style: LiquidGlassStyle.regular(colorScheme),
-            shadows: floatingGlassShadows(colorScheme),
-          ),
+          child: panel
+              ? GlassPanel(
+                  style: LiquidGlassStyle.menu(colorScheme),
+                  radius: 24,
+                  rim: LiquidGlassRim.menu(colorScheme),
+                  shadows: menuShadows(colorScheme),
+                  child: const SizedBox.expand(),
+                )
+              : LiquidGlass(
+                  style: LiquidGlassStyle.regular(colorScheme),
+                  shadows: floatingGlassShadows(colorScheme),
+                ),
         ),
       ],
     ),
@@ -138,6 +151,46 @@ void main() {
     await _frame(tester);
     expect(LiquidGlassHost.debugDeviceImages, greaterThan(before));
   });
+
+  testWidgets(
+    'a pane drawn from images that moves casts its shadows where it is',
+    (tester) async {
+      _view(tester);
+      LiquidGlassHost.debugImagesOverride = false;
+      await tester.pumpWidget(_app(left: 60));
+      await _frame(tester);
+      final paths = await _pixels(tester);
+
+      LiquidGlassHost.debugImagesOverride = true;
+      await tester.pumpWidget(_app());
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImages, greaterThan(0));
+      // One frame on the move draws the paths, where the pane now is.
+      await tester.pumpWidget(_app(left: 60));
+      expect(_largestDifference(paths, await _pixels(tester)), 0);
+    },
+    skip: ui.ImageFilter.isShaderFilterSupported,
+  );
+
+  testWidgets(
+    "a menu's rim, which adds its shine, stays a path",
+    (tester) async {
+      _view(tester);
+      final before = LiquidGlassHost.debugDeviceImages;
+      await tester.pumpWidget(_app(panel: true));
+      await tester.pumpWidget(_app(left: 41, panel: true));
+      await tester.pumpWidget(_app(panel: true));
+      final paths = await _pixels(tester);
+      await _frame(tester);
+      // The shadows alone.
+      expect(LiquidGlassHost.debugDeviceImages - before, 1);
+      expect(
+        _largestDifference(paths, await _pixels(tester)),
+        lessThanOrEqualTo(2),
+      );
+    },
+    skip: ui.ImageFilter.isShaderFilterSupported,
+  );
 
   for (final brightness in Brightness.values) {
     testWidgets(
