@@ -777,6 +777,7 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    _keptLinks = false;
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();
@@ -882,6 +883,10 @@ class VideoDetailController extends GetxController
 
   bool _reopening = false;
 
+  /// Whether fresh links wait in [videoUrl] and [audioUrl], fetched while the
+  /// page was covered or the app in the background, for the next play.
+  bool _keptLinks = false;
+
   /// Counts requests for links, so that a refresh outrun by another, as on a
   /// change of part or of dubbing language, drops what it gets.
   int _linksRequest = 0;
@@ -896,6 +901,20 @@ class VideoDetailController extends GetxController
   Future<void> _reopenExpiredSource({bool fromStart = false}) async {
     // A second press while the links come leaves it to the first.
     if (_reopening) return;
+    // Links fetched earlier but kept, as the app had gone to the background,
+    // open now if they are still good.
+    if (_keptLinks) {
+      final kept = SourceExpiry(
+        NetworkSource(videoSource: videoUrl!, audioSource: audioUrl),
+        _linksFetchedAt!,
+      );
+      if (!kept.isExpiredAt(PlPlayerController.clock())) {
+        if (fromStart) playedTime = Duration.zero;
+        _autoPlay.value = true;
+        playerInit();
+        return;
+      }
+    }
     _reopening = true;
     final cid = this.cid.value;
     final request = ++_linksRequest;
@@ -938,6 +957,8 @@ class VideoDetailController extends GetxController
               ..isBuffering.value = false
               ..buffered.value = 0;
             playerInit();
+          } else {
+            _keptLinks = true;
           }
         case Success():
           SmartDialog.showToast('视频链接已过期，请重新打开视频');

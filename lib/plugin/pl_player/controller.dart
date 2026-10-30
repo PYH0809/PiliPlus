@@ -1278,7 +1278,12 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   /// 播放视频
   Future<void> play({bool repeat = false, bool hideControls = true}) async {
     if (_playerCount == 0) return;
-    if (reopenIfExpired(fromStart: repeat)) return;
+    // A finished video plays again from the start, as from the media card.
+    if (reopenIfExpired(
+      fromStart: repeat || (_videoPlayerController?.state.completed ?? false),
+    )) {
+      return;
+    }
     // 播放时自动隐藏控制条
     controls = !hideControls;
     // repeat为true，将从头播放
