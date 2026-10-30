@@ -566,8 +566,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// A player that waited out a call or the like no longer does: it plays on
   /// as the call ends, which takes a moment, or it never will, such as with
   /// focus lost for good. Either way the clock starts again, so that the card
-  /// neither goes meanwhile nor before its full time.
-  void onWaitOver() => _restartPausedCardClock();
+  /// neither goes meanwhile nor before its full time. A pause still on its
+  /// way to the card came from the wait, not from before a swipe.
+  void onWaitOver() {
+    _taskRemovedAt = null;
+    _restartPausedCardClock();
+  }
 
   void _onPausedCardTimeout() {
     if (_waitsToPlayOn) {

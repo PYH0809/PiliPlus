@@ -539,6 +539,36 @@ void main() {
     );
   });
 
+  test('a short call around a swipe keeps the card, though its pause reaches '
+      'the card after the call', () async {
+    var waits = false;
+    handler.waitsToPlayOn = () => waits;
+    addTearDown(() => handler.waitsToPlayOn = null);
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    // Such as a notification sound: it pauses the player, the app is swiped
+    // away, and it is over before the pause reaches the card.
+    waits = true;
+    await handler.onTaskRemoved();
+    waits = false;
+    handler
+      ..onWaitOver()
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 180),
+        speed: 1,
+      );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
   test('a card paused while it buffers, which it shows as playing, still goes '
       'in its own time and with the swipe', () async {
     handler.pausedCardLifetime = const Duration(milliseconds: 30);
