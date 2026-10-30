@@ -285,7 +285,8 @@ class AudioController extends GetxController
       ..onSeek = onSeek
       ..onSkipToNext = playNext
       ..onSkipToPrevious = playPrev
-      ..waitsToPlayOn = _waitsToPlayOn;
+      ..waitsToPlayOn = _waitsToPlayOn
+      ..aboutToPlay = isPlayingOrPending;
   }
 
   bool _waitsToPlayOn() => _playInterrupted;
@@ -300,7 +301,8 @@ class AudioController extends GetxController
       ..onSeek = null
       ..onSkipToNext = null
       ..onSkipToPrevious = null
-      ..waitsToPlayOn = null;
+      ..waitsToPlayOn = null
+      ..aboutToPlay = null;
   }
 
   bool isPlaying() {

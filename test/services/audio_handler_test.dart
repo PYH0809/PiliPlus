@@ -446,26 +446,71 @@ void main() {
     );
   });
 
-  test('a card that shows paused stays through a call when its player waits '
-      'to play on after it, such as 听视频 waiting for the next one', () async {
+  test('a card that shows paused stays through a swipe while its player '
+      'waits out a call to play on after it', () async {
     addTearDown(() => handler.waitsToPlayOn = null);
     handler
       ..onVideoDetailChange(item(), 1, 'audio')
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 180),
+        speed: 1,
+        canSkip: true,
+      )
+      // Such as 听视频 asking for the next one's address as a call begins.
+      ..waitsToPlayOn = (() => true);
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a swipe leaves a card that has played one through, as the next one '
+      'may follow by itself', () async {
+    handler
+      ..onVideoDetailChange(item(), 1, 'video')
       ..onUpdateState(
         .completed,
         false,
         false,
         position: const Duration(seconds: 1319),
         speed: 1,
-        canSkip: true,
-      )
-      // A call begins while the next one loads.
-      ..waitsToPlayOn = (() => true);
+      );
     await handler.onTaskRemoved();
 
     expect(
       handler.playbackState.value.processingState,
       AudioProcessingState.completed,
+    );
+  });
+
+  test('a swipe leaves 听视频\'s card while it is about to play, such as with '
+      'the next one\'s address on its way, the late pause too', () async {
+    addTearDown(() => handler.aboutToPlay = null);
+    handler
+      ..onVideoDetailChange(item(), 1, 'audio')
+      ..aboutToPlay = (() => true);
+    play(canSkip: true);
+
+    await handler.onTaskRemoved();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
     );
   });
 

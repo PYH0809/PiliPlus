@@ -545,7 +545,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
           taskRemovedAt != null &&
           DateTime.now().difference(taskRemovedAt) < _latePause;
       _pausedCardTimer = Timer(
-        swipedAway ? .zero : pausedCardLifetime,
+        swipedAway && !_swipeLeaves(state) ? .zero : pausedCardLifetime,
         _onPausedCardTimeout,
       );
     }
@@ -554,6 +554,9 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// Whether 听视频 waits out a call or the like, to play on by itself after
   /// it. A video tells through the audio session.
   bool Function()? waitsToPlayOn;
+
+  /// Whether 听视频 plays or is about to, such as while the next one loads.
+  bool Function()? aboutToPlay;
 
   /// Whether a player waits out a call or the like, to play on by itself
   /// after it, from the background. A paused card stays meanwhile: had it
@@ -610,13 +613,21 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
   }
 
-  /// Swiped away from recents, a paused card goes at once; a playing one
-  /// stays, playing on in the background, and so does one whose player waits
-  /// out a call or the like.
+  /// Whether a swipe leaves the paused card, as its player may still play on
+  /// by itself, from the background: it waits out a call or the like, it has
+  /// played one through and may go on to the next, or 听视频 is about to play.
+  /// The clock still bounds it.
+  bool _swipeLeaves(PlaybackState state) =>
+      _waitsToPlayOn ||
+      state.processingState == .completed ||
+      (aboutToPlay?.call() ?? false);
+
+  /// Swiped away from recents, a paused card goes at once, unless
+  /// [_swipeLeaves] it; a playing one stays, playing on in the background.
   @override
   Future<void> onTaskRemoved() async {
     _taskRemovedAt = DateTime.now();
-    if (!_waitsToPlayOn) _endPausedCard();
+    if (!_swipeLeaves(playbackState.value)) _endPausedCard();
   }
 
   void clear() {
