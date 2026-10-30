@@ -154,11 +154,16 @@ abstract final class VideoUtils {
   ) {
     assert(videoList.isNotEmpty);
 
-    final targetQuality = _findAvailableVideoQuality(
+    var targetQuality = _findAvailableVideoQuality(
       videoList,
       acceptQuality,
       preferQuality,
     );
+    // Accepted but missing from the links, as when the request for the
+    // missing qualities failed: the nearest quality the links carry.
+    if (!videoList.any((e) => e.id == targetQuality)) {
+      targetQuality = videoList.findTargetMedia((e) => e.id, targetQuality).id;
+    }
 
     final targetFormat = supportFormats.firstWhere(
       (e) => e.quality == targetQuality,

@@ -921,7 +921,12 @@ class VideoDetailController extends GetxController
         _linksFetchedAt!,
       );
       if (!kept.isExpiredAt(PlPlayerController.clock())) {
-        if (fromStart) playedTime = Duration.zero;
+        // Where it stands now, as it may have been seeked from the media card
+        // since the links were kept.
+        playedTime = fromStart
+            ? Duration.zero
+            : plPlayerController.videoPlayerController?.state.position ??
+                  playedTime;
         _autoPlay.value = true;
         playerInit();
         return;
