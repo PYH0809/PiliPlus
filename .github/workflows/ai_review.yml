@@ -6,7 +6,8 @@ name: AI Review
 # own agent, through OpenRouter, so the job needs the repository secret
 # OPENROUTER_API_KEY and skips without it. The repository variable
 # AI_REVIEW_MODEL picks another OpenRouter model. The review's footer gives the
-# tokens Codex logged and what they cost at OpenRouter's list price.
+# tokens Codex logged, what they cost at OpenRouter's list price, and what is
+# left on the key.
 #
 # It reviews on its own only the pull requests the repository owner opens, so
 # no one else's PR, or flood of them, spends the key. Anyone else's is reviewed
@@ -198,6 +199,7 @@ jobs:
               env:
                   FINAL_MESSAGE: ${{ steps.codex.outputs.final-message }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha || steps.head.outputs.sha }}
+                  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
               with:
                   script: |
                       const fs = require('fs');
@@ -300,10 +302,40 @@ jobs:
                           core.warning(`No price for ${process.env.MODEL}: ${error.message}`);
                         }
                       }
+                      // What is left on the key, from OpenRouter's key
+                      // endpoint. Its usage can trail this review's spend by
+                      // a little.
+                      let left = null;
+                      try {
+                        const response = await fetch('https://openrouter.ai/api/v1/key', {
+                          headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+                          signal: AbortSignal.timeout(10000),
+                        });
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        const key = (await response.json()).data;
+                        // null is a key without a limit; a missing field is not.
+                        if (!key || !('limit' in key)) throw new Error('no limit in the response');
+                        const usd = (n) => {
+                          if (n == null || !Number.isFinite(Number(n))) throw new Error(`not an amount: ${n}`);
+                          return `$${Number(n).toFixed(2)}`;
+                        };
+                        if (key.limit === null) {
+                          left = `key 不限额，本月已用 ${usd(key.usage_monthly)}`;
+                        } else {
+                          // Likewise, a null limit_reset never resets; a missing one is unknown.
+                          if (!('limit_reset' in key)) throw new Error('no limit_reset in the response');
+                          const period = { daily: '每天重置', weekly: '每周重置', monthly: '每月重置' }[key.limit_reset];
+                          const reset = key.limit_reset === null ? '' : `，${period ?? `重置周期 ${key.limit_reset}`}`;
+                          left = `key 额度剩 ${usd(key.limit_remaining)} / ${usd(key.limit)}${reset}`;
+                        }
+                      } catch (error) {
+                        core.warning(`No key limit: ${error.message}`);
+                      }
                       const tokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : `${n}`);
                       const credit = [`由 \`${process.env.MODEL}\` 经 OpenRouter 审查`];
                       if (counted) credit.push(`输入 ${tokens(usage.input)}（缓存 ${tokens(usage.cached)}）/ 输出 ${tokens(usage.output)} token`);
                       if (cost != null && Number.isFinite(cost)) credit.push(`约 $${cost.toFixed(cost < 0.1 ? 4 : 2)}`);
+                      if (left) credit.push(left);
                       const footer = ['', '---', `_${credit.join(' · ')}_`];
 
                       const review = {
