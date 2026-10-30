@@ -918,6 +918,9 @@ class VideoDetailController extends GetxController
     _reopening = true;
     final cid = this.cid.value;
     final request = ++_linksRequest;
+    // Pressed in the background (the lock screen's card, a headset), play
+    // was asked for there, so it plays there.
+    final askedInFront = WidgetsBinding.instance.lifecycleState == .resumed;
     // Where this video stood, before another page might take the player.
     final position = plPlayerController.videoPlayerController?.state.position;
     bool movedOn() =>
@@ -944,9 +947,11 @@ class VideoDetailController extends GetxController
           // as when a membership ran out meanwhile.
           _pickTargetLinks(response.dash!);
           // Played on only where the user still is: covered by another page,
-          // or in the background without background play, the links are kept
-          // for coming back, as didPopNext opens them.
+          // or gone to the background since pressing play, without
+          // background play, the links are kept for the next play, or for
+          // coming back, as didPopNext opens them.
           final foreground =
+              !askedInFront ||
               WidgetsBinding.instance.lifecycleState == .resumed ||
               plPlayerController.continuePlayInBackground.value ||
               (Platform.isIOS && IOSPipHelper.isActive) ||
