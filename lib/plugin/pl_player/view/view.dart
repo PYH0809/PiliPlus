@@ -359,10 +359,12 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
           _pauseDueToPauseUponEnteringBackgroundMode = true;
           player.pause();
         }
-      } else {
+      } else if (state == .resumed) {
+        // Only once back in front: links fetched afresh on the way through
+        // hidden and inactive would otherwise be kept rather than played.
         if (_pauseDueToPauseUponEnteringBackgroundMode) {
           _pauseDueToPauseUponEnteringBackgroundMode = false;
-          player?.play();
+          if (!plPlayerController.reopenIfExpired()) player?.play();
         }
       }
     }

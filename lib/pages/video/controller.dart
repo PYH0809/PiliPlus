@@ -55,11 +55,13 @@ import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
+import 'package:PiliPlus/utils/ios/pip_helper.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/reply_scheme_helper.dart';
@@ -701,7 +703,11 @@ class VideoDetailController extends GetxController
 
   VideoItem findVideoByQa(int qa, {bool setCodecs = false}) {
     /// 根据currentVideoQa和currentDecodeFormats 重新设置videoUrl
-    final videoList = data.dash!.video!.where((i) => i.id == qa).toList();
+    var videoList = data.dash!.video!.where((i) => i.id == qa).toList();
+    // The quality is gone from the links, as when they were fetched afresh
+    // after a membership ran out: any stream will do, the caller showing its
+    // quality.
+    if (videoList.isEmpty) videoList = data.dash!.video!;
 
     final currentCodes = currentDecodeFormats.codes;
     VideoItem? bestVideo;
@@ -744,13 +750,22 @@ class VideoDetailController extends GetxController
       ..buffered.value = 0;
 
     firstVideo = findVideoByQa(currentVideoQa.code, setCodecs: true);
+    if (firstVideo.id != currentVideoQa.code) {
+      this.currentVideoQa.value = VideoQuality.fromCode(firstVideo.id);
+    }
     videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
 
     /// 根据currentAudioQa 重新设置audioUrl
-    if (currentAudioQa != null) {
-      final firstAudio = data.dash!.audio!.firstWhere(
+    final audioList = data.dash!.audio;
+    if (audioList == null || audioList.isEmpty) {
+      // The links carry no audio of their own, as fresh ones may not: an
+      // audio quality picked from a menu opened before is let go.
+      audioUrl = '';
+      currentAudioQa = null;
+    } else if (currentAudioQa != null) {
+      final firstAudio = audioList.firstWhere(
         (i) => i.id == currentAudioQa!.code,
-        orElse: () => data.dash!.audio!.first,
+        orElse: () => audioList.first,
       );
       audioUrl = VideoUtils.getCdnUrl(firstAudio.playUrls, isAudio: true);
     }
@@ -775,6 +790,7 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    _keptLinks = false;
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();
@@ -812,6 +828,11 @@ class VideoDetailController extends GetxController
       volume: volume,
       autoFullScreenFlag: autoFullScreenFlag,
       rotate: _rotate,
+      // DASH only: the rare durl source keeps playing on as before.
+      onSourceExpired: isFileSource || data.dash == null
+          ? null
+          : _reopenExpiredSource,
+      sourceFetchedAt: _linksFetchedAt,
     );
 
     if (isClosed) return;
@@ -831,6 +852,171 @@ class VideoDetailController extends GetxController
     }
 
     defaultST = null;
+  }
+
+  /// When the open links were fetched, which judges when they run out: links
+  /// opened again later, as on coming back to this page, keep their age.
+  DateTime? _linksFetchedAt;
+
+  /// Picks the video stream for the cached quality and [codecs] (by default
+  /// the preferred ones), falling back as the links allow, and the audio
+  /// stream, from [dash], [data]'s.
+  void _pickTargetLinks(Dash dash, {List<VideoDecodeFormatType>? codecs}) {
+    final cacheVideoQa = plPlayerController.cacheVideoQa!;
+    final (
+      int targetQuality,
+      FormatItem targetFormat,
+      VideoDecodeFormatType targetDecode,
+      VideoItem targetVideo,
+    ) = VideoUtils.findTargetVideo(
+      dash.video!,
+      cacheVideoQa,
+      data.acceptQuality,
+      data.supportFormats!,
+      codecs ?? preferCodecs,
+    );
+    firstVideo = targetVideo;
+    currentDecodeFormats = targetDecode;
+    currentVideoQa.value = VideoQuality.fromCode(targetQuality);
+    _setVideoHeight();
+    videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
+
+    AudioItem? firstAudio;
+    final audioList = dash.audio;
+    if (audioList != null && audioList.isNotEmpty) {
+      firstAudio = VideoUtils.findTargetAudio(
+        audioList,
+        plPlayerController.cacheAudioQa,
+      );
+      audioUrl = VideoUtils.getCdnUrl(firstAudio.playUrls, isAudio: true);
+      currentAudioQa = AudioQuality.fromCode(firstAudio.id);
+    } else {
+      audioUrl = '';
+      // No audio of its own: no audio quality to offer either.
+      currentAudioQa = null;
+    }
+  }
+
+  bool _reopening = false;
+
+  /// Whether fresh links wait in [videoUrl] and [audioUrl], fetched while the
+  /// page was covered or the app in the background, for the next play.
+  bool _keptLinks = false;
+
+  /// Counts requests for links, so that a refresh outrun by another, as on a
+  /// change of part or of dubbing language, drops what it gets.
+  int _linksRequest = 0;
+
+  /// Whether this page is the one on screen, not covered by another page.
+  bool isPageShowing = true;
+
+  /// Fetches fresh links for what is open, at the quality it plays, and
+  /// opens them where it stood, or from the start with [fromStart], playing:
+  /// the old ones ran out while it was paused. Only the links are fetched, so that a part opened meanwhile
+  /// fetches its own as usual.
+  Future<void> _reopenExpiredSource({bool fromStart = false}) async {
+    // A second press while the links come leaves it to the first; and while
+    // another part loads, or the player still holds the part before it,
+    // that part's own query opens it.
+    if (_reopening || isQuerying || plPlayerController.cid != this.cid.value) {
+      return;
+    }
+    // Links fetched earlier but kept, as the app had gone to the background,
+    // open now if they are still good.
+    if (_keptLinks && videoUrl != null && _linksFetchedAt != null) {
+      final kept = SourceExpiry(
+        NetworkSource(videoSource: videoUrl!, audioSource: audioUrl),
+        _linksFetchedAt!,
+      );
+      if (!kept.isExpiredAt(PlPlayerController.clock())) {
+        // Where it stands now, as it may have been seeked from the media card
+        // since the links were kept.
+        playedTime = fromStart
+            ? Duration.zero
+            : plPlayerController.videoPlayerController?.state.position ??
+                  playedTime;
+        _autoPlay.value = true;
+        playerInit();
+        return;
+      }
+    }
+    _reopening = true;
+    final cid = this.cid.value;
+    final request = ++_linksRequest;
+    // Pressed in the background (the lock screen's card, a headset), play
+    // was asked for there, so it plays there.
+    final askedInFront = WidgetsBinding.instance.lifecycleState == .resumed;
+    // Likewise from the media card with another page over this one.
+    final askedShowing = isPageShowing;
+    // Where this video stood, before another page might take the player.
+    final position = plPlayerController.videoPlayerController?.state.position;
+    bool movedOn() =>
+        isClosed || this.cid.value != cid || _linksRequest != request;
+    try {
+      final result = await _getVideoUrl(VideoQuality.hdrVivid.code);
+      if (movedOn()) return;
+      switch (result) {
+        case Success(:final response) when response.dash != null:
+          // Completed on the response itself, so that nothing reaches the
+          // page's data if the user moved on meanwhile.
+          await _supplementVideoQualities(response);
+          if (movedOn()) return;
+          data = response;
+          _linksFetchedAt = PlPlayerController.clock();
+          // Where it stands now, as the user may have seeked meanwhile, if
+          // the player is still this page's; else where it stood.
+          // The player is this page's still: not taken by another, as by the
+          // page under this one while this one leaves, and not left since
+          // play was pressed on it.
+          final ownsPlayer =
+              PlPlayerController.playOwner?.tag == heroTag &&
+              (isPageShowing || !askedShowing);
+          final now = ownsPlayer
+              ? plPlayerController.videoPlayerController?.state.position
+              : position;
+          // A replay starts over, unless the user seeked meanwhile.
+          playedTime = fromStart && now == position ? Duration.zero : now;
+          // As a normal query picks them: the quality may have to fall back,
+          // as when a membership ran out meanwhile.
+          // Keeping the decoding format the user may have picked in the menu.
+          _pickTargetLinks(
+            response.dash!,
+            codecs: [
+              currentDecodeFormats,
+              for (final codec in preferCodecs)
+                if (codec != currentDecodeFormats) codec,
+            ],
+          );
+          // Played on only where the user still is: covered by another page,
+          // or gone to the background since pressing play, without
+          // background play, the links are kept for the next play, or for
+          // coming back, as didPopNext opens them.
+          // On a computer an unfocused window is inactive, not gone.
+          final foreground =
+              !PlatformUtils.isMobile ||
+              !askedInFront ||
+              WidgetsBinding.instance.lifecycleState == .resumed ||
+              plPlayerController.continuePlayInBackground.value ||
+              (Platform.isIOS && IOSPipHelper.isActive) ||
+              (Platform.isAndroid && AndroidHelper.isPipMode);
+          if (ownsPlayer && foreground) {
+            _autoPlay.value = true;
+            plPlayerController
+              ..isBuffering.value = false
+              ..buffered.value = 0;
+            playerInit();
+          } else {
+            _keptLinks = true;
+          }
+        case Success():
+          SmartDialog.showToast('视频链接已过期，请重新打开视频');
+        case Error():
+          result.toast();
+        case Loading():
+      }
+    } finally {
+      _reopening = false;
+    }
   }
 
   bool isQuerying = false;
@@ -861,7 +1047,8 @@ class VideoDetailController extends GetxController
     );
   }
 
-  Future<void> _supplementVideoQualities() async {
+  Future<void> _supplementVideoQualities([PlayUrlModel? into]) async {
+    final data = into ?? this.data;
     final quality = data.missingVideoQualityBelowHighest;
     if (quality == -1) return;
     final result = await _getVideoUrl(quality);
@@ -885,6 +1072,7 @@ class VideoDetailController extends GetxController
       return;
     }
     isQuerying = true;
+    _linksRequest++;
     try {
       await _queryVideoUrl(fromReset, autoFullScreenFlag);
     } finally {
@@ -914,6 +1102,7 @@ class VideoDetailController extends GetxController
     final result = await _getVideoUrl(VideoQuality.hdrVivid.code);
 
     if (result case Success(:final response)) {
+      _linksFetchedAt = PlPlayerController.clock();
       data = response;
       if (data.dash != null) await _supplementVideoQualities();
 
@@ -989,37 +1178,7 @@ class VideoDetailController extends GetxController
         }
       }
 
-      final cacheVideoQa = plPlayerController.cacheVideoQa!;
-      final (
-        int targetQuality,
-        FormatItem targetFormat,
-        VideoDecodeFormatType targetDecode,
-        VideoItem targetVideo,
-      ) = VideoUtils.findTargetVideo(
-        dash.video!,
-        cacheVideoQa,
-        response.acceptQuality,
-        response.supportFormats!,
-        preferCodecs,
-      );
-      firstVideo = targetVideo;
-      currentDecodeFormats = targetDecode;
-      currentVideoQa.value = VideoQuality.fromCode(targetQuality);
-      _setVideoHeight();
-      videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
-
-      AudioItem? firstAudio;
-      final audioList = dash.audio;
-      if (audioList != null && audioList.isNotEmpty) {
-        firstAudio = VideoUtils.findTargetAudio(
-          audioList,
-          plPlayerController.cacheAudioQa,
-        );
-        audioUrl = VideoUtils.getCdnUrl(firstAudio.playUrls, isAudio: true);
-        currentAudioQa = AudioQuality.fromCode(firstAudio.id);
-      } else {
-        audioUrl = '';
-      }
+      _pickTargetLinks(dash);
       await initPlayerIfNeeded(autoFullScreenFlag);
     } else {
       _autoPlay.value = false;
@@ -1307,6 +1466,7 @@ class VideoDetailController extends GetxController
     defaultST = null;
     videoUrl = null;
     audioUrl = null;
+    _keptLinks = false;
 
     // danmaku
     savedDanmaku = null;

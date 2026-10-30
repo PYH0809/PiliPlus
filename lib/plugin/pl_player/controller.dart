@@ -728,10 +728,16 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     Volume? volume,
     bool autoFullScreenFlag = false,
     int? rotate,
+    Future<void> Function({bool fromStart})? onSourceExpired,
+    DateTime? sourceFetchedAt,
   }) async {
     try {
       _processing = true;
       this.isLive = isLive;
+      _onSourceExpired = onSourceExpired;
+      _sourceExpiry = onSourceExpired == null
+          ? null
+          : SourceExpiry(dataSource, sourceFetchedAt ?? clock());
       _videoType = videoType ?? VideoType.ugc;
       this.width = width;
       this.height = height;
@@ -1245,9 +1251,39 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     }
   }
 
+  /// The time [reopenIfExpired] goes by, moved on by the `clock` debug command
+  /// to try it without waiting hours.
+  static DateTime Function() clock = DateTime.now;
+
+  Future<void> Function({bool fromStart})? _onSourceExpired;
+  SourceExpiry? _sourceExpiry;
+
+  /// Opens the source afresh through its page, playing from where it stood,
+  /// instead of playing on, when its links have run out while it was paused:
+  /// the player would play what it had buffered and stop there, its progress
+  /// still moving, or from the start with [fromStart], to play it again. True
+  /// if it did.
+  bool reopenIfExpired({bool fromStart = false}) {
+    final onExpired = _onSourceExpired;
+    if (onExpired == null ||
+        isLive ||
+        _playerCount == 0 ||
+        !(_sourceExpiry?.isExpiredAt(clock()) ?? false)) {
+      return false;
+    }
+    onExpired(fromStart: fromStart);
+    return true;
+  }
+
   /// 播放视频
   Future<void> play({bool repeat = false, bool hideControls = true}) async {
     if (_playerCount == 0) return;
+    // A finished video plays again from the start, as from the media card.
+    if (reopenIfExpired(
+      fromStart: repeat || (_videoPlayerController?.state.completed ?? false),
+    )) {
+      return;
+    }
     // 播放时自动隐藏控制条
     controls = !hideControls;
     // repeat为true，将从头播放
@@ -1407,9 +1443,10 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   // 双击播放、暂停
   Future<void> onDoubleTapCenter() async {
     if (!isLive && isCompleted) {
+      if (reopenIfExpired(fromStart: true)) return;
       await videoPlayerController!.seek(Duration.zero);
       videoPlayerController!.play();
-    } else {
+    } else if (videoPlayerController!.state.playing || !reopenIfExpired()) {
       videoPlayerController!.playOrPause();
     }
   }
