@@ -506,10 +506,23 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   Duration pausedCardLifetime = const Duration(minutes: 10);
   Timer? _pausedCardTimer;
 
+  /// The players tell the card of a pause half a second late, so a pause it
+  /// hears of this soon after the app is swiped away from recents came before
+  /// the swipe, or from it.
+  static const _latePause = Duration(seconds: 1);
+  DateTime? _taskRemovedAt;
+
   void _onPlaybackState(PlaybackState state) {
     _pausedCardTimer?.cancel();
     if (!state.playing && state.processingState != .idle) {
-      _pausedCardTimer = Timer(pausedCardLifetime, _endPausedCard);
+      final taskRemovedAt = _taskRemovedAt;
+      final swipedAway =
+          taskRemovedAt != null &&
+          DateTime.now().difference(taskRemovedAt) < _latePause;
+      _pausedCardTimer = Timer(
+        swipedAway ? .zero : pausedCardLifetime,
+        _endPausedCard,
+      );
     }
   }
 
@@ -524,7 +537,10 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// Swiped away from recents, a paused card goes at once; a playing one
   /// stays, playing on in the background.
   @override
-  Future<void> onTaskRemoved() async => _endPausedCard();
+  Future<void> onTaskRemoved() async {
+    _taskRemovedAt = DateTime.now();
+    _endPausedCard();
+  }
 
   void clear() {
     if (!enableBackgroundPlay) return;
@@ -532,6 +548,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     _item.clear();
     _lastPos = null;
     _lastConfig = null;
+    _taskRemovedAt = null;
     /**
      * if (playbackState.processingState == AudioProcessingState.idle &&
             previousState?.processingState != AudioProcessingState.idle) {

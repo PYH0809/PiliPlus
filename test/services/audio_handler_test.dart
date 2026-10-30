@@ -311,6 +311,29 @@ void main() {
     );
   });
 
+  test('a pause that reaches the card just after the app is swiped away '
+      'takes the card away too', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    await handler.onTaskRemoved();
+    // The players tell the card of a pause half a second late, such as one
+    // from opening recents just before the swipe.
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
   test('leaving the page takes the card away', () {
     handler.onVideoDetailChange(item(), 1, 'audio');
     play(canSkip: true);
