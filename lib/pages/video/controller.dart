@@ -886,6 +886,8 @@ class VideoDetailController extends GetxController
       currentAudioQa = AudioQuality.fromCode(firstAudio.id);
     } else {
       audioUrl = '';
+      // No audio of its own: no audio quality to offer either.
+      currentAudioQa = null;
     }
   }
 
