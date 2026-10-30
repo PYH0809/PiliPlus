@@ -703,7 +703,11 @@ class VideoDetailController extends GetxController
 
   VideoItem findVideoByQa(int qa, {bool setCodecs = false}) {
     /// 根据currentVideoQa和currentDecodeFormats 重新设置videoUrl
-    final videoList = data.dash!.video!.where((i) => i.id == qa).toList();
+    var videoList = data.dash!.video!.where((i) => i.id == qa).toList();
+    // The quality is gone from the links, as when they were fetched afresh
+    // after a membership ran out: any stream will do, the caller showing its
+    // quality.
+    if (videoList.isEmpty) videoList = data.dash!.video!;
 
     final currentCodes = currentDecodeFormats.codes;
     VideoItem? bestVideo;
@@ -746,6 +750,9 @@ class VideoDetailController extends GetxController
       ..buffered.value = 0;
 
     firstVideo = findVideoByQa(currentVideoQa.code, setCodecs: true);
+    if (firstVideo.id != currentVideoQa.code) {
+      this.currentVideoQa.value = VideoQuality.fromCode(firstVideo.id);
+    }
     videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
 
     /// 根据currentAudioQa 重新设置audioUrl
