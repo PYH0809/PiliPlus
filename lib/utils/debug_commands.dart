@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:PiliPlus/common/widgets/frame_stats.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/pages/audio/backdrop/audio_backdrop.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
@@ -34,6 +35,9 @@ import 'package:get/get.dart';
 /// - `ext.piliplus.audioBackdropFps?value=`: how often 听视频's background
 ///   moves, to measure what the glass over it costs at each rate; no value
 ///   for the default.
+/// - `ext.piliplus.glassImages?on=`: whether glass draws its shadows and
+///   its frost's rims from images, `true` or `false`; no value for
+///   the renderer's choice, only without Impeller. Everything repaints.
 /// - `ext.piliplus.frames?seconds=`: draws a frame every vsync for that long,
 ///   though nothing changed, and answers once done: the overlay then counts
 ///   what the screen costs a frame, as a video's every new frame redraws it,
@@ -58,6 +62,21 @@ abstract final class DebugCommands {
       final fps = int.tryParse(params['value'] ?? '');
       AudioBackdrop.debugFps.value = fps;
       return '${AudioBackdrop.currentFps}';
+    });
+    _register('glassImages', (params) async {
+      LiquidGlassHost.debugImagesOverride = switch (params['on']) {
+        'true' => true,
+        'false' => false,
+        _ => null,
+      };
+      void repaint(RenderObject object) {
+        object
+          ..markNeedsPaint()
+          ..visitChildren(repaint);
+      }
+
+      RendererBinding.instance.renderViews.forEach(repaint);
+      return '${LiquidGlassHost.debugImagesOverride}';
     });
     _register('open', (params) async {
       final url = params['url'];
