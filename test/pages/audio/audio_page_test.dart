@@ -21,6 +21,7 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
@@ -693,6 +694,19 @@ void main() {
         expect(controller.calls, isEmpty);
       });
 
+      testWidgets('$mode: a tap at the sides of the page switches too', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        final y = tester.getCenter(cover).dy;
+        await tester.tapAt(Offset(8, y));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+        await tester.tapAt(Offset(_width - 8, y));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+      });
+
       testWidgets('$mode: a tap between two lines goes back', (tester) async {
         final controller = await _pump(tester, glass: glass);
         await tester.tap(cover);
@@ -802,6 +816,67 @@ void main() {
         find.text(DurationUtils.formatDuration(72)),
       );
       await tester.tapAt(Offset(_width / 2, progress.bottom + 3));
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+    });
+
+    testWidgets('glass on: a tap on the title bar over the cover scrolled '
+        'under it does not switch', (tester) async {
+      final controller = await _pump(
+        tester,
+        glass: true,
+        desc: List.filled(80, '一行简介').join('\n'),
+      );
+      const bar = Offset(_width / 2, _statusBar + 28);
+      await tester.drag(cover, const Offset(0, -80));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(cover).contains(bar), isTrue);
+      await tester.tapAt(bar);
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+      // Below the bar, the cover still shows them.
+      await tester.tap(cover);
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isTrue);
+    });
+
+    for (final glass in [true, false]) {
+      testWidgets('glass ${glass ? 'on' : 'off'}, sideways: a tap at the '
+          'sides of the page switches too', (tester) async {
+        final controller = await _pump(
+          tester,
+          glass: glass,
+          size: const Size(_height, _width),
+        );
+        await tester.tapAt(Offset(8, tester.getCenter(cover).dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+      });
+    }
+
+    testWidgets('from the keyboard it takes focus and switches on Enter or '
+        'Space', (tester) async {
+      final controller = await _pump(tester, glass: true);
+      final toggle = tester.element(find.byType(AudioSubtitleToggle));
+      bool focused() {
+        final context = FocusManager.instance.primaryFocus?.context;
+        var inside = false;
+        context?.visitAncestorElements((element) {
+          inside = element == toggle;
+          return !inside;
+        });
+        return inside;
+      }
+
+      for (var i = 0; i < 20 && !focused(); i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(focused(), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await tester.pumpAndSettle();
       expect(controller.showSubtitle.value, isFalse);
     });

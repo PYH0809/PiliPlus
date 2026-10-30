@@ -228,33 +228,25 @@ class _AudioPageState extends State<AudioPage>
       body: GlassAppBar.enabled
           ? Builder(builder: _buildGlassBody)
           : Padding(
-              padding: EdgeInsets.only(
-                left: 20 + padding.left,
-                right: 20 + padding.right,
-                bottom: 30 + padding.bottom,
-              ),
+              padding: EdgeInsets.only(bottom: 30 + padding.bottom),
               child: isPortrait
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _buildInfo(colorScheme, .zero)),
-                        const SizedBox(height: 25),
-                        _buildProgressBar(colorScheme),
-                        _buildDuration(colorScheme),
-                        _buildControls(),
-                      ],
-                    )
-                  : Row(
-                      spacing: 12,
-                      children: [
                         Expanded(
-                          child: _buildInfo(colorScheme, .zero),
+                          child: _buildInfo(
+                            colorScheme,
+                            .zero,
+                            sides: _sides(padding),
+                          ),
                         ),
-                        Expanded(
+                        Padding(
+                          padding: _sides(padding),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              const SizedBox(height: 25),
                               _buildProgressBar(colorScheme),
                               _buildDuration(colorScheme),
                               _buildControls(),
@@ -262,8 +254,60 @@ class _AudioPageState extends State<AudioPage>
                           ),
                         ),
                       ],
+                    )
+                  : _buildSideBySide(
+                      colorScheme,
+                      padding,
+                      .zero,
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildProgressBar(colorScheme),
+                          _buildDuration(colorScheme),
+                          _buildControls(),
+                        ],
+                      ),
                     ),
             ),
+    );
+  }
+
+  /// The room the page leaves at its sides.
+  static EdgeInsets _sides(EdgeInsets padding) =>
+      EdgeInsets.only(left: 20 + padding.left, right: 20 + padding.right);
+
+  /// Sideways, the content and [controls] side by side, 12 apart, each
+  /// half of what the page's sides leave; the content takes taps on the
+  /// room at its side and between them too.
+  Widget _buildSideBySide(
+    ColorScheme colorScheme,
+    EdgeInsets padding,
+    EdgeInsets infoPadding,
+    Widget controls,
+  ) {
+    final sides = _sides(padding);
+    const gap = 12.0;
+    return Padding(
+      padding: EdgeInsets.only(right: sides.right),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final half = (constraints.maxWidth - sides.left - gap) / 2;
+          return Row(
+            children: [
+              SizedBox(
+                width: sides.left + half + gap,
+                child: _buildInfo(
+                  colorScheme,
+                  infoPadding,
+                  sides: EdgeInsets.only(left: sides.left, right: gap),
+                ),
+              ),
+              Expanded(child: controls),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -276,24 +320,18 @@ class _AudioPageState extends State<AudioPage>
     final padding = MediaQuery.viewPaddingOf(context);
     final top = HeaderOverlayInset.of(context);
     final controls = _buildGlassControls(colorScheme);
-    final sides = EdgeInsets.only(
-      left: 20 + padding.left,
-      right: 20 + padding.right,
-    );
     if (MediaQuery.sizeOf(context).isPortrait) {
       final bottom = padding.bottom + _glassControlsBottom;
       return Stack(
         children: [
           Positioned.fill(
-            child: Padding(
-              padding: sides,
-              child: _buildInfo(
-                colorScheme,
-                EdgeInsets.only(
-                  top: top,
-                  bottom: bottom + AudioGlassControls.height + _glassFade,
-                ),
+            child: _buildInfo(
+              colorScheme,
+              EdgeInsets.only(
+                top: top,
+                bottom: bottom + AudioGlassControls.height + _glassFade,
               ),
+              sides: _sides(padding),
             ),
           ),
           Positioned(
@@ -317,24 +355,13 @@ class _AudioPageState extends State<AudioPage>
       );
     }
     final bottom = 30 + padding.bottom;
-    return Padding(
-      padding: sides,
-      child: Row(
-        spacing: 12,
-        children: [
-          Expanded(
-            child: _buildInfo(
-              colorScheme,
-              EdgeInsets.only(top: top, bottom: bottom),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(top: top, bottom: bottom),
-              child: controls,
-            ),
-          ),
-        ],
+    return _buildSideBySide(
+      colorScheme,
+      padding,
+      EdgeInsets.only(top: top, bottom: bottom),
+      Padding(
+        padding: EdgeInsets.only(top: top, bottom: bottom),
+        child: controls,
       ),
     );
   }
@@ -960,8 +987,13 @@ class _AudioPageState extends State<AudioPage>
 
   /// The cover, title and the rest, or the subtitles, which a tap on it
   /// switches between; its list keeps [padding] clear, the room the glass
-  /// bars over it leave.
-  Widget _buildInfo(ColorScheme colorScheme, EdgeInsets padding) {
+  /// bars over it leave, and the page's [sides] around it, which take taps
+  /// too.
+  Widget _buildInfo(
+    ColorScheme colorScheme,
+    EdgeInsets padding, {
+    EdgeInsets sides = .zero,
+  }) {
     return Obx(() {
       final audioItem = _controller.audioItem.value;
       if (audioItem != null) {
@@ -977,14 +1009,15 @@ class _AudioPageState extends State<AudioPage>
                 )
               : _buildCover(colorScheme, audioItem, cover, padding),
         );
-        if (_controller.isUgc) {
-          child = AudioSubtitleToggle(
-            showing: showSubtitle,
-            padding: padding,
-            onToggle: _controller.toggleSubtitle,
-            child: child,
-          );
-        }
+        child = _controller.isUgc
+            ? AudioSubtitleToggle(
+                showing: showSubtitle,
+                padding: padding,
+                margin: sides,
+                onToggle: _controller.toggleSubtitle,
+                child: child,
+              )
+            : Padding(padding: sides, child: child);
         return Column(
           children: [Expanded(child: child)],
         );
@@ -1008,7 +1041,9 @@ class _AudioPageState extends State<AudioPage>
         children: [
           Center(
             child: GestureDetector(
-              onTap: _controller.toggleSubtitle,
+              // A video's switches through AudioSubtitleToggle, which
+              // leaves alone a tap on the cover under the title bar.
+              onTap: _controller.isUgc ? null : _controller.toggleSubtitle,
               onLongPress: () => PageUtils.imageView(
                 imgList: [SourceModel(url: cover)],
               ),
