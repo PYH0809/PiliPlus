@@ -218,11 +218,15 @@ void main() {
         duration: const Duration(milliseconds: 100),
       );
       addTearDown(controller.dispose);
-      Widget pane = const Padding(
-        padding: EdgeInsets.all(8),
+      Widget pane = Padding(
+        padding: const EdgeInsets.all(8),
         child: VideoGlass(
           radius: 20,
-          child: SizedBox(height: 56),
+          child: Semantics(
+            container: true,
+            label: 'bar',
+            child: const SizedBox(height: 56),
+          ),
         ),
       );
       if (paints != null) {
@@ -345,6 +349,41 @@ void main() {
       expect(controller.isDismissed, isTrue);
       expect(textures(tester), 1);
       expect(paints, hasLength(2));
+    });
+
+    testWidgets('tells assistive technology where the bar slides', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final controller = await pumpBar(tester, overVideo: true);
+      // The pane's rect on screen, as a screen reader outlines it.
+      Rect outline() {
+        final node = tester.getSemantics(find.bySemanticsLabel('bar'));
+        var rect = node.rect;
+        for (SemanticsNode? n = node; n != null; n = n.parent) {
+          if (n.transform case final transform?) {
+            rect = MatrixUtils.transformRect(transform, rect);
+          }
+        }
+        // The root's transform takes it to physical pixels.
+        return rect.topLeft / tester.view.devicePixelRatio &
+            rect.size / tester.view.devicePixelRatio;
+      }
+
+      controller.value = 1;
+      await tester.pump();
+      final rest = outline();
+
+      controller.reverse();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(
+        outline().top,
+        closeTo(tester.getTopLeft(find.byType(VideoGlass)).dy, 0.01),
+      );
+      expect(outline().top, greaterThan(rest.top));
+      await tester.pumpAndSettle();
+      semantics.dispose();
     });
 
     testWidgets('without glass the bar slides as before', (tester) async {

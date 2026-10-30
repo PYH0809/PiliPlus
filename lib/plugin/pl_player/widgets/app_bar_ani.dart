@@ -164,19 +164,19 @@ class _RenderGlassSlide extends RenderProxyBox {
   set animation(Animation<double> value) {
     if (_animation == value) return;
     if (attached) {
-      _animation.removeListener(markNeedsPaint);
-      value.addListener(markNeedsPaint);
+      _animation.removeListener(_onSlide);
+      value.addListener(_onSlide);
     }
     _animation = value;
     _dropSnapshot();
-    markNeedsPaint();
+    _onSlide();
   }
 
   Offset _from;
   set from(Offset value) {
     if (_from == value) return;
     _from = value;
-    markNeedsPaint();
+    _onSlide();
   }
 
   double _devicePixelRatio;
@@ -202,15 +202,22 @@ class _RenderGlassSlide extends RenderProxyBox {
     return Offset(fraction.dx * size.width, fraction.dy * size.height);
   }
 
+  // The bar moves: where it is drawn, and where assistive technology finds
+  // it, as FractionalTranslation tells both.
+  void _onSlide() {
+    markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
+
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
-    _animation.addListener(markNeedsPaint);
+    _animation.addListener(_onSlide);
   }
 
   @override
   void detach() {
-    _animation.removeListener(markNeedsPaint);
+    _animation.removeListener(_onSlide);
     _dropSnapshot();
     super.detach();
   }
