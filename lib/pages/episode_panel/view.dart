@@ -8,6 +8,10 @@ import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
+import 'package:PiliPlus/common/widgets/menu_entries.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
     show tabBarScrollPhysics;
 import 'package:PiliPlus/common/widgets/stat/stat.dart';
@@ -35,7 +39,6 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:material_ui/material_ui.dart';
 
 class EpisodePanel extends CommonSlidePage {
@@ -209,8 +212,30 @@ class _EpisodePanelState extends State<EpisodePanel>
   late final _isMulti =
       widget.type == EpisodeType.season && widget.list.length > 1;
 
+  // On glass the sheet's bar floats over its list, but not where the panel
+  // is glass already, as over the video, since glass never lies on glass.
+  late final bool _floatingBar =
+      showTitle && GlassAppBar.enabled && !GlassSurfaces.onGlass(context);
+
+  /// How far the floating bar covers the top of the list.
+  double get _barInset =>
+      _floatingBar ? _buildGlassBar().preferredSize.height : 0;
+
   @override
   Widget buildPage(ThemeData theme) {
+    if (_floatingBar) {
+      return Material(
+        color: theme.colorScheme.surface,
+        child: MediaQuery.removePadding(
+          context: context,
+          removeTop: true,
+          child: GlassAppBarBody(
+            appBar: _buildGlassBar(),
+            body: enableSlide ? slideList(theme) : buildList(theme),
+          ),
+        ),
+      );
+    }
     return Material(
       color: showTitle ? theme.colorScheme.surface : null,
       type: showTitle ? MaterialType.canvas : MaterialType.transparency,
@@ -286,7 +311,7 @@ class _EpisodePanelState extends State<EpisodePanel>
         slivers: [
           SliverPadding(
             padding: EdgeInsets.only(
-              top: 7,
+              top: 7 + _barInset,
               bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
             ),
             sliver: showTitle
@@ -598,41 +623,20 @@ class _EpisodePanelState extends State<EpisodePanel>
     );
   }
 
-  Widget _buildFavBtn(LoadingState<bool> loadingState) {
-    return switch (loadingState) {
-      Success(:final response) => iconButton(
-        iconSize: 22,
-        tooltip: response ? '取消订阅' : '订阅',
-        icon: response
-            ? const Icon(Icons.notifications_off_outlined)
-            : const Icon(Icons.notifications_active_outlined),
-        onPressed: () async {
-          final res = await FavHttp.seasonFav(
-            isFav: response,
-            seasonId: widget.seasonId,
-          );
-          if (res.isSuccess) {
-            SmartDialog.showToast('${response ? '取消' : ''}订阅成功');
-            _favState!.value = Success(!response);
-            widget.ugcIntroController?.seasonFavState[widget.seasonId] =
-                !response;
-          } else {
-            res.toast();
-          }
-        },
-      ),
-      _ => const SizedBox.shrink(),
-    };
+  Future<void> _toggleFav(bool isFav) async {
+    final res = await FavHttp.seasonFav(
+      isFav: isFav,
+      seasonId: widget.seasonId,
+    );
+    if (!mounted) return;
+    if (res.isSuccess) {
+      SmartDialog.showToast('${isFav ? '取消' : ''}订阅成功');
+      _favState!.value = Success(!isFav);
+      widget.ugcIntroController?.seasonFavState[widget.seasonId] = !isFav;
+    } else {
+      res.toast();
+    }
   }
-
-  Widget get _buildReverseBtn => iconButton(
-    iconSize: 22,
-    tooltip: widget.isReversed == true ? '正序播放' : '倒序播放',
-    icon: widget.isReversed == true
-        ? const Icon(MdiIcons.sortDescending)
-        : const Icon(MdiIcons.sortAscending),
-    onPressed: () => widget.onReverse?.call(),
-  );
 
   void _animToTopOrBottom({bool top = true}) {
     final tabIndex = _currentTabIndex.value;
@@ -643,6 +647,101 @@ class _EpisodePanelState extends State<EpisodePanel>
       duration: const Duration(milliseconds: 200),
     );
   }
+
+  Future<void> _animToCurrent() async {
+    final currentTabIndex = _currentTabIndex.value;
+    if (currentTabIndex != widget.initialTabIndex) {
+      _tabController.animateTo(widget.initialTabIndex);
+      await Future.pause(const Duration(milliseconds: 225));
+    }
+    if (!mounted) return;
+    _itemScrollController[widget.initialTabIndex].animTo(
+      _calcItemOffset(_currentItemIndex),
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+
+  /// The panel's actions, in words, in a menu out of one button: a row of
+  /// bare icons that acted at a tap said too little of what each did.
+  List<PopupMenuEntry<_PanelAction>> _menuEntries() {
+    final tabIndex = _currentTabIndex.value;
+    return [
+      menuRow('跳到顶部', value: _PanelAction.top),
+      menuRow('跳到底部', value: _PanelAction.bottom),
+      menuRow('跳到当前播放', value: _PanelAction.current),
+      const PopupMenuDivider(),
+      if (widget.isSupportReverse == true && tabIndex == widget.initialTabIndex)
+        _checkRow(
+          '倒序播放',
+          checked: widget.isReversed == true,
+          value: _PanelAction.reversePlay,
+        ),
+      _checkRow(
+        '倒序显示',
+        checked: _isReversed[tabIndex],
+        value: _PanelAction.reverseList,
+      ),
+      if (_favState?.value case Success(:final response)) ...[
+        const PopupMenuDivider(),
+        menuRow(
+          response ? '取消订阅合集' : '订阅合集',
+          value: _PanelAction.fav,
+        ),
+      ],
+    ];
+  }
+
+  /// A setting that is on or off, the check at the row's end saying it is on.
+  PopupMenuItem<_PanelAction> _checkRow(
+    String name, {
+    required bool checked,
+    required _PanelAction value,
+  }) => PopupMenuItem(
+    value: value,
+    child: Semantics(
+      checked: checked,
+      child: Row(
+        children: [
+          Expanded(child: Text(name, maxLines: 1, overflow: .ellipsis)),
+          if (checked) ...[
+            const SizedBox(width: 12),
+            const Icon(Icons.check, size: 20),
+          ],
+        ],
+      ),
+    ),
+  );
+
+  // Picked once the menu has gone, so that onReverse, which closes the sheet
+  // first, closes the sheet and not the menu.
+  void _onMenuSelected(_PanelAction action) {
+    switch (action) {
+      case _PanelAction.top:
+        _animToTopOrBottom();
+      case _PanelAction.bottom:
+        _animToTopOrBottom(top: false);
+      case _PanelAction.current:
+        _animToCurrent();
+      case _PanelAction.reversePlay:
+        widget.onReverse?.call();
+      case _PanelAction.reverseList:
+        setState(() {
+          final tabIndex = _currentTabIndex.value;
+          _isReversed[tabIndex] = !_isReversed[tabIndex];
+        });
+      case _PanelAction.fav:
+        if (_favState?.value case Success(:final response)) {
+          _toggleFav(response);
+        }
+    }
+  }
+
+  Widget _buildMenuButton() => PopupMenuButton<_PanelAction>(
+    tooltip: '更多',
+    icon: const Icon(Icons.more_vert, size: 22),
+    itemBuilder: (_) => _menuEntries(),
+    onSelected: _onMenuSelected,
+  );
 
   Widget _buildToolbar(ThemeData theme) => Container(
     height: 45,
@@ -661,58 +760,16 @@ class _EpisodePanelState extends State<EpisodePanel>
             widget.type.title,
             style: theme.textTheme.titleMedium,
           ),
-        if (_favState != null) Obx(() => _buildFavBtn(_favState!.value)),
-        iconButton(
-          iconSize: 22,
-          tooltip: '跳至顶部',
-          icon: const Icon(Icons.vertical_align_top),
-          onPressed: _animToTopOrBottom,
-        ),
-        iconButton(
-          iconSize: 22,
-          tooltip: '跳至底部',
-          icon: const Icon(Icons.vertical_align_bottom),
-          onPressed: () => _animToTopOrBottom(top: false),
-        ),
-        iconButton(
-          iconSize: 22,
-          tooltip: '跳至当前',
-          icon: const Icon(Icons.my_location),
-          onPressed: () async {
-            final currentTabIndex = _currentTabIndex.value;
-            if (currentTabIndex != widget.initialTabIndex) {
-              _tabController.animateTo(widget.initialTabIndex);
-              await Future.pause(const Duration(milliseconds: 225));
-            }
-            _itemScrollController[widget.initialTabIndex].animTo(
-              _calcItemOffset(_currentItemIndex),
-              duration: const Duration(milliseconds: 200),
-            );
-          },
-        ),
-        if (widget.isSupportReverse == true)
-          Obx(
-            () {
-              return _currentTabIndex.value == widget.initialTabIndex
-                  ? _buildReverseBtn
-                  : const SizedBox.shrink();
-            },
-          ),
         const Spacer(),
-        Obx(
-          () {
-            final currentTabIndex = _currentTabIndex.value;
-            return iconButton(
-              iconSize: 22,
-              tooltip: _isReversed[currentTabIndex] ? '顺序' : '倒序',
-              icon: !_isReversed[currentTabIndex]
-                  ? const Icon(MdiIcons.sortNumericAscending)
-                  : const Icon(MdiIcons.sortNumericDescending),
-              onPressed: () => setState(() {
-                _isReversed[currentTabIndex] = !_isReversed[currentTabIndex];
-              }),
-            );
-          },
+        SizedBox.square(
+          dimension: 36,
+          child: PopupMenuButton<_PanelAction>(
+            tooltip: '更多',
+            padding: .zero,
+            icon: const Icon(Icons.more_vert, size: 22),
+            itemBuilder: (_) => _menuEntries(),
+            onSelected: _onMenuSelected,
+          ),
         ),
         if (widget.onClose != null)
           iconButton(
@@ -724,4 +781,29 @@ class _EpisodePanelState extends State<EpisodePanel>
       ],
     ),
   );
+
+  /// The title, the menu and the way to close as a bar of glass floating over
+  /// the list, which scrolls under it, the sections' tabs a pill below them.
+  GlassAppBar _buildGlassBar() => GlassAppBar(
+    automaticallyImplyLeading: false,
+    centerTitle: false,
+    title: Text(widget.type.title),
+    actions: [
+      _buildMenuButton(),
+      if (widget.onClose != null)
+        IconButton(
+          tooltip: '关闭',
+          icon: const Icon(Icons.close, size: 22),
+          onPressed: widget.onClose,
+        ),
+    ],
+    tabs: _isMulti
+        ? LiquidGlassTabBar(
+            controller: _tabController,
+            labels: [for (final item in widget.list) item.title as String],
+          )
+        : null,
+  );
 }
+
+enum _PanelAction { top, bottom, current, reversePlay, reverseList, fav }
