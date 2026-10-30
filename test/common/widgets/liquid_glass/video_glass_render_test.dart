@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/models/common/video_glass_mode.dart';
+import 'package:PiliPlus/plugin/pl_player/widgets/app_bar_ani.dart';
 import 'package:flutter/rendering.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
@@ -520,4 +521,120 @@ void main() {
       );
     },
   );
+
+  testWidgets('a bar slid in from its snapshot lands as it draws live', (
+    tester,
+  ) async {
+    final video = GlobalKey();
+    final key = GlobalKey();
+    // As the test phone's: at 3 the bend's copy drawn down to a third rounds
+    // its last row differently offscreen.
+    tester.view.devicePixelRatio = 4;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = AnimationController(
+      vsync: const TestVSync(),
+      duration: const Duration(milliseconds: 100),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: RepaintBoundary(
+            key: key,
+            child: VideoGlassSource(
+              video: video,
+              child: SizedBox(
+                width: 300,
+                height: 200,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        key: video,
+                        child: const Texture(textureId: 7),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AppBarAni(
+                        controller: controller,
+                        isTop: false,
+                        isFullScreen: false,
+                        removeSafeArea: true,
+                        glass: true,
+                        child: const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: VideoGlass(
+                            radius: 20,
+                            child: SizedBox(height: 56),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    // The shader loads off the frame.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    // The layer as last drawn: by the frame it lands in, the bar already
+    // asks to be drawn live in the next.
+    Future<ByteData> shot() async => (await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await (boundary.debugLayer! as OffsetLayer).toImage(
+        Offset.zero & boundary.size,
+        pixelRatio: tester.view.devicePixelRatio,
+      );
+      final data = await image.toByteData();
+      image.dispose();
+      return data!;
+    }))!;
+
+    controller.forward();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 110));
+    expect(controller.isCompleted, isTrue);
+    // Landed, still the snapshot.
+    expect(tester.layers.whereType<TextureLayer>(), hasLength(1));
+    final landed = await shot();
+    await tester.pump();
+    expect(tester.layers.whereType<TextureLayer>(), hasLength(2));
+    final live = await shot();
+
+    expect(landed.lengthInBytes, live.lengthInBytes);
+    const width = 300 * 4;
+    final rows = <int>{};
+    var drawn = 0;
+    for (var i = 0; i < live.lengthInBytes; i++) {
+      if (i % 4 == 3) continue;
+      if ((landed.getUint8(i) - live.getUint8(i)).abs() > 1) {
+        rows.add(i ~/ 4 ~/ width);
+      }
+      if (live.getUint8(i) > 8) drawn++;
+    }
+    // The pane's rim and tint, not bare air.
+    expect(drawn, greaterThan(0));
+    // Without Impeller, Skia strokes the rim along the pane's bottom a
+    // little differently offscreen: there, within 2 dp of the edge, 192 dp
+    // down, and nowhere else.
+    expect(
+      rows.every((row) => row >= (192 - 2) * 4 && row < 192 * 4),
+      isTrue,
+      reason: 'rows $rows',
+    );
+    if (ui.ImageFilter.isShaderFilterSupported) {
+      expect(rows, isEmpty);
+    }
+  });
 }

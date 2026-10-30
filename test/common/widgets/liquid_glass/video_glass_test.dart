@@ -45,6 +45,29 @@ Widget _app(Widget child) => MaterialApp(
   ),
 );
 
+// Notes where it lies each time it paints, as the glass in it reads it.
+class _PaintProbe extends SingleChildRenderObjectWidget {
+  const _PaintProbe({required this.paints, super.child});
+
+  final List<Offset> paints;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderPaintProbe(paints);
+}
+
+class _RenderPaintProbe extends RenderProxyBox {
+  _RenderPaintProbe(this.paints);
+
+  final List<Offset> paints;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    paints.add(localToGlobal(Offset.zero));
+    super.paint(context, offset);
+  }
+}
+
 void main() {
   // VideoGlass reads whether to bend through Pref.
   late Directory tempDir;
@@ -182,48 +205,167 @@ void main() {
   });
 
   group('AppBarAni on glass', () {
-    Future<AnimationController> pumpBar(WidgetTester tester) async {
+    final video = GlobalKey();
+
+    Future<AnimationController> pumpBar(
+      WidgetTester tester, {
+      bool glass = true,
+      bool overVideo = false,
+      List<Offset>? paints,
+    }) async {
       final controller = AnimationController(
         vsync: const TestVSync(),
         duration: const Duration(milliseconds: 100),
       );
       addTearDown(controller.dispose);
-      await tester.pumpWidget(
-        _app(
-          SizedBox(
-            width: 300,
-            child: AppBarAni(
-              controller: controller,
-              isTop: false,
-              isFullScreen: false,
-              removeSafeArea: true,
-              glass: true,
-              child: const Padding(
-                padding: EdgeInsets.all(8),
-                child: VideoGlass(
-                  radius: 20,
-                  child: SizedBox(height: 56),
-                ),
-              ),
-            ),
-          ),
+      Widget pane = const Padding(
+        padding: EdgeInsets.all(8),
+        child: VideoGlass(
+          radius: 20,
+          child: SizedBox(height: 56),
         ),
       );
+      if (paints != null) {
+        pane = _PaintProbe(paints: paints, child: pane);
+      }
+      Widget bar = AppBarAni(
+        controller: controller,
+        isTop: false,
+        isFullScreen: false,
+        removeSafeArea: true,
+        glass: glass,
+        child: pane,
+      );
+      if (overVideo) {
+        // As in the player, the pane draws the video again.
+        bar = VideoGlassSource(
+          video: video,
+          child: SizedBox(
+            height: 200,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    key: video,
+                    child: const Texture(textureId: 7),
+                  ),
+                ),
+                Positioned(left: 0, right: 0, bottom: 0, child: bar),
+              ],
+            ),
+          ),
+        );
+      }
+      await tester.pumpWidget(_app(SizedBox(width: 300, child: bar)));
       return controller;
     }
+
+    // The video's own texture, and the pane's copy of it while it draws live.
+    int textures(WidgetTester tester) => _layers<TextureLayer>(tester).length;
 
     testWidgets('turns the glass off while hidden', (tester) async {
       final controller = await pumpBar(tester);
       expect(_filters(tester), isEmpty);
 
       controller.forward();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(_filters(tester), hasLength(1));
-
       await tester.pumpAndSettle();
       expect(_filters(tester), hasLength(1));
       expect(_filters(tester).single.$2, isFalse);
+
+      controller.reverse();
+      await tester.pumpAndSettle();
+      expect(_filters(tester), isEmpty);
+    });
+
+    testWidgets('slides in from a snapshot of the bar at rest', (
+      tester,
+    ) async {
+      final paints = <Offset>[];
+      final controller = await pumpBar(
+        tester,
+        overVideo: true,
+        paints: paints,
+      );
+      paints.clear();
+
+      controller.forward();
+      await tester.pump();
+      // Setting off out of sight, the bar is taken where it comes to rest.
+      expect(textures(tester), 1);
+      expect(paints, hasLength(1));
+      final rest = paints.single;
+
+      await tester.pump(const Duration(milliseconds: 50));
+      // Moving, it is the snapshot, not the glass drawn again.
+      expect(textures(tester), 1);
+      expect(paints, hasLength(1));
+      // Where it is drawn, as taps find it.
+      expect(
+        tester.getTopLeft(find.byType(VideoGlass)).dy,
+        greaterThan(rest.dy),
+      );
+
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(controller.isCompleted, isTrue);
+      // The frame it lands in still moves it: the snapshot.
+      expect(textures(tester), 1);
+      expect(paints, hasLength(1));
+
+      await tester.pump();
+      expect(textures(tester), 2);
+      expect(paints, [rest, rest]);
+    });
+
+    testWidgets('slides out from a snapshot of the bar as it stands', (
+      tester,
+    ) async {
+      final paints = <Offset>[];
+      final controller = await pumpBar(
+        tester,
+        overVideo: true,
+        paints: paints,
+      );
+      controller.value = 1;
+      await tester.pump();
+      expect(textures(tester), 2);
+      final rest = paints.last;
+      paints.clear();
+
+      controller.reverse();
+      await tester.pump();
+      expect(textures(tester), 1);
+      expect(paints, [rest]);
+
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(textures(tester), 1);
+      expect(paints, [rest]);
+
+      // Out of sight, drawn live with the glass off.
+      await tester.pumpAndSettle();
+      expect(controller.isDismissed, isTrue);
+      expect(textures(tester), 1);
+      expect(paints, hasLength(2));
+    });
+
+    testWidgets('without glass the bar slides as before', (tester) async {
+      final paints = <Offset>[];
+      final controller = await pumpBar(tester, glass: false, paints: paints);
+      expect(
+        find.descendant(
+          of: find.byType(AppBarAni),
+          matching: find.byType(SlideTransition),
+        ),
+        findsOneWidget,
+      );
+      paints.clear();
+
+      // Drawn again at each step.
+      controller.forward();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 30));
+      await tester.pump(const Duration(milliseconds: 30));
+      expect(paints, hasLength(2));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('keeps taps between the panes from the player', (

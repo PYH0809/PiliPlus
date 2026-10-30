@@ -24,7 +24,12 @@ turns on every glass part. It only takes effect after a restart.
   frosts. It is dark in either theme, as the player's icons are white; `VideoGlass.controlsTheme` gives the
   controls on it a dark theme, so their menus read dark too. A translucent `Opacity` above a backdrop filter breaks
   it, so it eases in through its `t`, never a fade; `VideoGlassHidden` turns it off while the controls are out of
-  sight.
+  sight. The player's bars slide in and out from a snapshot of themselves at rest (`AppBarAni`, glass only): drawn
+  live, the glass over the video takes about a 120 Hz frame by itself on a slow phone, and a pane crossing the
+  player's edge gets new offscreen textures every frame. The snapshot is taken as a slide sets off and the bar
+  drawn live the frame after it lands, both while it stands still, so over the 100 ms the glass shows the video as
+  it was. A pane inside a snapshot must draw the video again (`VideoGlassSource`): a backdrop filter there reads
+  nothing.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.
