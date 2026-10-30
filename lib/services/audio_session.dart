@@ -1,5 +1,6 @@
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
+import 'package:PiliPlus/services/service_locator.dart';
 import 'package:audio_session/audio_session.dart';
 
 class AudioSessionHandler {
@@ -20,6 +21,8 @@ class AudioSessionHandler {
       if (owner is PlPlayerController) _restoreDuckedVolume();
       if (owner != _focusOwner) return Future.value(true);
       _focusOwner = null;
+      // 让出焦点后不会再收到打断结束
+      videoPlayerServiceHandler?.interrupted = false;
     }
     return session.setActive(active);
   }
@@ -44,6 +47,12 @@ class AudioSessionHandler {
     session.configure(const AudioSessionConfiguration.music());
 
     session.interruptionEventStream.listen((event) {
+      // 临时打断期间媒体卡片不收走，结束后播放器还要接着放。
+      // 安卓上 unknown 的开始是永久失去焦点，不会再放
+      if (event.type != AudioInterruptionType.duck) {
+        videoPlayerServiceHandler?.interrupted =
+            event.begin && event.type == AudioInterruptionType.pause;
+      }
       final playerStatus = PlPlayerController.getPlayerStatusIfExists();
       // final player = PlPlayerController.getInstance();
       if (event.begin) {
@@ -91,6 +100,7 @@ class AudioSessionHandler {
 
     // 耳机拔出暂停
     session.becomingNoisyEventStream.listen((_) {
+      videoPlayerServiceHandler?.onBecomingNoisy();
       PlPlayerController.pauseIfExists();
       // final player = PlPlayerController.getInstance();
       // if (player.playerStatus.playing) {

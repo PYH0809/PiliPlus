@@ -530,8 +530,29 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
           DateTime.now().difference(taskRemovedAt) < _latePause;
       _pausedCardTimer = Timer(
         swipedAway ? .zero : pausedCardLifetime,
-        _endPausedCard,
+        _onPausedCardTimeout,
       );
+    }
+  }
+
+  /// Whether a call or the like has paused playing for now, as the audio
+  /// session tells. The player plays on by itself after it, from the
+  /// background, so a paused card stays meanwhile: had it gone, playing on
+  /// would have to start the foreground service again, which Android 12 and
+  /// later refuse. As it ends, the clock starts again, since playing on takes
+  /// a moment.
+  bool get interrupted => _interrupted;
+  bool _interrupted = false;
+  set interrupted(bool value) {
+    if (_interrupted && !value) _restartPausedCardClock();
+    _interrupted = value;
+  }
+
+  void _onPausedCardTimeout() {
+    if (interrupted) {
+      _pausedCardTimer = Timer(pausedCardLifetime, _onPausedCardTimeout);
+    } else {
+      _endPausedCard();
     }
   }
 
@@ -539,13 +560,22 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   /// from here is a new one, which keeps the card.
   void _onControl() {
     _taskRemovedAt = null;
-    // Playing takes a moment, such as for audio focus: the clock starts again
-    // so the card does not go meanwhile, nor stay for good if it never plays.
+    _restartPausedCardClock();
+  }
+
+  /// Starts a paused card's clock again as it may play on, which takes a
+  /// moment, such as for audio focus: the card does not go meanwhile, nor
+  /// stay for good if it never plays.
+  void _restartPausedCardClock() {
     if (_pausedCardTimer case final timer?) {
       timer.cancel();
-      _pausedCardTimer = Timer(pausedCardLifetime, _endPausedCard);
+      _pausedCardTimer = Timer(pausedCardLifetime, _onPausedCardTimeout);
     }
   }
+
+  /// Unplugged headphones pause the players without the card. After the
+  /// swipe, that is a new pause too, which keeps the card.
+  void onBecomingNoisy() => _taskRemovedAt = null;
 
   /// Lets a paused card go, and the foreground service with it.
   void _endPausedCard() {
@@ -556,11 +586,11 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   }
 
   /// Swiped away from recents, a paused card goes at once; a playing one
-  /// stays, playing on in the background.
+  /// stays, playing on in the background, and so does one [interrupted].
   @override
   Future<void> onTaskRemoved() async {
     _taskRemovedAt = DateTime.now();
-    _endPausedCard();
+    if (!interrupted) _endPausedCard();
   }
 
   void clear() {
