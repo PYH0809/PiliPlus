@@ -743,6 +743,31 @@ void main() {
         expect(controller.calls, isEmpty);
       });
 
+      testWidgets('$mode: lines gone while they scrolled leave the taps be', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final list = tester.getRect(find.byType(AudioSubtitleList));
+        await tester.flingFrom(
+          Offset(_width - 32, list.center.dy),
+          const Offset(0, -300),
+          2000,
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        // Back by the small cover and title while they still scroll.
+        await tester.tap(find.text('一首歌'));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+
+        await tester.tapAt(Offset(_width - 32, tester.getCenter(cover).dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+      });
+
       testWidgets('$mode: a tap that stops the lines scrolling stays', (
         tester,
       ) async {

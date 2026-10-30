@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart' show DetailItem;
@@ -119,7 +118,9 @@ class AudioSubtitleToggle extends StatefulWidget {
 
 class _AudioSubtitleToggleState extends State<AudioSubtitleToggle> {
   /// Lists under it now scrolling, and whether one was as the touch began.
-  int _scrolling = 0;
+  /// One that goes while it scrolls, as the lines do for the cover or
+  /// another language, says no end: it leaves when it is no longer mounted.
+  final _scrolling = <BuildContext>{};
   bool _stopsScroll = false;
 
   /// A list's scroll ended in the event being handled: a touch holding it
@@ -128,10 +129,10 @@ class _AudioSubtitleToggleState extends State<AudioSubtitleToggle> {
 
   bool _onScroll(ScrollNotification notification) {
     switch (notification) {
-      case ScrollStartNotification():
-        _scrolling++;
-      case ScrollEndNotification():
-        _scrolling = math.max(0, _scrolling - 1);
+      case ScrollStartNotification(:final context?):
+        _scrolling.add(context);
+      case ScrollEndNotification(:final context):
+        _scrolling.remove(context);
         _endedNow = true;
         scheduleMicrotask(() => _endedNow = false);
     }
@@ -160,7 +161,10 @@ class _AudioSubtitleToggleState extends State<AudioSubtitleToggle> {
       label: widget.showing ? '显示封面' : '显示字幕',
       onTap: widget.onToggle,
       child: Listener(
-        onPointerDown: (_) => _stopsScroll = _scrolling > 0 || _endedNow,
+        onPointerDown: (_) {
+          _scrolling.removeWhere((context) => !context.mounted);
+          _stopsScroll = _scrolling.isNotEmpty || _endedNow;
+        },
         child: GestureDetector(
           behavior: .opaque,
           excludeFromSemantics: true,
