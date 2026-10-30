@@ -288,6 +288,8 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           case PlayRepeat.pause:
         }
       }
+      // 划掉任务时媒体卡片要留着，接着放的时候还要它
+      if (!exitFlag) videoPlayerServiceHandler?.videoGoesOn = true;
 
       if (exitFlag) {
         if (autoExitFullscreen) {

@@ -19,6 +19,9 @@ class AudioSessionHandler {
     _videoWaitsToPlayOn = value;
   }
 
+  // 视频播放器销毁后不会再接着放
+  void onVideoPlayerDisposed() => _setVideoWaitsToPlayOn(false);
+
   // 最后申请焦点的播放器（视频页或听视频），只有它能让出焦点，
   // 免得一个页面晚到的让出把另一个页面刚拿到的焦点放掉
   Object? _focusOwner;

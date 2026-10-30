@@ -469,22 +469,80 @@ void main() {
     );
   });
 
-  test('a swipe leaves a card that has played one through, as the next one '
-      'may follow by itself', () async {
+  test('a swipe leaves a video that has played one through and goes on to the '
+      'next one, until it plays', () async {
+    void playThrough() => handler.onUpdateState(
+      .completed,
+      false,
+      false,
+      position: const Duration(seconds: 1319),
+      speed: 1,
+    );
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    // What the video page says as it goes on, before the card hears of the
+    // end.
+    handler.videoGoesOn = true;
+    playThrough();
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
+
+    // The next one plays, and plays through with nothing to follow.
+    play();
+    await pumpEventQueue();
+    playThrough();
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('a video going on keeps its card through a swipe, though the card '
+      'shows the next one\'s details before the end reaches it', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
     handler
-      ..onVideoDetailChange(item(), 1, 'video')
-      ..onUpdateState(
-        .completed,
-        false,
-        false,
-        position: const Duration(seconds: 1319),
-        speed: 1,
-      );
+      ..videoGoesOn = true
+      ..onVideoDetailChange(item(), 2, 'video');
+    expect(handler.playbackState.value.playing, isTrue);
+    await pumpEventQueue();
+    handler.onUpdateState(
+      .completed,
+      false,
+      false,
+      position: const Duration(seconds: 1319),
+      speed: 1,
+    );
     await handler.onTaskRemoved();
 
     expect(
       handler.playbackState.value.processingState,
       AudioProcessingState.completed,
+    );
+  });
+
+  test('a card that has played one through with nothing to follow, such as '
+      'with 播完暂停, goes with the swipe', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+    handler.onUpdateState(
+      .completed,
+      false,
+      false,
+      position: const Duration(seconds: 1319),
+      speed: 1,
+    );
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
     );
   });
 
