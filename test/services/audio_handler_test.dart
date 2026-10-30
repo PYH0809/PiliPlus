@@ -498,8 +498,9 @@ void main() {
     );
   });
 
-  test('as a call ends, the paused card\'s clock starts again, so that the '
-      'card does not go while the player plays on', () async {
+  test('as a player stops waiting out a call, the paused card\'s clock starts '
+      'again: the card neither goes while the player plays on, nor before its '
+      'full time if it never does', () async {
     var waits = true;
     handler
       ..pausedCardLifetime = const Duration(milliseconds: 100)
@@ -520,18 +521,53 @@ void main() {
       speed: 1,
     );
     await Future<void>.delayed(const Duration(milliseconds: 70));
-    // The call ends just before the card's time. The player plays on, but
-    // only tells the card a little later.
-    handler.onInterruptionEnd();
+    // Just before the card's time the call ends, or turns into focus lost for
+    // good. Playing on would reach the card a little later.
     waits = false;
+    handler.onWaitOver();
     await Future<void>.delayed(const Duration(milliseconds: 70));
     expect(
       handler.playbackState.value.processingState,
       AudioProcessingState.ready,
     );
 
+    // It never plays on: the card goes, its full time after the wait.
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('a card paused while it buffers, which it shows as playing, still goes '
+      'in its own time and with the swipe', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+    void pauseWhileBuffering() => handler.onUpdateState(
+      .paused,
+      true,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+
     play();
+    pauseWhileBuffering();
     expect(handler.playbackState.value.playing, isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    play();
+    pauseWhileBuffering();
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
   });
 
   test('the paused card\'s clock runs on through updates while it stays '

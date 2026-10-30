@@ -120,7 +120,16 @@ class AudioController extends GetxController
   double? _lastVolume;
   late final RxDouble desktopVolume = RxDouble(Pref.desktopVolume);
 
-  bool _playInterrupted = false;
+  // 被临时打断、等着打断结束后接着放。不再等的时候告诉媒体卡片，让它重新计时
+  bool get _playInterrupted => _waitsForInterruptionEnd;
+  set _playInterrupted(bool value) {
+    if (_waitsForInterruptionEnd && !value) {
+      videoPlayerServiceHandler?.onWaitOver();
+    }
+    _waitsForInterruptionEnd = value;
+  }
+
+  bool _waitsForInterruptionEnd = false;
   double? _volumeBeforeDuck;
   // 页面要不要在放：开播、点选一首时为 true；暂停、被打断、播完不再接着放时为 false。
   // 等播放器、等下一首地址的自动播放，开播前都再看一眼它
@@ -715,8 +724,6 @@ class AudioController extends GetxController
     } else {
       _restoreDuckedVolume();
       if (_playInterrupted && event.type == AudioInterruptionType.pause) {
-        // 接着放之前，媒体卡片重新计时
-        videoPlayerServiceHandler?.onInterruptionEnd();
         _wantPlay = true;
         // 正在切曲、或者在等下一首的地址时不用播，地址回来就会接着放
         if (!player.state.completed && !_switchingTrack) player.play();

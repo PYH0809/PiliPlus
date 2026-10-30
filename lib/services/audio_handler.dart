@@ -207,6 +207,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         playing = isBuffering;
         processingState = isBuffering ? .buffering : .ready;
     }
+    _pausedWhileBuffering = status == .paused && isBuffering;
     _updateState(
       processingState,
       playing,
@@ -523,8 +524,14 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   static const _latePause = Duration(seconds: 1);
   DateTime? _taskRemovedAt;
 
-  static bool _isPaused(PlaybackState state) =>
-      !state.playing && state.processingState != .idle;
+  /// Whether the player is paused while it buffers, which the card shows as
+  /// playing.
+  bool _pausedWhileBuffering = false;
+
+  bool _isPaused(PlaybackState state) =>
+      state.processingState != .idle &&
+      (!state.playing ||
+          (_pausedWhileBuffering && state.processingState == .buffering));
 
   /// Starts the paused card's clock as the card stops playing. Updates while
   /// it stays paused, such as a seek, leave the clock running.
@@ -556,9 +563,11 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       (waitsToPlayOn?.call() ?? false) ||
       (audioSessionHandler?.videoWaitsToPlayOn ?? false);
 
-  /// As a call or the like ends, a player that waited plays on, which takes a
-  /// moment: the clock starts again so the card does not go meanwhile.
-  void onInterruptionEnd() => _restartPausedCardClock();
+  /// A player that waited out a call or the like no longer does: it plays on
+  /// as the call ends, which takes a moment, or it never will, such as with
+  /// focus lost for good. Either way the clock starts again, so that the card
+  /// neither goes meanwhile nor before its full time.
+  void onWaitOver() => _restartPausedCardClock();
 
   void _onPausedCardTimeout() {
     if (_waitsToPlayOn) {
@@ -613,6 +622,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     _lastPos = null;
     _lastConfig = null;
     _taskRemovedAt = null;
+    _pausedWhileBuffering = false;
     /**
      * if (playbackState.processingState == AudioProcessingState.idle &&
             previousState?.processingState != AudioProcessingState.idle) {
