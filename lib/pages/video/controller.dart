@@ -816,7 +816,10 @@ class VideoDetailController extends GetxController
       volume: volume,
       autoFullScreenFlag: autoFullScreenFlag,
       rotate: _rotate,
-      onSourceExpired: isFileSource ? null : _reopenExpiredSource,
+      // DASH only: the rare durl source keeps playing on as before.
+      onSourceExpired: isFileSource || data.dash == null
+          ? null
+          : _reopenExpiredSource,
       sourceFetchedAt: _linksFetchedAt,
     );
 
@@ -857,29 +860,39 @@ class VideoDetailController extends GetxController
     if (_reopening) return;
     _reopening = true;
     final cid = this.cid.value;
+    // Where this video stood, before another page might take the player.
+    final position = plPlayerController.videoPlayerController?.state.position;
     bool movedOn() => isClosed || this.cid.value != cid;
     try {
       final result = await _getVideoUrl(VideoQuality.hdrVivid.code);
       if (movedOn()) return;
-      if (result case Success(:final response) when response.dash != null) {
-        data = response;
-        await _supplementVideoQualities();
-        if (movedOn()) return;
-        _linksFetchedAt = PlPlayerController.clock();
-        final currentVideoQa = this.currentVideoQa.value;
-        if (currentVideoQa == null) return;
-        // Played on only where the user still is: covered by another page,
-        // or in the background without background play, the links are kept
-        // for coming back, as didPopNext opens them.
-        final foreground =
-            WidgetsBinding.instance.lifecycleState == .resumed ||
-            plPlayerController.continuePlayInBackground.value;
-        if (isPageShowing && foreground) {
-          updatePlayer();
-        } else {
-          playedTime = plPlayerController.videoPlayerController?.state.position;
-          _pickLinks(currentVideoQa);
-        }
+      switch (result) {
+        case Success(:final response) when response.dash != null:
+          // Completed on the response itself, so that nothing reaches the
+          // page's data if the user moved on meanwhile.
+          await _supplementVideoQualities(response);
+          if (movedOn()) return;
+          final currentVideoQa = this.currentVideoQa.value;
+          if (currentVideoQa == null) return;
+          data = response;
+          _linksFetchedAt = PlPlayerController.clock();
+          playedTime = position;
+          // Played on only where the user still is: covered by another page,
+          // or in the background without background play, the links are kept
+          // for coming back, as didPopNext opens them.
+          final foreground =
+              WidgetsBinding.instance.lifecycleState == .resumed ||
+              plPlayerController.continuePlayInBackground.value;
+          if (isPageShowing && foreground) {
+            updatePlayer();
+          } else {
+            _pickLinks(currentVideoQa);
+          }
+        case Success():
+          SmartDialog.showToast('视频链接已过期，请重新打开视频');
+        case Error():
+          result.toast();
+        case Loading():
       }
     } finally {
       _reopening = false;
@@ -914,7 +927,8 @@ class VideoDetailController extends GetxController
     );
   }
 
-  Future<void> _supplementVideoQualities() async {
+  Future<void> _supplementVideoQualities([PlayUrlModel? into]) async {
+    final data = into ?? this.data;
     final quality = data.missingVideoQualityBelowHighest;
     if (quality == -1) return;
     final result = await _getVideoUrl(quality);
