@@ -33,8 +33,12 @@ class NetworkSource extends DataSource {
         : DateTime.fromMillisecondsSinceEpoch(earliest * 1000);
   }();
 
-  // An edl:// source holds several links, so every one is read.
-  static final _deadline = RegExp(r'[?&]deadline=(\d+)');
+  // An edl:// source holds several links, so every one is read, and a CDN
+  // proxy carries the link percent-encoded in its own query (`?url=`).
+  static final _deadline = RegExp(
+    r'(?:[?&]|%26|%3F)deadline(?:=|%3D)(\d+)',
+    caseSensitive: false,
+  );
 }
 
 class FileSource extends DataSource {

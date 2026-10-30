@@ -848,6 +848,8 @@ class VideoDetailController extends GetxController
   /// Fetches fresh links for what is open and opens them where it stood,
   /// playing: the old ones ran out while it was paused.
   Future<void> _reopenExpiredSource() async {
+    // A second press while the links come leaves the first refresh to it.
+    if (_reopening) return;
     playedTime = plPlayerController.videoPlayerController?.state.position;
     _autoPlay.value = true;
     _reopening = true;

@@ -43,6 +43,18 @@ void main() {
       expect(source.expiresAt, _at(deadline));
     });
 
+    test('reads a link a CDN proxy carries percent-encoded', () {
+      // As VideoUtils.getCdnUrl wraps an mcdn link.
+      final proxied = Uri(
+        scheme: 'https',
+        host: 'proxy-tf-all-ws.bilivideo.com',
+        queryParameters: {'url': _link(deadline)},
+      ).toString();
+      expect(proxied, contains('%26deadline%3D'));
+      final source = NetworkSource(videoSource: proxied, audioSource: null);
+      expect(source.expiresAt, _at(deadline));
+    });
+
     test('is null for a link without a deadline', () {
       final source = NetworkSource(
         videoSource: 'https://example.com/v.m4s?e=1&uipk=5',
