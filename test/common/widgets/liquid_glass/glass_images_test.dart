@@ -1,5 +1,6 @@
 // Run both ways: `flutter test` draws a pane's shadows and frost from
 // images on its own, `flutter test --enable-impeller` only when told to.
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -187,6 +188,66 @@ void main() {
       expect(
         _largestDifference(paths, await _pixels(tester)),
         lessThanOrEqualTo(2),
+      );
+    },
+    skip: ui.ImageFilter.isShaderFilterSupported,
+  );
+
+  testWidgets(
+    'a page covered by another lets its glass\'s images go, and takes them '
+    'again once it shows',
+    (tester) async {
+      _view(tester);
+      final before = LiquidGlassHost.debugDeviceImages;
+      await tester.pumpWidget(_app());
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImages - before, 2);
+
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      unawaited(
+        navigator.push(
+          MaterialPageRoute<void>(builder: (_) => const Scaffold()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _frame(tester);
+      // The page under it lives on, its pane's images gone.
+      expect(find.byType(LiquidGlass, skipOffstage: false), findsOneWidget);
+      expect(LiquidGlassHost.debugDeviceImages, before);
+
+      navigator.pop();
+      await tester.pumpAndSettle();
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImages - before, 2);
+    },
+    skip: ui.ImageFilter.isShaderFilterSupported,
+  );
+
+  testWidgets(
+    'a snapshot taken before the host lays a moved pane out casts its '
+    'shadows where it is',
+    (tester) async {
+      _view(tester);
+      LiquidGlassHost.debugImagesOverride = false;
+      await tester.pumpWidget(_app(left: 90));
+      await _frame(tester);
+      final paths = await _pixels(tester);
+
+      LiquidGlassHost.debugImagesOverride = true;
+      await tester.pumpWidget(_app());
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImages, greaterThan(0));
+      // Painted where it now is, but not yet composited, as a page's morph
+      // snapshots it.
+      await tester.pumpWidget(_app(left: 90), phase: EnginePhase.paint);
+      final snapshot = await _pixels(tester);
+      // Below the pane, where its shadows fall and its frost does not.
+      expect(
+        _largestDifference(
+          paths.sublist(112 * _width * 4, 160 * _width * 4),
+          snapshot.sublist(112 * _width * 4, 160 * _width * 4),
+        ),
+        0,
       );
     },
     skip: ui.ImageFilter.isShaderFilterSupported,

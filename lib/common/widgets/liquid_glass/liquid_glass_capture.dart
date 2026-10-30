@@ -402,6 +402,11 @@ class _LiquidGlassHostLayer extends ContainerLayer {
   // from images (liquid_glass_skia.dart).
   Matrix4? _hostToDevice;
 
+  // PiliPlus: the panes' shadows it laid on the device, which, as the panes
+  // do, would hold their images under a route that covers them.
+  var _shadows = <_LiquidGlassShadowLayer>{};
+  var _shadowsFound = <_LiquidGlassShadowLayer>{};
+
   @override
   void addToScene(ui.SceneBuilder builder) {
     _capture();
@@ -414,6 +419,11 @@ class _LiquidGlassHostLayer extends ContainerLayer {
       pane._dropCaptured();
     }
     _panes = {};
+    // PiliPlus: see _shadows.
+    for (final shadow in _shadows) {
+      shadow._forget();
+    }
+    _shadows = {};
     for (final atlas in _atlases) {
       atlas.image.dispose();
     }
@@ -435,6 +445,12 @@ class _LiquidGlassHostLayer extends ContainerLayer {
       pane._dropCaptured();
     }
     _panes = panes;
+    // PiliPlus: see _shadows.
+    for (final shadow in _shadows.difference(_shadowsFound)) {
+      shadow._forget();
+    }
+    _shadows = _shadowsFound;
+    _shadowsFound = {};
     final placed = <_Behind>[];
     for (final entry in found) {
       if (_place(entry)) {
@@ -538,6 +554,7 @@ class _LiquidGlassHostLayer extends ContainerLayer {
         case final _LiquidGlassShadowLayer shadow:
           if (_hostToDevice case final hostToDevice?) {
             shadow.align(hostToDevice.multiplied(toHost));
+            _shadowsFound.add(shadow);
           }
         case final ContainerLayer container:
           final offscreen = _drawsOffscreen(container);

@@ -1279,8 +1279,6 @@ class _LiquidGlassLayer extends Layer {
   void dispose() {
     _frost?.dispose();
     _dropCaptured();
-    // PiliPlus: and the frost's image.
-    _overlay.clear();
     super.dispose();
   }
 
@@ -1502,6 +1500,9 @@ class _LiquidGlassLayer extends Layer {
     _captureKey = null;
     _captureShader?.dispose();
     _captureShader = null;
+    // PiliPlus: and the image of the frost's rims, as a covered page's
+    // panes, which live on, would hold it.
+    _overlay.clear();
   }
 
   void _hold(ui.Picture? captured) {

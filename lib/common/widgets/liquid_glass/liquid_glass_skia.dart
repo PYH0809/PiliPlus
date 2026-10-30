@@ -150,6 +150,19 @@ class _LiquidGlassShadowLayer extends Layer {
     _pathsKey = key;
     _shadows = shadows;
     _bounds = bounds;
+    // The image shows the shadows before, until the host lays these out:
+    // a snapshot taken before it does, as a page's morph takes, draws the
+    // paths.
+    _readyPass = -1;
+  }
+
+  /// Lets go of the image, as the host no longer lays it out.
+  void _forget() {
+    _image.clear();
+    _copy?.dispose();
+    _copy = null;
+    _copied = null;
+    _readyPass = -1;
   }
 
   /// Lays the shadows where [toDevice] puts them, for this pass of the host.
@@ -200,9 +213,7 @@ class _LiquidGlassShadowLayer extends Layer {
   void dispose() {
     _paths?.dispose();
     _paths = null;
-    _copy?.dispose();
-    _copy = null;
-    _image.clear();
+    _forget();
     super.dispose();
   }
 }
