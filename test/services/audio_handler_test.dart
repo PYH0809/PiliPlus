@@ -334,6 +334,90 @@ void main() {
     );
   });
 
+  test('a pause from the card just after the swipe is a new one, and keeps '
+      'the card', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    await handler.onTaskRemoved();
+    await handler.pause();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('the paused card\'s clock runs on through updates while it stays '
+      'paused, such as a seek', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 100);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 300),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('play on a paused card starts its clock again, so the card neither '
+      'goes while playing starts nor stays if it never does', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 100);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    // No player here takes it, as when audio focus is refused.
+    await handler.play();
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
   test('leaving the page takes the card away', () {
     handler.onVideoDetailChange(item(), 1, 'audio');
     play(canSkip: true);

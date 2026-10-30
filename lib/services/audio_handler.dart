@@ -100,6 +100,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> play() {
+    _onControl();
     return onPlay?.call() ??
         PlPlayerController.playIfExists() ??
         Future.syncValue(null);
@@ -107,6 +108,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> pause() {
+    _onControl();
     return onPause?.call() ??
         PlPlayerController.pauseIfExists() ??
         Future.syncValue(null);
@@ -512,9 +514,16 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   static const _latePause = Duration(seconds: 1);
   DateTime? _taskRemovedAt;
 
+  static bool _isPaused(PlaybackState state) =>
+      !state.playing && state.processingState != .idle;
+
+  /// Starts the paused card's clock as the card stops playing. Updates while
+  /// it stays paused, such as a seek, leave the clock running.
   void _onPlaybackState(PlaybackState state) {
-    _pausedCardTimer?.cancel();
-    if (!state.playing && state.processingState != .idle) {
+    if (!_isPaused(state)) {
+      _pausedCardTimer?.cancel();
+      _pausedCardTimer = null;
+    } else if (_pausedCardTimer == null) {
       final taskRemovedAt = _taskRemovedAt;
       final swipedAway =
           taskRemovedAt != null &&
@@ -526,10 +535,22 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
   }
 
+  /// Play or pause on the card, or from a headset. After the swipe, a pause
+  /// from here is a new one, which keeps the card.
+  void _onControl() {
+    _taskRemovedAt = null;
+    // Playing takes a moment, such as for audio focus: the clock starts again
+    // so the card does not go meanwhile, nor stay for good if it never plays.
+    if (_pausedCardTimer case final timer?) {
+      timer.cancel();
+      _pausedCardTimer = Timer(pausedCardLifetime, _endPausedCard);
+    }
+  }
+
   /// Lets a paused card go, and the foreground service with it.
   void _endPausedCard() {
     final state = playbackState.value;
-    if (!state.playing && state.processingState != .idle) {
+    if (_isPaused(state)) {
       playbackState.add(state.copyWith(processingState: .idle));
     }
   }
