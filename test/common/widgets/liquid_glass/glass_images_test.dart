@@ -252,6 +252,22 @@ void main() {
   );
 
   testWidgets(
+    'a pane beyond the host holds no images',
+    (tester) async {
+      _view(tester);
+      LiquidGlassHost.debugImagesOverride = true;
+      final before = LiquidGlassHost.debugDeviceImages;
+      await tester.pumpWidget(_app());
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImages, greaterThan(before));
+      await tester.pumpWidget(_app(left: -400.5));
+      await _frame(tester);
+      await _frame(tester);
+      expect(LiquidGlassHost.debugDeviceImages, before);
+    },
+  );
+
+  testWidgets(
     'a pane back from beyond the host waits two frames for its images',
     (tester) async {
       _view(tester);

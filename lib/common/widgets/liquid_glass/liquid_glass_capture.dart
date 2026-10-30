@@ -552,9 +552,14 @@ class _LiquidGlassHostLayer extends ContainerLayer {
               chain.toSet(),
             ),
           );
-        // PiliPlus: shadows lie on the device's pixels, to draw from an image.
+        // PiliPlus: shadows lie on the device's pixels, to draw from an
+        // image; those wholly beyond the host keep none.
         case final _LiquidGlassShadowLayer shadow:
-          if (_hostToDevice case final hostToDevice?) {
+          if (_hostToDevice case final hostToDevice?
+              when MatrixUtils.transformRect(
+                toHost,
+                shadow.bounds,
+              ).overlaps(bounds)) {
             shadow.align(hostToDevice.multiplied(toHost));
             _shadowsFound.add(shadow);
           }
