@@ -16,6 +16,8 @@ import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
+import 'package:PiliPlus/services/service_locator.dart'
+    show audioSessionHandler;
 import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
@@ -134,12 +136,14 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToNext() {
+    _onControl();
     final func = onSkipToNext ?? _findIntroController()?.nextPlay;
     return func == null ? Future.syncValue(null) : Future.sync(func);
   }
 
   @override
   Future<void> skipToPrevious() {
+    _onControl();
     final func = onSkipToPrevious ?? _findIntroController()?.prevPlay;
     return func == null ? Future.syncValue(null) : Future.sync(func);
   }
@@ -540,29 +544,32 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
   }
 
-  /// Whether a call or the like has paused playing for now, as the audio
-  /// session tells. The player plays on by itself after it, from the
-  /// background, so a paused card stays meanwhile: had it gone, playing on
-  /// would have to start the foreground service again, which Android 12 and
-  /// later refuse. As it ends, the clock starts again, since playing on takes
-  /// a moment.
-  bool get interrupted => _interrupted;
-  bool _interrupted = false;
-  set interrupted(bool value) {
-    if (_interrupted && !value) _restartPausedCardClock();
-    _interrupted = value;
-  }
+  /// Whether 听视频 waits out a call or the like, to play on by itself after
+  /// it. A video tells through the audio session.
+  bool Function()? waitsToPlayOn;
+
+  /// Whether a player waits out a call or the like, to play on by itself
+  /// after it, from the background. A paused card stays meanwhile: had it
+  /// gone, playing on would have to start the foreground service again, which
+  /// Android 12 and later refuse.
+  bool get _waitsToPlayOn =>
+      (waitsToPlayOn?.call() ?? false) ||
+      (audioSessionHandler?.videoWaitsToPlayOn ?? false);
+
+  /// As a call or the like ends, a player that waited plays on, which takes a
+  /// moment: the clock starts again so the card does not go meanwhile.
+  void onInterruptionEnd() => _restartPausedCardClock();
 
   void _onPausedCardTimeout() {
-    if (interrupted) {
+    if (_waitsToPlayOn) {
       _pausedCardTimer = Timer(pausedCardLifetime, _onPausedCardTimeout);
     } else {
       _endPausedCard();
     }
   }
 
-  /// Play or pause on the card, or from a headset. After the swipe, a pause
-  /// from here is a new one, which keeps the card.
+  /// Play, pause, previous or next on the card, or from a headset. After the
+  /// swipe, a pause from here is a new one, which keeps the card.
   void _onControl() {
     _taskRemovedAt = null;
     _restartPausedCardClock();
@@ -591,11 +598,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   }
 
   /// Swiped away from recents, a paused card goes at once; a playing one
-  /// stays, playing on in the background, and so does one [interrupted].
+  /// stays, playing on in the background, and so does one whose player waits
+  /// out a call or the like.
   @override
   Future<void> onTaskRemoved() async {
     _taskRemovedAt = DateTime.now();
-    if (!interrupted) _endPausedCard();
+    if (!_waitsToPlayOn) _endPausedCard();
   }
 
   void clear() {

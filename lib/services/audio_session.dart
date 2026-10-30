@@ -10,6 +10,10 @@ class AudioSessionHandler {
   bool _playInterrupted = false;
   bool _volumeDucked = false;
 
+  // 视频被临时打断，打断结束后会接着放；这期间媒体卡片不收走
+  bool _videoWaitsToPlayOn = false;
+  bool get videoWaitsToPlayOn => _videoWaitsToPlayOn;
+
   // 最后申请焦点的播放器（视频页或听视频），只有它能让出焦点，
   // 免得一个页面晚到的让出把另一个页面刚拿到的焦点放掉
   Object? _focusOwner;
@@ -24,7 +28,7 @@ class AudioSessionHandler {
       if (owner != _focusOwner) return Future.value(true);
       _focusOwner = null;
       // 让出焦点后不会再收到打断结束
-      videoPlayerServiceHandler?.interrupted = false;
+      _videoWaitsToPlayOn = false;
     }
     return session.setActive(active);
   }
@@ -49,16 +53,13 @@ class AudioSessionHandler {
     session.configure(const AudioSessionConfiguration.music());
 
     session.interruptionEventStream.listen((event) {
-      // 临时打断期间媒体卡片不收走，结束后播放器还要接着放。
-      // 安卓上 unknown 的开始是永久失去焦点，不会再放（iOS 的打断开始都是 unknown）
-      if (event.type != AudioInterruptionType.duck) {
-        videoPlayerServiceHandler?.interrupted =
-            event.begin &&
-            (event.type == AudioInterruptionType.pause || !Platform.isAndroid);
-      }
       final playerStatus = PlPlayerController.getPlayerStatusIfExists();
       // final player = PlPlayerController.getInstance();
       if (event.begin) {
+        // 安卓上 unknown 的开始是永久失去焦点，不会再放（iOS 的打断开始都是 unknown）
+        final canResume =
+            event.type != AudioInterruptionType.unknown || !Platform.isAndroid;
+        if (!canResume) _videoWaitsToPlayOn = false;
         if (playerStatus != PlayerStatus.playing) return;
         // if (!player.playerStatus.playing) return;
         switch (event.type) {
@@ -74,16 +75,20 @@ class AudioSessionHandler {
             PlPlayerController.pauseIfExists(isInterrupt: true);
             // player.pause(isInterrupt: true);
             _playInterrupted = true;
+            _videoWaitsToPlayOn = true;
             break;
           case AudioInterruptionType.unknown:
             PlPlayerController.pauseIfExists(isInterrupt: true);
             // player.pause(isInterrupt: true);
             _playInterrupted = true;
+            _videoWaitsToPlayOn = canResume;
             // 永久失去焦点，不会再有结束
             _restoreDuckedVolume();
             break;
         }
       } else {
+        // 视频接着放之前，媒体卡片重新计时
+        if (_videoWaitsToPlayOn) videoPlayerServiceHandler?.onInterruptionEnd();
         // duck 后又被暂停时，只会收到一次暂停的结束
         _restoreDuckedVolume();
         switch (event.type) {
@@ -98,6 +103,7 @@ class AudioSessionHandler {
             break;
         }
         _playInterrupted = false;
+        _videoWaitsToPlayOn = false;
       }
     });
 

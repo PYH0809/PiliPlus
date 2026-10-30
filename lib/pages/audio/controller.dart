@@ -275,8 +275,11 @@ class AudioController extends GetxController
       ..onPause = onPause
       ..onSeek = onSeek
       ..onSkipToNext = playNext
-      ..onSkipToPrevious = playPrev;
+      ..onSkipToPrevious = playPrev
+      ..waitsToPlayOn = _waitsToPlayOn;
   }
+
+  bool _waitsToPlayOn() => _playInterrupted;
 
   /// Lets go of the card's buttons, if they are still this page's.
   void _unbindMediaControls() {
@@ -287,7 +290,8 @@ class AudioController extends GetxController
       ..onPause = null
       ..onSeek = null
       ..onSkipToNext = null
-      ..onSkipToPrevious = null;
+      ..onSkipToPrevious = null
+      ..waitsToPlayOn = null;
   }
 
   bool isPlaying() {
@@ -711,6 +715,8 @@ class AudioController extends GetxController
     } else {
       _restoreDuckedVolume();
       if (_playInterrupted && event.type == AudioInterruptionType.pause) {
+        // 接着放之前，媒体卡片重新计时
+        videoPlayerServiceHandler?.onInterruptionEnd();
         _wantPlay = true;
         // 正在切曲、或者在等下一首的地址时不用播，地址回来就会接着放
         if (!player.state.completed && !_switchingTrack) player.play();
