@@ -60,6 +60,7 @@ import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
+import 'package:PiliPlus/utils/ios/pip_helper.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/reply_scheme_helper.dart';
@@ -926,7 +927,8 @@ class VideoDetailController extends GetxController
           // for coming back, as didPopNext opens them.
           final foreground =
               WidgetsBinding.instance.lifecycleState == .resumed ||
-              plPlayerController.continuePlayInBackground.value;
+              plPlayerController.continuePlayInBackground.value ||
+              (Platform.isIOS && IOSPipHelper.isActive);
           if (isPageShowing && foreground) {
             _autoPlay.value = true;
             plPlayerController
