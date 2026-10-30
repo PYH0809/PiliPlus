@@ -332,7 +332,9 @@ class HeaderControlState extends State<HeaderControl>
   @override
   late final PlPlayerController plPlayerController = widget.controller;
   late final VideoDetailController videoDetailCtr = widget.videoDetailCtr;
-  late final PlayUrlModel videoInfo = videoDetailCtr.data;
+  // Read each time: the page replaces its data on a language change or when
+  // expired links are fetched afresh.
+  PlayUrlModel get videoInfo => videoDetailCtr.data;
   static const TextStyle subTitleStyle = TextStyle(fontSize: 12);
   static const TextStyle titleStyle = TextStyle(fontSize: 14);
 

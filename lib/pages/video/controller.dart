@@ -55,6 +55,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/nested_scroll_ext.dart';
@@ -928,7 +929,8 @@ class VideoDetailController extends GetxController
           final foreground =
               WidgetsBinding.instance.lifecycleState == .resumed ||
               plPlayerController.continuePlayInBackground.value ||
-              (Platform.isIOS && IOSPipHelper.isActive);
+              (Platform.isIOS && IOSPipHelper.isActive) ||
+              (Platform.isAndroid && AndroidHelper.isPipMode);
           if (isPageShowing && foreground) {
             _autoPlay.value = true;
             plPlayerController
