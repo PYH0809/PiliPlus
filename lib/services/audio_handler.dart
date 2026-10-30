@@ -508,6 +508,11 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   Duration pausedCardLifetime = const Duration(minutes: 10);
   Timer? _pausedCardTimer;
 
+  /// Whether a paused card goes after a while: only on Android, where it
+  /// holds the foreground service. Elsewhere it stays, as it always has.
+  @visibleForTesting
+  bool pausedCardExpires = Platform.isAndroid;
+
   /// The players tell the card of a pause half a second late, so a pause it
   /// hears of this soon after the app is swiped away from recents came before
   /// the swipe, or from it.
@@ -523,7 +528,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (!_isPaused(state)) {
       _pausedCardTimer?.cancel();
       _pausedCardTimer = null;
-    } else if (_pausedCardTimer == null) {
+    } else if (_pausedCardTimer == null && pausedCardExpires) {
       final taskRemovedAt = _taskRemovedAt;
       final swipedAway =
           taskRemovedAt != null &&

@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/services/service_locator.dart';
@@ -48,10 +50,11 @@ class AudioSessionHandler {
 
     session.interruptionEventStream.listen((event) {
       // 临时打断期间媒体卡片不收走，结束后播放器还要接着放。
-      // 安卓上 unknown 的开始是永久失去焦点，不会再放
+      // 安卓上 unknown 的开始是永久失去焦点，不会再放（iOS 的打断开始都是 unknown）
       if (event.type != AudioInterruptionType.duck) {
         videoPlayerServiceHandler?.interrupted =
-            event.begin && event.type == AudioInterruptionType.pause;
+            event.begin &&
+            (event.type == AudioInterruptionType.pause || !Platform.isAndroid);
       }
       final playerStatus = PlPlayerController.getPlayerStatusIfExists();
       // final player = PlPlayerController.getInstance();

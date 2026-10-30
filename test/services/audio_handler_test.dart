@@ -20,7 +20,9 @@ void main() {
     Hive.init(tempDir.path);
     GStorage.setting = await Hive.openBox('setting');
     GStorage.localCache = await Hive.openBox('localCache');
-    handler = VideoPlayerServiceHandler();
+    // The tests run on a desktop: the card behaves as on Android, where a
+    // paused one goes after a while, unless a test says otherwise.
+    handler = VideoPlayerServiceHandler()..pausedCardExpires = true;
   });
 
   tearDown(() => handler.clear());
@@ -413,6 +415,35 @@ void main() {
     expect(
       handler.playbackState.value.processingState,
       AudioProcessingState.idle,
+    );
+  });
+
+  test('off Android a paused card stays, as it holds no foreground '
+      'service there', () async {
+    handler
+      ..pausedCardExpires = false
+      ..pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() {
+      handler
+        ..pausedCardExpires = true
+        ..pausedCardLifetime = const Duration(minutes: 10);
+    });
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
     );
   });
 
