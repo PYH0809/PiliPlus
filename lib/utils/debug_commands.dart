@@ -57,7 +57,7 @@ abstract final class DebugCommands {
     _register('audioBackdropFps', (params) async {
       final fps = int.tryParse(params['value'] ?? '');
       AudioBackdrop.debugFps.value = fps;
-      return '${fps ?? AudioBackdrop.fps}';
+      return '${AudioBackdrop.currentFps}';
     });
     _register('open', (params) async {
       final url = params['url'];

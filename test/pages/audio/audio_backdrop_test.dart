@@ -40,7 +40,59 @@ Widget _app({ImageProvider? image, bool reduceMotion = false}) => MaterialApp(
 );
 
 void main() {
-  tearDown(() => AudioBackdrop.debugFps.value = null);
+  // It moves, as with Impeller, unless a test says otherwise.
+  setUp(() => AudioBackdrop.debugMovesOverride = true);
+  tearDown(() {
+    AudioBackdrop.debugFps.value = null;
+    AudioBackdrop.debugMovesOverride = null;
+  });
+
+  // Run both ways: `flutter test` and `flutter test --enable-impeller`.
+  testWidgets('moves only with Impeller', (tester) async {
+    AudioBackdrop.debugMovesOverride = null;
+    await tester.pumpWidget(_app());
+    final state = _state(tester);
+    final moves = ui.ImageFilter.isShaderFilterSupported;
+    expect(state.isRunning, moves);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(state.time, moves ? closeTo(2, 0.1) : 0);
+  });
+
+  testWidgets('without Impeller it holds still, but fades a new cover in', (
+    tester,
+  ) async {
+    AudioBackdrop.debugMovesOverride = false;
+    await tester.pumpWidget(
+      _app(image: MemoryImage(await _png(tester, Colors.red))),
+    );
+    await _load(tester);
+    final state = _state(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(state.dissolve, 1);
+    expect(state.isRunning, isFalse);
+    final renders = state.renders;
+    await tester.pump(const Duration(seconds: 10));
+    expect(state.renders, renders);
+
+    await tester.pumpWidget(
+      _app(image: MemoryImage(await _png(tester, Colors.blue))),
+    );
+    await _load(tester);
+    expect(state.isRunning, isTrue);
+    final start = state.dissolve;
+    expect(start, lessThan(0.5));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(state.dissolve, closeTo(start + 0.5, 0.15));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    expect(state.dissolve, 1);
+    expect(state.isRunning, isFalse);
+    expect(state.time, 0);
+    expect(state.renders, greaterThan(renders));
+  });
 
   testWidgets('moves while it shows', (tester) async {
     await tester.pumpWidget(_app());

@@ -15,6 +15,7 @@ import 'package:material_ui/material_ui.dart';
 /// page covers it or the app is away, going on from where it stopped. A
 /// [Ticker] would draw a frame on every vsync, and every frame draws the
 /// page and its glass again; this asks only for the frames it changes.
+/// Without Impeller it never moves, see [moves].
 class AudioBackdrop extends StatefulWidget {
   const AudioBackdrop({
     super.key,
@@ -35,8 +36,23 @@ class AudioBackdrop extends StatefulWidget {
   /// over 11.1 ms, a frame at 90 Hz.
   static const fps = 15;
 
+  /// Whether it moves: only with Impeller's shader filters, as the glass
+  /// checks for them. Without, it is drawn once for each cover, still fading
+  /// one cover into the next. Skia's glass can't carry what it captured over
+  /// to the next frame, so while the backdrop moves the glass over it draws
+  /// and blurs it again every frame: on a OnePlus 7 Pro, 14 ms a frame at
+  /// any rate, against 3 to 6 with the glass off.
+  static bool get moves =>
+      debugMovesOverride ?? ui.ImageFilter.isShaderFilterSupported;
+
+  @visibleForTesting
+  static bool? debugMovesOverride;
+
   /// [fps] while measuring what the glass over it costs at each rate.
   static final debugFps = ValueNotifier<int?>(null);
+
+  /// How often it moves now: [debugFps], else [fps] where it [moves].
+  static int get currentFps => debugFps.value ?? (moves ? fps : 0);
 
   /// The cover is read this small: it ends up blurred.
   static const coverSize = 64;
@@ -183,7 +199,7 @@ class AudioBackdropState extends State<AudioBackdrop> {
     _schedule();
   }
 
-  int get _fps => AudioBackdrop.debugFps.value ?? AudioBackdrop.fps;
+  int get _fps => AudioBackdrop.currentFps;
 
   bool get _dissolving => _dissolveStart != null;
 
