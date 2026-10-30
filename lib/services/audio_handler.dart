@@ -1,3 +1,4 @@
+import 'dart:async' show Timer;
 import 'dart:io' show File, Platform;
 import 'dart:ui' show PlatformDispatcher;
 
@@ -15,6 +16,8 @@ import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
+import 'package:PiliPlus/services/service_locator.dart'
+    show audioSessionHandler;
 import 'package:PiliPlus/utils/android/bindings.g.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
@@ -22,7 +25,7 @@ import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:collection/collection.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:get/get_core/src/get_main.dart';
 import 'package:get/get_instance/src/extension_instance.dart';
 import 'package:jni/jni.dart' show JStringExtension;
@@ -42,18 +45,25 @@ Future<VideoPlayerServiceHandler> initAudioService() {
   }
   return AudioService.init(
     builder: VideoPlayerServiceHandler.new,
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.piliplus.audio',
-      androidNotificationChannelName: 'Audio Service ${Constants.appName}',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
-      fastForwardInterval: Duration(seconds: 10),
-      rewindInterval: Duration(seconds: 10),
-      androidNotificationChannelDescription: 'Media notification channel',
-      androidNotificationIcon: 'drawable/ic_notification_icon',
-    ),
+    config: audioServiceConfig,
   );
 }
+
+const audioServiceConfig = AudioServiceConfig(
+  androidNotificationChannelId: 'com.example.piliplus.audio',
+  androidNotificationChannelName: 'Audio Service ${Constants.appName}',
+  // The foreground service stays while paused. Without it, Android stops the
+  // service about a minute after the app pauses in the background, and play
+  // on the lock screen or in the control center then has to start it again
+  // from the background, which Android 12 and later refuse. A paused card
+  // gives it up after a while (pausedCardLifetime) or when the app is swiped
+  // away from recents.
+  androidStopForegroundOnPause: false,
+  fastForwardInterval: Duration(seconds: 10),
+  rewindInterval: Duration(seconds: 10),
+  androidNotificationChannelDescription: 'Media notification channel',
+  androidNotificationIcon: 'drawable/ic_notification_icon',
+);
 
 typedef _StatusConfig = (
   PlayerStatus status,
@@ -65,6 +75,7 @@ typedef _StatusConfig = (
 
 class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   VideoPlayerServiceHandler() {
+    playbackState.listen(_onPlaybackState);
     if (Platform.isAndroid) {
       final jStr = AndroidHelper.manufacturer();
       if (jStr != null &&
@@ -91,6 +102,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> play() {
+    _onControl();
     return onPlay?.call() ??
         PlPlayerController.playIfExists() ??
         Future.syncValue(null);
@@ -98,6 +110,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> pause() {
+    _onControl();
     return onPause?.call() ??
         PlPlayerController.pauseIfExists() ??
         Future.syncValue(null);
@@ -123,12 +136,14 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToNext() {
+    _onControl();
     final func = onSkipToNext ?? _findIntroController()?.nextPlay;
     return func == null ? Future.syncValue(null) : Future.sync(func);
   }
 
   @override
   Future<void> skipToPrevious() {
+    _onControl();
     final func = onSkipToPrevious ?? _findIntroController()?.prevPlay;
     return func == null ? Future.syncValue(null) : Future.sync(func);
   }
@@ -168,6 +183,17 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
     if (onPlay != null && debugLabel == 'onVideoPaused') return;
 
+    if (status == .playing) {
+      // Only a player playing settles it, not the card's state sent again,
+      // such as with the next one's details while the end is on its way.
+      goesOn = false;
+      _cardGone = false;
+    } else if (_cardGone) {
+      // Gone after its time or a swipe, the card comes back only as a player
+      // plays, or with a new item, not with a paused player's later updates.
+      return;
+    }
+
     final newConfig = (status, isBuffering, isLive, speed, canSkip);
     if (_lastConfig == newConfig) {
       if (_lastPos != null) {
@@ -192,6 +218,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         playing = isBuffering;
         processingState = isBuffering ? .buffering : .ready;
     }
+    _pausedWhileBuffering = status == .paused && isBuffering;
     _updateState(
       processingState,
       playing,
@@ -287,6 +314,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     //   debugPrint(StackTrace.current);
     // }
     if (data == null) return;
+    _cardGone = false;
 
     Uri getUri(String? cover) => Uri.parse(ImageUtils.safeThumbnailUrl(cover));
 
@@ -421,7 +449,8 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       final item = _item.last;
       // The page underneath shows where it is itself, not where the shared
       // player was for the page that left; 听视频 republishes its own state on
-      // hearing its item.
+      // hearing its item, which a card gone with the page above must take.
+      _cardGone = false;
       final tag = _pages.lastWhereOrNull(item.id.endsWith);
       final cid = tag == null
           ? null
@@ -490,12 +519,181 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (_item.isEmpty) clear();
   }
 
+  /// How long a paused card keeps the foreground service, and the wake lock
+  /// audio_service holds with it, before it goes. The pages keep their items,
+  /// so playing again brings it back.
+  @visibleForTesting
+  Duration pausedCardLifetime = const Duration(minutes: 10);
+  Timer? _pausedCardTimer;
+
+  /// Whether a paused card goes after a while: only on Android, where it
+  /// holds the foreground service. Elsewhere it stays, as it always has.
+  @visibleForTesting
+  bool pausedCardExpires = Platform.isAndroid;
+
+  /// The players tell the card of a pause half a second late, so a pause it
+  /// hears of this soon after the app is swiped away from recents came before
+  /// the swipe, or from it.
+  static const _latePause = Duration(seconds: 1);
+  DateTime? _taskRemovedAt;
+
+  /// Whether the player is paused while it buffers, which the card shows as
+  /// playing.
+  bool _pausedWhileBuffering = false;
+
+  bool _isPaused(PlaybackState state) =>
+      state.processingState != .idle &&
+      (!state.playing ||
+          (_pausedWhileBuffering && state.processingState == .buffering));
+
+  /// Starts the paused card's clock as the card stops playing. Updates while
+  /// it stays paused, such as a seek, leave the clock running.
+  void _onPlaybackState(PlaybackState state) {
+    if (!_isPaused(state)) {
+      _pausedCardTimer?.cancel();
+      _pausedCardTimer = null;
+      _swipeTimer?.cancel();
+    } else if (_pausedCardTimer == null && pausedCardExpires) {
+      _pausedCardTimer = Timer(pausedCardLifetime, _onPausedCardTimeout);
+      final taskRemovedAt = _taskRemovedAt;
+      if (taskRemovedAt != null &&
+          DateTime.now().difference(taskRemovedAt) < _latePause) {
+        _endSwipedAwayCard();
+      }
+    }
+  }
+
+  /// Whether 听视频 waits out a call or the like, to play on by itself after
+  /// it. A video tells through the audio session.
+  bool Function()? waitsToPlayOn;
+
+  /// Whether 听视频 plays or is about to, such as while the next one loads.
+  bool Function()? aboutToPlay;
+
+  /// Whether a player says it goes on by itself: the video page, having
+  /// played one through, with the next one or the same one again (also once
+  /// a related one it asks for arrives), or a player whose wait for a call is
+  /// over. A player playing or the card going clears it.
+  bool goesOn = false;
+
+  /// Whether a player waits out a call or the like, to play on by itself
+  /// after it, from the background. A paused card stays meanwhile: had it
+  /// gone, playing on would have to start the foreground service again, which
+  /// Android 12 and later refuse.
+  bool get _waitsToPlayOn =>
+      (waitsToPlayOn?.call() ?? false) ||
+      (audioSessionHandler?.videoWaitsToPlayOn ?? false);
+
+  /// A player that waited out a call or the like no longer does: it plays on
+  /// as the call ends, which takes a moment, or it never will, such as with
+  /// focus lost for good. Either way the clock starts again, so that the card
+  /// neither goes meanwhile nor before its full time, and a swipe meanwhile
+  /// gives it [goingOnTime] to play. A pause still on its way to the card
+  /// came from the wait, not from before a swipe.
+  void onWaitOver() {
+    _taskRemovedAt = null;
+    goesOn = true;
+    _restartPausedCardClock();
+    if (_swipeTimer?.isActive ?? false) _waitForSwipedCardToPlay();
+  }
+
+  void _onPausedCardTimeout() {
+    if (_waitsToPlayOn) {
+      _pausedCardTimer = Timer(pausedCardLifetime, _onPausedCardTimeout);
+    } else {
+      _endPausedCard();
+    }
+  }
+
+  /// Play, pause, previous or next on the card, or from a headset. After the
+  /// swipe, a pause from here is a new one, which keeps the card.
+  void _onControl() {
+    _taskRemovedAt = null;
+    _swipeTimer?.cancel();
+    _restartPausedCardClock();
+  }
+
+  /// Starts a paused card's clock again as it may play on, which takes a
+  /// moment, such as for audio focus: the card does not go meanwhile, nor
+  /// stay for good if it never plays.
+  void _restartPausedCardClock() {
+    if (_pausedCardTimer case final timer?) {
+      timer.cancel();
+      _pausedCardTimer = Timer(pausedCardLifetime, _onPausedCardTimeout);
+    }
+  }
+
+  /// Unplugged headphones pause the players without the card. After the
+  /// swipe, that is a new pause too, which keeps the card.
+  void onBecomingNoisy() {
+    _taskRemovedAt = null;
+    _swipeTimer?.cancel();
+  }
+
+  /// Lets a paused card go, and the foreground service with it.
+  void _endPausedCard() {
+    final state = playbackState.value;
+    if (_isPaused(state)) {
+      goesOn = false;
+      _cardGone = true;
+      playbackState.add(state.copyWith(processingState: .idle));
+    }
+  }
+
+  /// Whether the paused card went after its time or a swipe. Its item coming
+  /// back, or another's, brings it back.
+  bool _cardGone = false;
+
+  /// How long after a swipe a paused card whose player says it goes on by
+  /// itself stays for it to play: past it, the next one is not coming, such
+  /// as when its details or its address could not be had.
+  @visibleForTesting
+  Duration goingOnTime = const Duration(seconds: 30);
+  Timer? _swipeTimer;
+
+  /// Lets a paused card go after a swipe: at once, or, when its player says
+  /// it goes on by itself ([goesOn], [aboutToPlay]), if it has not played
+  /// within [goingOnTime]. One whose player waits out a call stays, its clock
+  /// bounding it.
+  void _endSwipedAwayCard() {
+    if (_waitsToPlayOn) return;
+    if (goesOn || (aboutToPlay?.call() ?? false)) {
+      _waitForSwipedCardToPlay();
+    } else {
+      _endPausedCard();
+    }
+  }
+
+  /// Gives a swiped card [goingOnTime] from now to play, or it goes. Its
+  /// player has just said it goes on, so its clock starts again too, and
+  /// cannot end it sooner.
+  void _waitForSwipedCardToPlay() {
+    _restartPausedCardClock();
+    _swipeTimer?.cancel();
+    _swipeTimer = Timer(goingOnTime, () {
+      if (!_waitsToPlayOn) _endPausedCard();
+    });
+  }
+
+  /// Swiped away from recents, a paused card goes ([_endSwipedAwayCard]); a
+  /// playing one stays, playing on in the background.
+  @override
+  Future<void> onTaskRemoved() async {
+    _taskRemovedAt = DateTime.now();
+    if (_isPaused(playbackState.value)) _endSwipedAwayCard();
+  }
+
   void clear() {
     if (!enableBackgroundPlay) return;
     mediaItem.add(null);
     _item.clear();
     _lastPos = null;
     _lastConfig = null;
+    _taskRemovedAt = null;
+    _pausedWhileBuffering = false;
+    goesOn = false;
+    _cardGone = false;
+    _swipeTimer?.cancel();
     /**
      * if (playbackState.processingState == AudioProcessingState.idle &&
             previousState?.processingState != AudioProcessingState.idle) {

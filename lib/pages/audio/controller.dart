@@ -128,7 +128,16 @@ class AudioController extends GetxController
   double? _lastVolume;
   late final RxDouble desktopVolume = RxDouble(Pref.desktopVolume);
 
-  bool _playInterrupted = false;
+  // 被临时打断、等着打断结束后接着放。不再等的时候告诉媒体卡片，让它重新计时
+  bool get _playInterrupted => _waitsForInterruptionEnd;
+  set _playInterrupted(bool value) {
+    if (_waitsForInterruptionEnd && !value) {
+      videoPlayerServiceHandler?.onWaitOver();
+    }
+    _waitsForInterruptionEnd = value;
+  }
+
+  bool _waitsForInterruptionEnd = false;
   double? _volumeBeforeDuck;
   // 页面要不要在放：开播、点选一首时为 true；暂停、被打断、播完不再接着放时为 false。
   // 等播放器、等下一首地址的自动播放，开播前都再看一眼它
@@ -283,8 +292,12 @@ class AudioController extends GetxController
       ..onPause = onPause
       ..onSeek = onSeek
       ..onSkipToNext = playNext
-      ..onSkipToPrevious = playPrev;
+      ..onSkipToPrevious = playPrev
+      ..waitsToPlayOn = _waitsToPlayOn
+      ..aboutToPlay = isPlayingOrPending;
   }
+
+  bool _waitsToPlayOn() => _playInterrupted;
 
   /// Lets go of the card's buttons, if they are still this page's.
   void _unbindMediaControls() {
@@ -295,7 +308,9 @@ class AudioController extends GetxController
       ..onPause = null
       ..onSeek = null
       ..onSkipToNext = null
-      ..onSkipToPrevious = null;
+      ..onSkipToPrevious = null
+      ..waitsToPlayOn = null
+      ..aboutToPlay = null;
   }
 
   @override

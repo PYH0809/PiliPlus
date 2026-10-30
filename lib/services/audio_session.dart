@@ -1,11 +1,26 @@
+import 'dart:io' show Platform;
+
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
+import 'package:PiliPlus/services/service_locator.dart';
 import 'package:audio_session/audio_session.dart';
 
 class AudioSessionHandler {
   late AudioSession session;
   bool _playInterrupted = false;
   bool _volumeDucked = false;
+
+  // 视频被临时打断，打断结束后会接着放；这期间媒体卡片不收走，
+  // 不再等的时候（结束、永久失去焦点、让出焦点）卡片重新计时
+  bool _videoWaitsToPlayOn = false;
+  bool get videoWaitsToPlayOn => _videoWaitsToPlayOn;
+  void _setVideoWaitsToPlayOn(bool value) {
+    if (_videoWaitsToPlayOn && !value) videoPlayerServiceHandler?.onWaitOver();
+    _videoWaitsToPlayOn = value;
+  }
+
+  // 视频播放器销毁后不会再接着放
+  void onVideoPlayerDisposed() => _setVideoWaitsToPlayOn(false);
 
   // 最后申请焦点的播放器（视频页或听视频），只有它能让出焦点，
   // 免得一个页面晚到的让出把另一个页面刚拿到的焦点放掉
@@ -20,6 +35,8 @@ class AudioSessionHandler {
       if (owner is PlPlayerController) _restoreDuckedVolume();
       if (owner != _focusOwner) return Future.value(true);
       _focusOwner = null;
+      // 让出焦点后不会再收到打断结束
+      _setVideoWaitsToPlayOn(false);
     }
     return session.setActive(active);
   }
@@ -47,6 +64,10 @@ class AudioSessionHandler {
       final playerStatus = PlPlayerController.getPlayerStatusIfExists();
       // final player = PlPlayerController.getInstance();
       if (event.begin) {
+        // 安卓上 unknown 的开始是永久失去焦点，不会再放（iOS 的打断开始都是 unknown）
+        final canResume =
+            event.type != AudioInterruptionType.unknown || !Platform.isAndroid;
+        if (!canResume) _setVideoWaitsToPlayOn(false);
         if (playerStatus != PlayerStatus.playing) return;
         // if (!player.playerStatus.playing) return;
         switch (event.type) {
@@ -62,11 +83,13 @@ class AudioSessionHandler {
             PlPlayerController.pauseIfExists(isInterrupt: true);
             // player.pause(isInterrupt: true);
             _playInterrupted = true;
+            _setVideoWaitsToPlayOn(true);
             break;
           case AudioInterruptionType.unknown:
             PlPlayerController.pauseIfExists(isInterrupt: true);
             // player.pause(isInterrupt: true);
             _playInterrupted = true;
+            _setVideoWaitsToPlayOn(canResume);
             // 永久失去焦点，不会再有结束
             _restoreDuckedVolume();
             break;
@@ -86,11 +109,13 @@ class AudioSessionHandler {
             break;
         }
         _playInterrupted = false;
+        _setVideoWaitsToPlayOn(false);
       }
     });
 
     // 耳机拔出暂停
     session.becomingNoisyEventStream.listen((_) {
+      videoPlayerServiceHandler?.onBecomingNoisy();
       PlPlayerController.pauseIfExists();
       // final player = PlPlayerController.getInstance();
       // if (player.playerStatus.playing) {

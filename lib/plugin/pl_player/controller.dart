@@ -1680,6 +1680,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     _stopOrientationListener();
     _disableAutoEnterPip();
     setPlayCallBack(null);
+    audioSessionHandler?.onVideoPlayerDisposed();
     dmState.clear();
     if (showSeekPreview) {
       _clearPreview();

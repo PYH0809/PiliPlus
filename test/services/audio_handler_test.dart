@@ -20,7 +20,9 @@ void main() {
     Hive.init(tempDir.path);
     GStorage.setting = await Hive.openBox('setting');
     GStorage.localCache = await Hive.openBox('localCache');
-    handler = VideoPlayerServiceHandler();
+    // The tests run on a desktop: the card behaves as on Android, where a
+    // paused one goes after a while, unless a test says otherwise.
+    handler = VideoPlayerServiceHandler()..pausedCardExpires = true;
   });
 
   tearDown(() => handler.clear());
@@ -236,6 +238,813 @@ void main() {
     expect(handler.isShowing('audio'), isTrue);
     expect(actions(), contains(MediaAction.skipToPrevious));
     expect(actions(), contains(MediaAction.skipToNext));
+  });
+
+  test('a paused card keeps its foreground service, so that play on it does '
+      'not have to start the service again from the background', () {
+    expect(audioServiceConfig.androidStopForegroundOnPause, isFalse);
+  });
+
+  test('a paused card gives up its foreground service after a while, and '
+      'playing again brings it back', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+
+    play();
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    play();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a paused card gone after its time stays gone through the paused '
+      'player\'s later updates, until it plays or a new item comes', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    // Such as a buffering change, or a seek on the page.
+    handler.onUpdateState(
+      .paused,
+      true,
+      false,
+      position: const Duration(seconds: 200),
+      speed: 1,
+    );
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    play();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('back on 听视频 after a video above it went with its time and closes, '
+      'the card takes 听视频\'s own state again', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+    handler.onVideoDetailChange(item(), 2, 'video');
+    play();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    handler
+      ..onVideoDetailDispose('video')
+      // What 听视频 does when the card shows its item again, paused.
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 90),
+        speed: 1,
+        canSkip: true,
+      );
+
+    expect(handler.isShowing('audio'), isTrue);
+    expect(
+      handler.playbackState.value.updatePosition,
+      const Duration(seconds: 90),
+    );
+    expect(actions(), contains(MediaAction.skipToNext));
+  });
+
+  test('swiped away from recents, a paused card goes and a playing one '
+      'stays', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    await handler.onTaskRemoved();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    // The page still has its item: playing again brings the card back.
+    play();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a pause that reaches the card just after the app is swiped away '
+      'takes the card away too', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    await handler.onTaskRemoved();
+    // The players tell the card of a pause half a second late, such as one
+    // from opening recents just before the swipe.
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('a pause from the card just after the swipe is a new one, and keeps '
+      'the card', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    await handler.onTaskRemoved();
+    await handler.pause();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('unplugging the headphones just after the swipe is a new pause, and '
+      'keeps the card', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    await handler.onTaskRemoved();
+    handler
+      ..onBecomingNoisy()
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 180),
+        speed: 1,
+      );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a paused card waits out a call longer than its time, swiped away or '
+      'not, so that the player can play on after it', () async {
+    var waits = false;
+    handler
+      ..pausedCardLifetime = const Duration(milliseconds: 30)
+      ..waitsToPlayOn = () => waits;
+    addTearDown(() {
+      handler
+        ..pausedCardLifetime = const Duration(minutes: 10)
+        ..waitsToPlayOn = null;
+    });
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    // The call pauses the player, which waits to play on after it.
+    waits = true;
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    // Over, and nothing plays on: the card goes in its own time.
+    waits = false;
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('previous / next on a paused card start its clock again, as the next '
+      'one takes a moment to load and play', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 100);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    await handler.skipToNext();
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a card that shows paused stays through a swipe while its player '
+      'waits out a call to play on after it', () async {
+    addTearDown(() => handler.waitsToPlayOn = null);
+    handler
+      ..onVideoDetailChange(item(), 1, 'audio')
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 180),
+        speed: 1,
+        canSkip: true,
+      )
+      // Such as 听视频 asking for the next one's address as a call begins.
+      ..waitsToPlayOn = (() => true);
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a swipe leaves a video that has played one through and goes on to the '
+      'next one, until it plays', () async {
+    void playThrough() => handler.onUpdateState(
+      .completed,
+      false,
+      false,
+      position: const Duration(seconds: 1319),
+      speed: 1,
+    );
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    // What the video page says as it goes on, before the card hears of the
+    // end. The swipe comes as an event of its own.
+    handler.goesOn = true;
+    playThrough();
+    await pumpEventQueue();
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
+
+    // The next one plays, and plays through with nothing to follow.
+    play();
+    await pumpEventQueue();
+    playThrough();
+    await pumpEventQueue();
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('a video going on keeps its card through a swipe, though the card '
+      'shows the next one\'s details before the end reaches it', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    handler
+      ..goesOn = true
+      ..onVideoDetailChange(item(), 2, 'video');
+    expect(handler.playbackState.value.playing, isTrue);
+    await pumpEventQueue();
+    handler.onUpdateState(
+      .completed,
+      false,
+      false,
+      position: const Duration(seconds: 1319),
+      speed: 1,
+    );
+    await pumpEventQueue();
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
+  });
+
+  test('swiped away, a card whose player said it goes on stays a while for '
+      'it to play, then goes, such as when the next one\'s details '
+      'fail', () async {
+    handler.goingOnTime = const Duration(milliseconds: 30);
+    addTearDown(() {
+      handler
+        ..goingOnTime = const Duration(seconds: 30)
+        ..aboutToPlay = null;
+    });
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+    handler
+      ..goesOn = true
+      ..onUpdateState(
+        .completed,
+        false,
+        false,
+        position: const Duration(seconds: 1319),
+        speed: 1,
+      );
+    await pumpEventQueue();
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('swiped away, 听视频 paused long before but now asked on its page for '
+      'the next one stays a while for it, then goes if its address '
+      'fails', () async {
+    handler.goingOnTime = const Duration(milliseconds: 30);
+    addTearDown(() {
+      handler
+        ..goingOnTime = const Duration(seconds: 30)
+        ..aboutToPlay = null;
+    });
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    handler.aboutToPlay = () => true;
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('unplugging the headphones while a swiped card waits for its player to '
+      'go on is a new pause, and keeps the card', () async {
+    handler.goingOnTime = const Duration(milliseconds: 30);
+    addTearDown(() {
+      handler
+        ..goingOnTime = const Duration(seconds: 30)
+        ..aboutToPlay = null;
+    });
+    handler
+      ..onVideoDetailChange(item(), 1, 'audio')
+      ..aboutToPlay = (() => true)
+      ..onUpdateState(
+        .completed,
+        false,
+        false,
+        position: const Duration(seconds: 1319),
+        speed: 1,
+        canSkip: true,
+      );
+    await pumpEventQueue();
+    await handler.onTaskRemoved();
+
+    handler.onBecomingNoisy();
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
+  });
+
+  test('a call that ends while a swiped card waits for its player gives it its '
+      'time again, as the player plays on after the call', () async {
+    handler.goingOnTime = const Duration(milliseconds: 60);
+    addTearDown(() {
+      handler
+        ..goingOnTime = const Duration(seconds: 30)
+        ..aboutToPlay = null;
+    });
+    handler
+      ..onVideoDetailChange(item(), 1, 'audio')
+      ..aboutToPlay = (() => true)
+      ..onUpdateState(
+        .completed,
+        false,
+        false,
+        position: const Duration(seconds: 1319),
+        speed: 1,
+        canSkip: true,
+      );
+    await pumpEventQueue();
+    await handler.onTaskRemoved();
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    // A short call ends just before the card's time is up.
+    handler.onWaitOver();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('a swiped card waiting for its player to go on is not cut short by a '
+      'clock that started long before', () async {
+    handler
+      ..pausedCardLifetime = const Duration(milliseconds: 100)
+      ..goingOnTime = const Duration(milliseconds: 100);
+    addTearDown(() {
+      handler
+        ..pausedCardLifetime = const Duration(minutes: 10)
+        ..goingOnTime = const Duration(seconds: 30)
+        ..aboutToPlay = null;
+    });
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+
+    // Next on 听视频's page, which does not pass through the card, then the
+    // swipe, just before the clock runs out.
+    handler.aboutToPlay = () => true;
+    await handler.onTaskRemoved();
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('swiped away just as a call ends, a card stays for its player to play '
+      'on', () async {
+    var waits = true;
+    handler.waitsToPlayOn = () => waits;
+    addTearDown(() => handler.waitsToPlayOn = null);
+    handler
+      ..onVideoDetailChange(item(), 1, 'audio')
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 180),
+        speed: 1,
+        canSkip: true,
+      );
+    await pumpEventQueue();
+
+    // The call ends: the player plays on, but has not told the card yet.
+    waits = false;
+    handler.onWaitOver();
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a card that has played one through with nothing to follow, such as '
+      'with 播完暂停, goes with the swipe', () async {
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+    handler.onUpdateState(
+      .completed,
+      false,
+      false,
+      position: const Duration(seconds: 1319),
+      speed: 1,
+    );
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('a swipe leaves 听视频\'s card while it is about to play, such as with '
+      'the next one\'s address on its way, the late pause too', () async {
+    addTearDown(() => handler.aboutToPlay = null);
+    handler
+      ..onVideoDetailChange(item(), 1, 'audio')
+      ..aboutToPlay = (() => true);
+    play(canSkip: true);
+
+    await handler.onTaskRemoved();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await handler.onTaskRemoved();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('off Android a paused card stays, as it holds no foreground '
+      'service there', () async {
+    handler
+      ..pausedCardExpires = false
+      ..pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() {
+      handler
+        ..pausedCardExpires = true
+        ..pausedCardLifetime = const Duration(minutes: 10);
+    });
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('as a player stops waiting out a call, the paused card\'s clock starts '
+      'again: the card neither goes while the player plays on, nor before its '
+      'full time if it never does', () async {
+    var waits = true;
+    handler
+      ..pausedCardLifetime = const Duration(milliseconds: 100)
+      ..waitsToPlayOn = () => waits;
+    addTearDown(() {
+      handler
+        ..pausedCardLifetime = const Duration(minutes: 10)
+        ..waitsToPlayOn = null;
+    });
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    // Just before the card's time the call ends, or turns into focus lost for
+    // good. Playing on would reach the card a little later.
+    waits = false;
+    handler.onWaitOver();
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    // It never plays on: the card goes, its full time after the wait.
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('a short call around a swipe keeps the card, though its pause reaches '
+      'the card after the call', () async {
+    var waits = false;
+    handler.waitsToPlayOn = () => waits;
+    addTearDown(() => handler.waitsToPlayOn = null);
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    // Such as a notification sound: it pauses the player, the app is swiped
+    // away, and it is over before the pause reaches the card.
+    waits = true;
+    await handler.onTaskRemoved();
+    waits = false;
+    handler
+      ..onWaitOver()
+      ..onUpdateState(
+        .paused,
+        false,
+        false,
+        position: const Duration(seconds: 180),
+        speed: 1,
+      );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
+  test('a card paused while it buffers, which it shows as playing, still goes '
+      'in its own time and with the swipe', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+    void pauseWhileBuffering() => handler.onUpdateState(
+      .paused,
+      true,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+
+    play();
+    pauseWhileBuffering();
+    expect(handler.playbackState.value.playing, isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    play();
+    pauseWhileBuffering();
+    await handler.onTaskRemoved();
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('the paused card\'s clock runs on through updates while it stays '
+      'paused, such as a seek', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 100);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'audio');
+    play(canSkip: true);
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 300),
+      speed: 1,
+      canSkip: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+  });
+
+  test('play on a paused card starts its clock again, so the card neither '
+      'goes while playing starts nor stays if it never does', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 100);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    // No player here takes it, as when audio focus is refused.
+    await handler.play();
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
   });
 
   test('leaving the page takes the card away', () {
