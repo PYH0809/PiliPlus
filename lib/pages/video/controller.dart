@@ -899,8 +899,12 @@ class VideoDetailController extends GetxController
   /// the old ones ran out while it was paused. Only the links are fetched, so that a part opened meanwhile
   /// fetches its own as usual.
   Future<void> _reopenExpiredSource({bool fromStart = false}) async {
-    // A second press while the links come leaves it to the first.
-    if (_reopening) return;
+    // A second press while the links come leaves it to the first; and while
+    // another part loads, or the player still holds the part before it,
+    // that part's own query opens it.
+    if (_reopening || isQuerying || plPlayerController.cid != this.cid.value) {
+      return;
+    }
     // Links fetched earlier but kept, as the app had gone to the background,
     // open now if they are still good.
     if (_keptLinks && videoUrl != null && _linksFetchedAt != null) {
@@ -950,7 +954,9 @@ class VideoDetailController extends GetxController
           // or gone to the background since pressing play, without
           // background play, the links are kept for the next play, or for
           // coming back, as didPopNext opens them.
+          // On a computer an unfocused window is inactive, not gone.
           final foreground =
+              !PlatformUtils.isMobile ||
               !askedInFront ||
               WidgetsBinding.instance.lifecycleState == .resumed ||
               plPlayerController.continuePlayInBackground.value ||
