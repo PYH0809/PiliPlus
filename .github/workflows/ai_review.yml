@@ -319,11 +319,15 @@ jobs:
                           if (n == null || !Number.isFinite(Number(n))) throw new Error(`not an amount: ${n}`);
                           return `$${Number(n).toFixed(2)}`;
                         };
-                        const reset = { daily: '每天', weekly: '每周', monthly: '每月' }[key.limit_reset];
-                        left =
-                          key.limit === null
-                            ? `key 不限额，本月已用 ${usd(key.usage_monthly)}`
-                            : `key 额度剩 ${usd(key.limit_remaining)} / ${usd(key.limit)}${reset ? `，${reset}重置` : ''}`;
+                        if (key.limit === null) {
+                          left = `key 不限额，本月已用 ${usd(key.usage_monthly)}`;
+                        } else {
+                          // Likewise, a null limit_reset never resets; a missing one is unknown.
+                          if (!('limit_reset' in key)) throw new Error('no limit_reset in the response');
+                          const period = { daily: '每天重置', weekly: '每周重置', monthly: '每月重置' }[key.limit_reset];
+                          const reset = key.limit_reset === null ? '' : `，${period ?? `重置周期 ${key.limit_reset}`}`;
+                          left = `key 额度剩 ${usd(key.limit_remaining)} / ${usd(key.limit)}${reset}`;
+                        }
                       } catch (error) {
                         core.warning(`No key limit: ${error.message}`);
                       }
