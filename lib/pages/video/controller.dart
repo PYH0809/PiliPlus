@@ -903,7 +903,7 @@ class VideoDetailController extends GetxController
     if (_reopening) return;
     // Links fetched earlier but kept, as the app had gone to the background,
     // open now if they are still good.
-    if (_keptLinks) {
+    if (_keptLinks && videoUrl != null && _linksFetchedAt != null) {
       final kept = SourceExpiry(
         NetworkSource(videoSource: videoUrl!, audioSource: audioUrl),
         _linksFetchedAt!,
@@ -1418,6 +1418,7 @@ class VideoDetailController extends GetxController
     defaultST = null;
     videoUrl = null;
     audioUrl = null;
+    _keptLinks = false;
 
     // danmaku
     savedDanmaku = null;
