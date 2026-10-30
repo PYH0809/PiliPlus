@@ -845,9 +845,10 @@ class VideoDetailController extends GetxController
   /// opened again later, as on coming back to this page, keep their age.
   DateTime? _linksFetchedAt;
 
-  /// Picks the video stream for the cached quality and codecs, falling back
-  /// as the links allow, and the audio stream, from [dash], [data]'s.
-  void _pickTargetLinks(Dash dash) {
+  /// Picks the video stream for the cached quality and [codecs] (by default
+  /// the preferred ones), falling back as the links allow, and the audio
+  /// stream, from [dash], [data]'s.
+  void _pickTargetLinks(Dash dash, {List<VideoDecodeFormatType>? codecs}) {
     final cacheVideoQa = plPlayerController.cacheVideoQa!;
     final (
       int targetQuality,
@@ -859,7 +860,7 @@ class VideoDetailController extends GetxController
       cacheVideoQa,
       data.acceptQuality,
       data.supportFormats!,
-      preferCodecs,
+      codecs ?? preferCodecs,
     );
     firstVideo = targetVideo;
     currentDecodeFormats = targetDecode;
@@ -942,14 +943,23 @@ class VideoDetailController extends GetxController
           _linksFetchedAt = PlPlayerController.clock();
           // Where it stands now, as the user may have seeked meanwhile, if
           // the player is still this page's; else where it stood.
-          playedTime = fromStart
-              ? Duration.zero
-              : isPageShowing && PlPlayerController.playOwner?.tag == heroTag
+          final now =
+              isPageShowing && PlPlayerController.playOwner?.tag == heroTag
               ? plPlayerController.videoPlayerController?.state.position
               : position;
+          // A replay starts over, unless the user seeked meanwhile.
+          playedTime = fromStart && now == position ? Duration.zero : now;
           // As a normal query picks them: the quality may have to fall back,
           // as when a membership ran out meanwhile.
-          _pickTargetLinks(response.dash!);
+          // Keeping the decoding format the user may have picked in the menu.
+          _pickTargetLinks(
+            response.dash!,
+            codecs: [
+              currentDecodeFormats,
+              for (final codec in preferCodecs)
+                if (codec != currentDecodeFormats) codec,
+            ],
+          );
           // Played on only where the user still is: covered by another page,
           // or gone to the background since pressing play, without
           // background play, the links are kept for the next play, or for
