@@ -21,6 +21,7 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
@@ -125,6 +126,12 @@ class _FakeAudioController extends AudioController {
     calls.add('seek ${duration.inSeconds}');
     return null;
   }
+
+  @override
+  Future<void>? onPlay() {
+    calls.add('play');
+    return null;
+  }
 }
 
 /// Pumps 听视频 over a home page, with glass on or off, and routes for the
@@ -136,9 +143,10 @@ Future<_FakeAudioController> _pump(
   bool mv = false,
   String desc = '',
   ThemeData? theme,
+  Size size = const Size(_width, _height),
 }) async {
   tester.view
-    ..physicalSize = const Size(_width, _height)
+    ..physicalSize = size
     ..devicePixelRatio = 1
     ..padding = const FakeViewPadding(top: _statusBar, bottom: _navigationBar)
     ..viewPadding = const FakeViewPadding(
@@ -180,6 +188,19 @@ Rect _paneUnder(WidgetTester tester, Finder finder) {
       .widgetList(find.byType(LiquidGlass))
       .map((pane) => tester.getRect(find.byWidget(pane)))
       .firstWhere((rect) => rect.contains(center));
+}
+
+/// 80 lines two seconds apart, the 36th playing.
+void _setLines(_FakeAudioController controller) {
+  controller.subtitleLines.value = Success([
+    for (var i = 0; i < 80; i++)
+      SubtitleLine(
+        from: Duration(seconds: i * 2),
+        to: Duration(seconds: i * 2 + 1),
+        content: '第 $i 句',
+      ),
+  ]);
+  controller.updateSubtitlePosition(const Duration(seconds: 72));
 }
 
 Future<void> _openMore(WidgetTester tester) async {
@@ -641,20 +662,301 @@ void main() {
         expect(cover, findsOneWidget);
       });
 
-      testWidgets('$mode: 字幕 in the title bar switches them too', (
+      testWidgets('$mode: no 字幕 button in the title bar', (tester) async {
+        await _pump(tester, glass: glass);
+        expect(find.byTooltip('字幕'), findsNothing);
+        expect(find.byIcon(Icons.subtitles_outlined), findsNothing);
+      });
+
+      testWidgets('$mode: a tap on the room around the cover shows them, '
+          'and one beside a line or on no lines goes back', (tester) async {
+        final controller = await _pump(tester, glass: glass);
+        // Beside the cover, on nothing of its own.
+        await tester.tapAt(Offset(_width - 32, tester.getCenter(cover).dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+        expect(find.byType(AudioSubtitlePanel), findsOneWidget);
+
+        // 暂无字幕 and the room about it.
+        await tester.tap(find.text('暂无字幕'));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+        expect(cover, findsOneWidget);
+
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final line = tester.getRect(find.text('第 36 句'));
+        await tester.tapAt(Offset(_width - 32, line.center.dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+        expect(controller.calls, isEmpty);
+      });
+
+      testWidgets('$mode: a tap at the sides of the page switches too', (
         tester,
       ) async {
         final controller = await _pump(tester, glass: glass);
-        await tester.tap(find.byTooltip('字幕'));
+        final y = tester.getCenter(cover).dy;
+        await tester.tapAt(Offset(8, y));
         await tester.pumpAndSettle();
-        expect(find.byType(AudioSubtitlePanel), findsOneWidget);
-
-        await tester.tap(find.byTooltip('字幕'));
+        expect(controller.showSubtitle.value, isTrue);
+        await tester.tapAt(Offset(_width - 8, y));
         await tester.pumpAndSettle();
         expect(controller.showSubtitle.value, isFalse);
-        expect(find.byType(AudioSubtitlePanel), findsNothing);
+      });
+
+      testWidgets('$mode: a tap between two lines goes back', (tester) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final above = tester.getRect(find.text('第 36 句'));
+        final below = tester.getRect(find.text('第 37 句'));
+        await tester.tapAt(
+          Offset(above.left + 8, (above.bottom + below.top) / 2),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+        expect(controller.calls, isEmpty);
+      });
+
+      testWidgets('$mode: a tap on a line plays from it, the lines staying', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('第 37 句'));
+        await tester.pumpAndSettle();
+        expect(controller.calls, contains('seek 74'));
+        expect(controller.showSubtitle.value, isTrue);
+      });
+
+      testWidgets('$mode: a drag on the lines scrolls them, the lines '
+          'staying', (tester) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final before = tester.getTopLeft(find.text('第 40 句')).dy;
+        final line = tester.getRect(find.text('第 36 句'));
+        await tester.dragFrom(
+          Offset(_width - 32, line.center.dy),
+          const Offset(0, -160),
+        );
+        await tester.pump();
+        expect(tester.getTopLeft(find.text('第 40 句')).dy, lessThan(before));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+        expect(controller.calls, isEmpty);
+      });
+
+      testWidgets('$mode: a tap at the side holds the lines still', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final list = tester.getRect(find.byType(AudioSubtitleList));
+        await tester.flingFrom(
+          Offset(_width - 32, list.center.dy),
+          const Offset(0, -300),
+          2000,
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tapAt(Offset(8, list.center.dy));
+        await tester.pump();
+        final line = find.textContaining('句').first;
+        final held = tester.getTopLeft(line).dy;
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(tester.getTopLeft(line).dy, held);
+        expect(controller.showSubtitle.value, isTrue);
+
+        // Held still, the next tap there switches.
+        await tester.pumpAndSettle();
+        await tester.tapAt(Offset(8, list.center.dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+      });
+
+      testWidgets('$mode: lines gone while they scrolled leave the taps be', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final list = tester.getRect(find.byType(AudioSubtitleList));
+        await tester.flingFrom(
+          Offset(_width - 32, list.center.dy),
+          const Offset(0, -300),
+          2000,
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        // Back by the small cover and title while they still scroll.
+        await tester.tap(find.text('一首歌'));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isFalse);
+
+        await tester.tapAt(Offset(_width - 32, tester.getCenter(cover).dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+      });
+
+      testWidgets('$mode: a tap that stops the lines scrolling stays', (
+        tester,
+      ) async {
+        final controller = await _pump(tester, glass: glass);
+        await tester.tap(cover);
+        await tester.pumpAndSettle();
+        _setLines(controller);
+        await tester.pumpAndSettle();
+        final list = tester.getRect(find.byType(AudioSubtitleList));
+        await tester.flingFrom(
+          Offset(_width - 32, list.center.dy),
+          const Offset(0, -300),
+          2000,
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tapAt(Offset(_width - 32, list.center.dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
       });
     }
+
+    testWidgets('glass on: a tap on the title bar or between the controls '
+        'does not switch', (tester) async {
+      final controller = await _pump(tester, glass: true);
+      // Between the back button and the capsule of buttons.
+      await tester.tapAt(const Offset(_width / 2, _statusBar + 28));
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+      // Beside the round buttons, between the capsules.
+      final progress = _paneUnder(
+        tester,
+        find.text(DurationUtils.formatDuration(72)),
+      );
+      await tester.tapAt(Offset(_width / 2, progress.bottom + 3));
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+    });
+
+    testWidgets('glass on: a tap on the title bar over the cover scrolled '
+        'under it does not switch', (tester) async {
+      final controller = await _pump(
+        tester,
+        glass: true,
+        desc: List.filled(80, '一行简介').join('\n'),
+      );
+      const bar = Offset(_width / 2, _statusBar + 28);
+      await tester.drag(cover, const Offset(0, -80));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(cover).contains(bar), isTrue);
+      await tester.tapAt(bar);
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+      // Below the bar, the cover still shows them.
+      await tester.tap(cover);
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isTrue);
+    });
+
+    for (final glass in [true, false]) {
+      testWidgets('glass ${glass ? 'on' : 'off'}, sideways: a tap at the '
+          'sides of the page switches too', (tester) async {
+        final controller = await _pump(
+          tester,
+          glass: glass,
+          size: const Size(_height, _width),
+        );
+        await tester.tapAt(Offset(8, tester.getCenter(cover).dy));
+        await tester.pumpAndSettle();
+        expect(controller.showSubtitle.value, isTrue);
+      });
+    }
+
+    testWidgets('from the keyboard it takes focus and switches on Enter or '
+        'Space', (tester) async {
+      final controller = await _pump(tester, glass: true);
+      final toggle = tester.element(find.byType(AudioSubtitleToggle));
+      bool focused() {
+        final context = FocusManager.instance.primaryFocus?.context;
+        var inside = false;
+        context?.visitAncestorElements((element) {
+          inside = element == toggle;
+          return !inside;
+        });
+        return inside;
+      }
+
+      for (var i = 0; i < 20 && !focused(); i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(focused(), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+    });
+
+    testWidgets('glass on, sideways: a tap beside the cover shows them', (
+      tester,
+    ) async {
+      final controller = await _pump(
+        tester,
+        glass: true,
+        size: const Size(_height, _width),
+      );
+      final rect = tester.getRect(cover);
+      await tester.tapAt(Offset(rect.left - 24, rect.center.dy));
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isTrue);
+      await tester.tap(find.text('暂无字幕'));
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+    });
+
+    testWidgets('a screen reader finds the switch as a button', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final controller = await _pump(tester, glass: true);
+      final toggle = find.byType(AudioSubtitleToggle);
+      expect(
+        tester.getSemantics(toggle),
+        isSemantics(label: '显示字幕', isButton: true, hasTapAction: true),
+      );
+      tester.semantics.tap(find.semantics.byLabel('显示字幕'));
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isTrue);
+      expect(
+        tester.getSemantics(toggle),
+        isSemantics(label: '显示封面', isButton: true, hasTapAction: true),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('an audio switches only on its cover, as before', (
+      tester,
+    ) async {
+      final controller = await _pump(tester, glass: true, ugc: false);
+      expect(find.byType(AudioSubtitleToggle), findsNothing);
+      await tester.tapAt(Offset(_width - 32, tester.getCenter(cover).dy));
+      await tester.pumpAndSettle();
+      expect(controller.showSubtitle.value, isFalse);
+    });
 
     testWidgets('an audio has no 字幕 button, and no subtitles', (
       tester,

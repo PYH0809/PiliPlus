@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart' show DetailItem;
 import 'package:PiliPlus/models_new/video/video_play_info/subtitle.dart';
@@ -85,6 +87,144 @@ class AudioSubtitlePanel extends StatelessWidget {
           const SizedBox(height: 8),
           Expanded(child: AudioSubtitleList(controller: controller)),
         ],
+      ),
+    );
+  }
+}
+
+/// Switches between the cover and the subtitles on a tap anywhere on [child]
+/// that its own controls do not take, as music players do: the cover and
+/// the room around it, the room beside and between the lines, and the
+/// page's [margin] beside it. A tap under the glass bars, within [padding],
+/// does nothing, nor one that stops a list scrolling. From the keyboard it
+/// takes focus, with a ring, and switches on Enter or Space.
+class AudioSubtitleToggle extends StatefulWidget {
+  const AudioSubtitleToggle({
+    super.key,
+    required this.showing,
+    required this.onToggle,
+    this.padding = .zero,
+    this.margin = .zero,
+    required this.child,
+  });
+
+  /// Whether the subtitles show.
+  final bool showing;
+  final VoidCallback onToggle;
+
+  /// What the glass bars cover, as [child]'s lists keep it clear.
+  final EdgeInsets padding;
+
+  /// The room around [child], taking taps but not the ring.
+  final EdgeInsets margin;
+  final Widget child;
+
+  @override
+  State<AudioSubtitleToggle> createState() => _AudioSubtitleToggleState();
+}
+
+class _AudioSubtitleToggleState extends State<AudioSubtitleToggle> {
+  /// Lists under it now scrolling, and whether one was as the touch began.
+  /// One that goes while it scrolls, as the lines do for the cover or
+  /// another language, says no end: it leaves when it is no longer mounted.
+  final _scrolling = <BuildContext>{};
+  bool _stopsScroll = false;
+
+  /// A list's scroll ended in the event being handled: a touch holding it
+  /// still ends it before this hears of the touch.
+  bool _endedNow = false;
+
+  bool _focusRing = false;
+
+  late final _actions = <Type, Action<Intent>>{
+    ActivateIntent: CallbackAction<ActivateIntent>(
+      onInvoke: (_) => widget.onToggle(),
+    ),
+  };
+
+  bool _onScroll(ScrollNotification notification) {
+    switch (notification) {
+      case ScrollStartNotification(:final context?):
+        _scrolling.add(context);
+      case ScrollEndNotification(:final context):
+        _scrolling.remove(context);
+        _endedNow = true;
+        scheduleMicrotask(() => _endedNow = false);
+    }
+    return false;
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    final size = context.size;
+    if (_stopsScroll ||
+        size == null ||
+        !widget.padding
+            .deflateRect(Offset.zero & size)
+            .contains(details.localPosition)) {
+      return;
+    }
+    widget.onToggle();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = widget.padding + widget.margin;
+    // Without the icon it took the place of, its action for screen readers
+    // and the keyboard.
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      button: true,
+      label: widget.showing ? '显示封面' : '显示字幕',
+      onTap: widget.onToggle,
+      child: FocusableActionDetector(
+        actions: _actions,
+        onShowFocusHighlight: (value) => setState(() => _focusRing = value),
+        child: Listener(
+          onPointerDown: (_) {
+            _scrolling.removeWhere((context) => !context.mounted);
+            _stopsScroll = _scrolling.isNotEmpty || _endedNow;
+            // A touch beside a list still scrolling, as at the page's
+            // sides, holds it still as one on it does.
+            for (final context in _scrolling.toList()) {
+              if (Scrollable.maybeOf(context)?.position case final position?) {
+                position.jumpTo(position.pixels);
+              }
+            }
+          },
+          child: GestureDetector(
+            behavior: .opaque,
+            excludeFromSemantics: true,
+            onTapUp: _onTapUp,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onScroll,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Padding(padding: widget.margin, child: widget.child),
+                  ),
+                  if (_focusRing)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Padding(
+                          padding: inset,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: ColorScheme.of(context).primary,
+                                width: 2,
+                              ),
+                              borderRadius: const .all(.circular(16)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
