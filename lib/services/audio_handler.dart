@@ -183,9 +183,16 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
     if (onPlay != null && debugLabel == 'onVideoPaused') return;
 
-    // Only a player playing settles it, not the card's state sent again,
-    // such as with the next one's details while the end is on its way.
-    if (status == .playing) goesOn = false;
+    if (status == .playing) {
+      // Only a player playing settles it, not the card's state sent again,
+      // such as with the next one's details while the end is on its way.
+      goesOn = false;
+      _cardGone = false;
+    } else if (_cardGone) {
+      // Gone after its time or a swipe, the card comes back only as a player
+      // plays, or with a new item, not with a paused player's later updates.
+      return;
+    }
 
     final newConfig = (status, isBuffering, isLive, speed, canSkip);
     if (_lastConfig == newConfig) {
@@ -307,6 +314,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     //   debugPrint(StackTrace.current);
     // }
     if (data == null) return;
+    _cardGone = false;
 
     Uri getUri(String? cover) => Uri.parse(ImageUtils.safeThumbnailUrl(cover));
 
@@ -626,9 +634,13 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     final state = playbackState.value;
     if (_isPaused(state)) {
       goesOn = false;
+      _cardGone = true;
       playbackState.add(state.copyWith(processingState: .idle));
     }
   }
+
+  /// Whether the paused card went after its time or a swipe.
+  bool _cardGone = false;
 
   /// How long after a swipe a paused card whose player says it goes on by
   /// itself stays for it to play: past it, the next one is not coming, such
@@ -678,6 +690,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     _taskRemovedAt = null;
     _pausedWhileBuffering = false;
     goesOn = false;
+    _cardGone = false;
     _swipeTimer?.cancel();
     /**
      * if (playbackState.processingState == AudioProcessingState.idle &&

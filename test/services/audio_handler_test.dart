@@ -279,6 +279,46 @@ void main() {
     );
   });
 
+  test('a paused card gone after its time stays gone through the paused '
+      'player\'s later updates, until it plays or a new item comes', () async {
+    handler.pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() => handler.pausedCardLifetime = const Duration(minutes: 10));
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    // Such as a buffering change, or a seek on the page.
+    handler.onUpdateState(
+      .paused,
+      true,
+      false,
+      position: const Duration(seconds: 200),
+      speed: 1,
+    );
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.idle,
+    );
+
+    play();
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+  });
+
   test('swiped away from recents, a paused card goes and a playing one '
       'stays', () async {
     handler.onVideoDetailChange(item(), 1, 'video');
