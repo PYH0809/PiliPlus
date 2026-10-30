@@ -756,10 +756,16 @@ class VideoDetailController extends GetxController
     videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
 
     /// 根据currentAudioQa 重新设置audioUrl
-    if (currentAudioQa != null) {
-      final firstAudio = data.dash!.audio!.firstWhere(
+    final audioList = data.dash!.audio;
+    if (audioList == null || audioList.isEmpty) {
+      // The links carry no audio of their own, as fresh ones may not: an
+      // audio quality picked from a menu opened before is let go.
+      audioUrl = '';
+      currentAudioQa = null;
+    } else if (currentAudioQa != null) {
+      final firstAudio = audioList.firstWhere(
         (i) => i.id == currentAudioQa!.code,
-        orElse: () => data.dash!.audio!.first,
+        orElse: () => audioList.first,
       );
       audioUrl = VideoUtils.getCdnUrl(firstAudio.playUrls, isAudio: true);
     }
