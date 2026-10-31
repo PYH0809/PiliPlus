@@ -23,9 +23,12 @@ class PlayerPopupObserver extends NavigatorObserver {
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    // Only one straight over the page: a menu in a panel or a dialog is
+    // over that, not the controls.
     if (route is! PopupRoute ||
         route is PublishRoute ||
-        route is ModalBottomSheetRoute) {
+        route is ModalBottomSheetRoute ||
+        previousRoute is! PageRoute) {
       return;
     }
     final player = _player();

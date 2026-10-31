@@ -131,4 +131,28 @@ void main() {
     expect(player.held, 0);
     expect(player.released, 0);
   });
+
+  testWidgets('a menu out of a panel, as 超分辨率 in 更多设置, holds nothing', (
+    tester,
+  ) async {
+    await pump(tester);
+    late BuildContext panel;
+    Navigator.of(home).push(
+      PublishRoute<void>(
+        pageBuilder: (context, _, _) {
+          panel = context;
+          return const Text('更多设置');
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    showMenu<int>(
+      context: panel,
+      position: const RelativeRect.fromLTRB(100, 100, 100, 100),
+      items: const [PopupMenuItem(value: 1, child: Text('超分辨率'))],
+    );
+    await tester.pumpAndSettle();
+
+    expect(player.held, 0);
+  });
 }
