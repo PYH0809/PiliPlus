@@ -1471,8 +1471,11 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   }
 
   void multiBackwardStart([_]) {
+    // The first step goes back from where playback is, not from a seek
+    // position left over from an earlier drag.
+    final from = isSeeking.value ? seekPosition.value : position.value;
     isSeeking.value = true;
-    seekPosition.value = max(0, seekPosition.value - fastForBackwardInSeconds);
+    seekPosition.value = max(0, from - fastForBackwardInSeconds);
   }
 
   void multiBackwardEnd() {
