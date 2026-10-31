@@ -1,5 +1,6 @@
 import 'dart:ui' show lerpDouble;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:flutter/rendering.dart';
@@ -28,13 +29,15 @@ const double _fromScale = 0.6;
 const double _contentFrom = 0.35;
 
 /// A popup menu over the player's video, on the video's glass, growing out of
-/// its button and back into it.
+/// its button and back into it. As [GlassMenuMorph], a press carried on into
+/// it from its button lights the row under the finger and picks it on
+/// release.
 ///
 /// The menus' own glass, [LiquidGlass], reads what the host captured, which
 /// holds no video texture: over the video it showed black, and the host
 /// capturing the screen again for every frame of the moving video cost the
 /// menu frames as it opened. [VideoGlass] draws the video itself, frosted.
-class VideoGlassMenu extends StatelessWidget {
+class VideoGlassMenu extends StatefulWidget {
   const VideoGlassMenu({
     super.key,
     required this.animation,
@@ -52,9 +55,30 @@ class VideoGlassMenu extends StatelessWidget {
   final double radius;
   final Widget child;
 
-  /// Where [anchor]'s center lies in the menu, once it has been laid out.
+  @override
+  State<VideoGlassMenu> createState() => _VideoGlassMenuState();
+}
+
+class _VideoGlassMenuState extends State<VideoGlassMenu>
+    with GlassMenuPressTarget<VideoGlassMenu> {
+  late final _grow = CurvedAnimation(
+    parent: widget.animation,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+
+  @override
+  Animation<double> get menuAnimation => widget.animation;
+
+  @override
+  void dispose() {
+    _grow.dispose();
+    super.dispose();
+  }
+
+  /// Where the anchor's center lies in the menu, once it has been laid out.
   Offset? _anchorIn(BuildContext context) {
-    final anchor = this.anchor;
+    final anchor = widget.anchor;
     final menu = context.findRenderObject();
     final page = context
         .findAncestorRenderObjectOfType<RenderCustomSingleChildLayoutBox>();
@@ -65,18 +89,23 @@ class VideoGlassMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = ColorScheme.of(context);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final style = LiquidGlassStyle.menu(colorScheme);
     final rim = LiquidGlassRim.menu(colorScheme);
-    final grow = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
+    // A press slid on into the menu stands its row on a platter, as a tap
+    // does.
+    final pressed = pressedRect;
+    final rows = pressed == null
+        ? widget.child
+        : CustomPaint(
+            painter: _PressedRow(pressed, theme.highlightColor),
+            child: widget.child,
+          );
     return AnimatedBuilder(
-      animation: grow,
+      animation: _grow,
       builder: (context, child) {
-        final t = grow.value;
+        final t = _grow.value;
         final origin = _anchorIn(context);
         return Transform.scale(
           scale: lerpDouble(_fromScale, 1, t)!,
@@ -84,7 +113,7 @@ class VideoGlassMenu extends StatelessWidget {
           origin: origin,
           child: VideoGlassSource.overPlayer(
             child: VideoGlass(
-              radius: radius,
+              radius: widget.radius,
               t: t,
               // A card this wide shows little of a bend, which costs a
               // shader pass over it every frame.
@@ -102,7 +131,24 @@ class VideoGlassMenu extends StatelessWidget {
           ),
         );
       },
-      child: child,
+      child: rows,
     );
   }
+}
+
+class _PressedRow extends CustomPainter {
+  const _PressedRow(this.row, this.color);
+
+  final Rect row;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawRSuperellipse(
+    RSuperellipse.fromRectAndRadius(row, const Radius.circular(16)),
+    Paint()..color = color,
+  );
+
+  @override
+  bool shouldRepaint(_PressedRow oldDelegate) =>
+      row != oldDelegate.row || color != oldDelegate.color;
 }

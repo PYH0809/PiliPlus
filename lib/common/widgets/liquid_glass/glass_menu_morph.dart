@@ -172,6 +172,94 @@ class GlassMenuSourceState extends State<GlassMenuSource> {
   }
 }
 
+/// The open menu that a press carried on from its button lights a row of and
+/// picks it in, as [GlassMenuPress] forwards the press through
+/// [GlassMenuMorph.track] and [GlassMenuMorph.release]: [GlassMenuMorph], or
+/// the video's glass menu.
+mixin GlassMenuPressTarget<T extends StatefulWidget> on State<T> {
+  static GlassMenuPressTarget<StatefulWidget>? _active;
+
+  /// The menu's route animation, which reverses as the menu closes.
+  Animation<double> get menuAnimation;
+
+  PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>? _pressed;
+
+  /// The row the press lights, in this menu's box.
+  Rect? pressedRect;
+
+  @override
+  void initState() {
+    super.initState();
+    _active = this;
+  }
+
+  @override
+  void dispose() {
+    if (identical(_active, this)) {
+      _active = null;
+    }
+    super.dispose();
+  }
+
+  bool get menuClosing {
+    final status = menuAnimation.status;
+    return status == AnimationStatus.reverse ||
+        status == AnimationStatus.dismissed;
+  }
+
+  // The item, and its row in this box, under a global position.
+  (PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>, Rect)? _itemAt(
+    Offset position,
+  ) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) {
+      return null;
+    }
+    final result = BoxHitTestResult();
+    box.hitTest(result, position: box.globalToLocal(position));
+    for (final entry in result.path) {
+      if (entry.target
+          case RenderMetaData(
+            metaData: final PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>
+            item,
+          )
+          when item.mounted && item.widget.enabled) {
+        final row = entry.target as RenderBox;
+        return (item, row.localToGlobal(.zero, ancestor: box) & row.size);
+      }
+    }
+    return null;
+  }
+
+  void _track(Offset? position) {
+    if (menuClosing) {
+      return;
+    }
+    final found = position == null ? null : _itemAt(position);
+    if (!identical(found?.$1, _pressed)) {
+      if (found != null) {
+        HapticFeedback.selectionClick();
+      }
+      setState(() {
+        _pressed = found?.$1;
+        pressedRect = found?.$2;
+      });
+    }
+  }
+
+  // As PopupMenuItemState.handleTap does for a tap on the row.
+  void _release(Offset position) {
+    _track(null);
+    if (menuClosing) {
+      return;
+    }
+    if (_itemAt(position)?.$1 case final item?) {
+      Navigator.pop(item.context, item.widget.value);
+      item.widget.onTap?.call();
+    }
+  }
+}
+
 /// A popup menu that grows out of [anchor], its button, as an iOS menu does:
 /// the button's capsule of glass swells into the card, its glass turning to
 /// the menu's and its corners to [radius], and the rows fade in. A press
@@ -196,33 +284,30 @@ class GlassMenuMorph extends StatefulWidget {
   final double radius;
   final Widget child;
 
-  static _GlassMenuMorphState? _active;
-
   /// Lights the row of the open menu under [position], a global one, or none.
-  static void track(Offset? position) => _active?._track(position);
+  static void track(Offset? position) =>
+      GlassMenuPressTarget._active?._track(position);
 
   /// Picks the row of the open menu under [position], a global one.
-  static void release(Offset position) => _active?._release(position);
+  static void release(Offset position) =>
+      GlassMenuPressTarget._active?._release(position);
 
   @override
   State<GlassMenuMorph> createState() => _GlassMenuMorphState();
 }
 
 class _GlassMenuMorphState extends State<GlassMenuMorph>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, GlassMenuPressTarget<GlassMenuMorph> {
   late final _open = GlassSpring(this, 0);
   bool _started = false;
   // Where the route stood when it began to close.
   double? _closedFrom;
-  PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>? _pressed;
-  Rect? _pressedRect;
   GlassMenuSourceState? _source;
   ui.Image? _sourceImage;
 
   @override
   void initState() {
     super.initState();
-    GlassMenuMorph._active = this;
     widget.animation.addStatusListener(_handleStatus);
     if (widget.anchor case final anchor?) {
       _source = GlassMenuSourceState._take(anchor);
@@ -272,9 +357,6 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
 
   @override
   void dispose() {
-    if (identical(GlassMenuMorph._active, this)) {
-      GlassMenuMorph._active = null;
-    }
     widget.animation.removeStatusListener(_handleStatus);
     _source?._reveal();
     _sourceImage?.dispose();
@@ -282,63 +364,10 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
     super.dispose();
   }
 
-  bool get _closing {
-    final status = widget.animation.status;
-    return status == AnimationStatus.reverse ||
-        status == AnimationStatus.dismissed;
-  }
+  @override
+  Animation<double> get menuAnimation => widget.animation;
 
-  // The item, and its row in this box, under a global position.
-  (PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>, Rect)? _itemAt(
-    Offset position,
-  ) {
-    final box = context.findRenderObject();
-    if (box is! RenderBox || !box.hasSize) {
-      return null;
-    }
-    final result = BoxHitTestResult();
-    box.hitTest(result, position: box.globalToLocal(position));
-    for (final entry in result.path) {
-      if (entry.target
-          case RenderMetaData(
-            metaData: final PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>
-            item,
-          )
-          when item.mounted && item.widget.enabled) {
-        final row = entry.target as RenderBox;
-        return (item, row.localToGlobal(.zero, ancestor: box) & row.size);
-      }
-    }
-    return null;
-  }
-
-  void _track(Offset? position) {
-    if (_closing) {
-      return;
-    }
-    final found = position == null ? null : _itemAt(position);
-    if (!identical(found?.$1, _pressed)) {
-      if (found != null) {
-        HapticFeedback.selectionClick();
-      }
-      setState(() {
-        _pressed = found?.$1;
-        _pressedRect = found?.$2;
-      });
-    }
-  }
-
-  // As PopupMenuItemState.handleTap does for a tap on the row.
-  void _release(Offset position) {
-    _track(null);
-    if (_closing) {
-      return;
-    }
-    if (_itemAt(position)?.$1 case final item?) {
-      Navigator.pop(item.context, item.widget.value);
-      item.widget.onTap?.call();
-    }
-  }
+  bool get _closing => menuClosing;
 
   // Closing follows the route, which then takes the menu away, from its
   // linear progress: Material's curve would hold it still at first. A menu
@@ -387,7 +416,7 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
           colorScheme: colorScheme,
           contentOpacity: ((progress - _contentFrom) / (1 - _contentFrom))
               .clamp(0.0, 1.0),
-          pressed: _pressedRect,
+          pressed: pressedRect,
           pressColor: theme.highlightColor,
           sourceImage: _sourceImage,
           child: child,

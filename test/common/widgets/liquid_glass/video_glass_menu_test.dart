@@ -11,12 +11,13 @@ import 'package:material_ui/material_ui.dart';
 
 /// The quality button as the player's bottom bar has it: on the controls'
 /// dark theme, with the current quality checked.
-Widget _qualityButton() => Builder(
+Widget _qualityButton({PopupMenuItemSelected<int>? onSelected}) => Builder(
   builder: (context) => Theme(
     data: VideoGlass.controlsTheme(Theme.of(context)),
     child: PopupMenuButton<int>(
       tooltip: '画质',
       initialValue: 80,
+      onSelected: onSelected,
       itemBuilder: (_) => const [
         PopupMenuItem(value: 80, child: Text('1080P 高清')),
         PopupMenuItem(value: 64, child: Text('720P 准高清')),
@@ -85,5 +86,36 @@ void main() {
     expect(check, findsOneWidget);
     final color = IconTheme.of(tester.element(check)).color!;
     expect(color.computeLuminance(), greaterThan(0.5));
+  });
+
+  testWidgets('a press on the button carried on into the menu picks the row '
+      'it lets go on, as on the menus\' own glass', (tester) async {
+    int? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GlassSurfaces.themed(ThemeData()),
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(
+            child: VideoGlassMenus(
+              child: _qualityButton(onSelected: (value) => picked = value),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // The menu opens on the press, and the finger slides on to a row.
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('1080P')),
+    );
+    await tester.pumpAndSettle();
+    await gesture.moveTo(tester.getCenter(find.text('720P 准高清')));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(picked, 64);
+    expect(find.byType(VideoGlassMenu), findsNothing);
   });
 }
