@@ -1021,14 +1021,18 @@ void main() {
       handler.playbackState.value.processingState,
       AudioProcessingState.idle,
     );
+    // Gone as not playing, so that playing again takes the foreground again.
+    expect(handler.playbackState.value.playing, isFalse);
 
     play();
+    expect(handler.playbackState.value.playing, isTrue);
     pauseWhileBuffering();
     await handler.onTaskRemoved();
     expect(
       handler.playbackState.value.processingState,
       AudioProcessingState.idle,
     );
+    expect(handler.playbackState.value.playing, isFalse);
   });
 
   test('the paused card\'s clock runs on through updates while it stays '

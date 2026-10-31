@@ -647,13 +647,18 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     _swipeTimer?.cancel();
   }
 
-  /// Lets a paused card go, and the foreground service with it.
+  /// Lets a paused card go, and the foreground service with it. It goes as
+  /// not playing, though one paused while it buffers shows as playing: the
+  /// service takes the foreground again, and its media session up, only as
+  /// the card goes from not playing to playing.
   void _endPausedCard() {
     final state = playbackState.value;
     if (_isPaused(state)) {
       goesOn = false;
       _cardGone = true;
-      playbackState.add(state.copyWith(processingState: .idle));
+      playbackState.add(
+        state.copyWith(processingState: .idle, playing: false),
+      );
     }
   }
 
