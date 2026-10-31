@@ -157,33 +157,37 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('closing, the rows fade with the card, not before it, and '
-      'the card is gone well before the route', (tester) async {
+  testWidgets('closing, the card sets off at once, its rows fading with it, '
+      'and is gone well before the route', (tester) async {
     await _open(tester, VideoGlassMenus(child: _qualityButton()));
     await tester.tap(find.text('720P 准高清'));
     await tester.pump();
 
     final menu = find.byType(VideoGlassMenu);
     final glass = find.descendant(of: menu, matching: find.byType(VideoGlass));
-    final route = ModalRoute.of(tester.element(menu))!.animation!;
+    var ms = 0;
     var goneBeforeRoute = false;
-    // Frame by frame through the route's return.
-    while (menu.evaluate().isNotEmpty) {
+    // Frame by frame through the route's return, 500 ms.
+    while (true) {
+      await tester.pump(const Duration(milliseconds: 16));
+      ms += 16;
+      if (menu.evaluate().isEmpty) break;
       final t = tester.widget<VideoGlass>(glass).t;
       final rows = tester
           .widget<Opacity>(
             find.descendant(of: glass, matching: find.byType(Opacity)).first,
           )
           .opacity;
+      // Not held still, as Material's curve holds the route at first.
+      if (ms <= 32) expect(t, lessThan(1), reason: 'at $ms ms');
       if (t > 0) {
         expect(rows, greaterThan(0), reason: 'the card at $t, no rows on it');
       }
-      // Two fifths of the return left, the card is gone.
-      if (route.value <= 0.4) {
-        expect(t, 0, reason: 'the route at ${route.value}');
+      // 60% of the way, and a frame.
+      if (ms >= 316) {
+        expect(t, 0, reason: 'at $ms ms');
         goneBeforeRoute = true;
       }
-      await tester.pump(const Duration(milliseconds: 16));
     }
     expect(goneBeforeRoute, isTrue);
   });
@@ -223,12 +227,20 @@ void main() {
 
     // Away from the menu, as a tap outside closes it.
     await tester.tapAt(const Offset(5, 5));
+    var goneBeforeRoute = false;
     while (menu.evaluate().isNotEmpty) {
       await tester.pump(const Duration(milliseconds: 16));
       if (menu.evaluate().isEmpty) break;
       expect(rows(), lessThanOrEqualTo(last));
       last = rows();
+      final glass = find.descendant(
+        of: menu,
+        matching: find.byType(VideoGlass),
+      );
+      if (tester.widget<VideoGlass>(glass).t == 0) goneBeforeRoute = true;
     }
+    // Not left to follow its opening curve back till the route ends.
+    expect(goneBeforeRoute, isTrue);
   });
 
   group('the player\'s box', () {
