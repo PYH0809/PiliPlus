@@ -41,12 +41,6 @@ on:
                 default: true
                 type: boolean
 
-            android_dev:
-                description: "Android: dev APK (PiliPlus dev, installs alongside, Impeller on)"
-                required: false
-                default: false
-                type: boolean
-
             build_number:
                 description: "Android: build number (versionCode), empty for the commit count. Raise it to install over a build from a longer branch"
                 required: false
@@ -114,7 +108,7 @@ jobs:
 
             - name: Flutter Build Release Apk
               if: ${{ github.event_name == 'workflow_dispatch' }}
-              run: flutter build apk --release --split-per-abi --dart-define-from-file=pili_release.json --no-pub ${{ github.event.inputs.android_dev == 'true' && '--android-project-arg dev=1' || '' }}
+              run: flutter build apk --release --split-per-abi --dart-define-from-file=pili_release.json --no-pub
 
             - name: Flutter Build Dev Apk
               if: ${{ github.event_name == 'pull_request' }}

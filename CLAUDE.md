@@ -21,11 +21,11 @@ flutter run              # Debug run on the current platform
 
 Linux hosts need `libgtk-3-dev libx11-dev libxi-dev` before `flutter test` can build native assets.
 
-Release builds come from the manual **Build** workflow (`.github/workflows/build.yml`), not from local machines.
-Its `android_dev` input builds the dev flavor (`--android-project-arg dev=1`): it installs as
-`com.example.piliplus.dev`, "PiliPlus dev", next to the release app, and turns Impeller on, which release Android
-builds keep off. The APK's build number (versionCode) is the commit count, so a phone refuses a build from a branch
-with fewer commits than the one installed; the `build_number` input sets it by hand.
+Release builds come from the manual **Build** workflow (`.github/workflows/build.yml`), not from local machines,
+and test builds are release builds too: `com.example.piliplus`, signed with the release key, Impeller on. The APK's
+build number (versionCode) is the commit count, so a phone refuses a build from a branch with fewer commits than
+the one installed; the `build_number` input sets it by hand. Local builds are signed with the debug key and cannot
+update a release build in place, nor a release build them.
 
 ## Hard constraints
 
@@ -75,8 +75,8 @@ its default in `Pref` (`lib/utils/storage_pref.dart`), and an entry (`SwitchMode
 
 **UI copy** is Chinese, written inline; there is no localization layer.
 
-**Rendering.** Impeller is off in release Android builds (manifest placeholder `enableImpeller`, on only in the dev
-flavor) and on macOS. Anything that needs shader filters must check `ImageFilter.isShaderFilterSupported` and fall
+**Rendering.** Impeller is on in every Android build (`EnableImpeller` in `AndroidManifest.xml`; upstream keeps it
+off) and off on macOS. Anything that needs shader filters must check `ImageFilter.isShaderFilterSupported` and fall
 back, as liquid glass does.
 
 **Style.** The formatter keeps trailing commas (`trailing_commas: preserve`). Dot shorthands (`.fromLTRB(...)`,
@@ -98,7 +98,7 @@ Module notes: `lib/common/widgets/liquid_glass/CLAUDE.md`.
 
 | Workflow | Runs on | Notes |
 | -------- | ------- | ----- |
-| `check.yml` | Every PR and push to main | `flutter analyze` (0 errors, 0 warnings), `flutter test`, the glass tests again with `--enable-impeller`, and a release dev APK built with the debug key, which compiles `android/` and runs R8. Needs no secrets |
+| `check.yml` | Every PR and push to main | `flutter analyze` (0 errors, 0 warnings), `flutter test`, the glass tests again with `--enable-impeller`, and a release APK signed with the debug key, which compiles `android/` and runs R8. Needs no secrets |
 | `build.yml` | manual | Platforms are inputs; Android signs with the `SIGN_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` secrets, then checks each APK with `apksigner` and logs its SHA-256 |
 | `ai_review.yml` | The owner's PRs out of draft, each push; anyone's PR by hand, with a PR number and a model | Codex reviews in Chinese through OpenRouter (`OPENROUTER_API_KEY`); the `AI_REVIEW_MODEL` variable picks the model. The footer gives the tokens and an estimated cost. Never blocks merging |
 

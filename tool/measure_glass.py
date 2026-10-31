@@ -2,7 +2,7 @@
 
 Run the app in profile mode, its output to a file:
 
-    flutter run --profile -d <device> --android-project-arg dev=1 > run.log
+    flutter run --profile -d <device> > run.log
 
 turn on 显示性能浮层 in the app once, then:
 
@@ -38,9 +38,9 @@ import time
 import urllib.parse
 import urllib.request
 
-# The profile build keeps the base id: the dev flavor's .dev suffix and its
-# name go on release builds alone (android/app/build.gradle.kts), while
-# dev=1 turns Impeller on for every build type.
+# The profile build keeps the base id; the dev flavor's .dev suffix goes on
+# release builds alone (android/app/build.gradle.kts). Every build has
+# Impeller on.
 PACKAGE = "com.example.piliplus"
 VIDEO = "https://www.bilibili.com/video/BV1GJ411x7h7"
 MODES = {"refract": 0, "frost": 1, "tint": 2}
