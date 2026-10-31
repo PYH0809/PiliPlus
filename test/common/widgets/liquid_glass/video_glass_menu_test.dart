@@ -157,6 +157,80 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('closing, the rows fade with the card, not before it, and '
+      'the card is gone well before the route', (tester) async {
+    await _open(tester, VideoGlassMenus(child: _qualityButton()));
+    await tester.tap(find.text('720P 准高清'));
+    await tester.pump();
+
+    final menu = find.byType(VideoGlassMenu);
+    final glass = find.descendant(of: menu, matching: find.byType(VideoGlass));
+    final route = ModalRoute.of(tester.element(menu))!.animation!;
+    var goneBeforeRoute = false;
+    // Frame by frame through the route's return.
+    while (menu.evaluate().isNotEmpty) {
+      final t = tester.widget<VideoGlass>(glass).t;
+      final rows = tester
+          .widget<Opacity>(
+            find.descendant(of: glass, matching: find.byType(Opacity)).first,
+          )
+          .opacity;
+      if (t > 0) {
+        expect(rows, greaterThan(0), reason: 'the card at $t, no rows on it');
+      }
+      // Two fifths of the return left, the card is gone.
+      if (route.value <= 0.4) {
+        expect(t, 0, reason: 'the route at ${route.value}');
+        goneBeforeRoute = true;
+      }
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(goneBeforeRoute, isTrue);
+  });
+
+  testWidgets('closed as it still grows, the rows fade on from where they '
+      'stood, never brighter', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GlassSurfaces.themed(ThemeData()),
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(child: VideoGlassMenus(child: _qualityButton())),
+        ),
+      ),
+    );
+    await tester.tap(find.text('1080P'));
+    await tester.pump();
+    // Partway open, the rows only coming in.
+    await tester.pump(const Duration(milliseconds: 60));
+
+    final menu = find.byType(VideoGlassMenu);
+    double rows() => tester
+        .widget<Opacity>(
+          find
+              .descendant(
+                of: find.descendant(
+                  of: menu,
+                  matching: find.byType(VideoGlass),
+                ),
+                matching: find.byType(Opacity),
+              )
+              .first,
+        )
+        .opacity;
+    var last = rows();
+    expect(last, lessThan(1));
+
+    // Away from the menu, as a tap outside closes it.
+    await tester.tapAt(const Offset(5, 5));
+    while (menu.evaluate().isNotEmpty) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (menu.evaluate().isEmpty) break;
+      expect(rows(), lessThanOrEqualTo(last));
+      last = rows();
+    }
+  });
+
   group('the player\'s box', () {
     final player = GlobalKey();
     setUp(
