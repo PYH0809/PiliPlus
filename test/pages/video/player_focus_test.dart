@@ -15,7 +15,8 @@ class _MediaPlayer implements Player {
 
 // The player as PlayerFocus drives it with held arrow keys: a held back key
 // steps the seek position back on the long-press timer, and its release
-// seeks there; a held volume key steps the volume on the same timer.
+// seeks there, or a step back for a tap; a held volume key steps the volume
+// on the same timer.
 class _Player implements PlPlayerController {
   @override
   bool isLive = false;
@@ -27,16 +28,22 @@ class _Player implements PlPlayerController {
   Timer? longPressTimer;
 
   @override
+  bool backKeyHeld = false;
+
+  @override
   void cancelLongPressTimer() {
     longPressTimer?.cancel();
     longPressTimer = null;
   }
 
   @override
+  final position = RxInt(60);
+
+  @override
   final isSeeking = false.obs;
 
   @override
-  final seekPosition = RxInt(60);
+  final seekPosition = RxInt(0);
 
   int steps = 0;
   final seeks = <int>[];
@@ -44,8 +51,9 @@ class _Player implements PlPlayerController {
   @override
   void multiBackwardStart([_]) {
     steps++;
+    final from = isSeeking.value ? seekPosition.value : position.value;
     isSeeking.value = true;
-    seekPosition.value -= 10;
+    seekPosition.value = from - 10;
   }
 
   @override
@@ -53,6 +61,9 @@ class _Player implements PlPlayerController {
     if (isSeeking.value) {
       isSeeking.value = false;
       seeks.add(seekPosition.value);
+    } else {
+      // A tap, a step back from where playback is.
+      seeks.add(position.value - 10);
     }
   }
 
@@ -117,6 +128,16 @@ void main() {
     expect(player.seeks, [40]);
   });
 
+  testWidgets('a tap of the back key steps back once', (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump(const Duration(seconds: 1));
+    expect(player.steps, 0);
+    expect(player.seeks, [50]);
+  });
+
   testWidgets('a back key held as a page opens over the player stops stepping '
       'and seeks nowhere', (tester) async {
     await pumpPlayer(tester);
@@ -131,6 +152,25 @@ void main() {
 
     expect(player.steps, steps);
     expect(player.longPressTimer, isNull);
+    expect(player.isSeeking.value, isFalse);
+    expect(player.seeks, isEmpty);
+  });
+
+  testWidgets('a back key held till the player has its focus back comes up '
+      'without a step back', (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump(const Duration(milliseconds: 500));
+    final steps = player.steps;
+
+    await pushPage(tester);
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    // The release comes back to the player.
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(player.steps, steps);
     expect(player.isSeeking.value, isFalse);
     expect(player.seeks, isEmpty);
   });
