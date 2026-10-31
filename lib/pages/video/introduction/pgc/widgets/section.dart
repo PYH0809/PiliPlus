@@ -118,12 +118,15 @@ class _SectionPanelState extends State<SectionPanel> {
   void _onCidChanged(int cid) {
     final (bool seasonChanged, bool dispose) = _initIfNeeded();
     if (dispose || !mounted) return;
-    // Playing on into another section, as with next, shows that section.
-    if (_isSection && _shownIndex != _sectionIndex) {
+    // Playing on into another section, as with next, shows that section,
+    // its title brought into sight.
+    final sectionChanged = _isSection && _shownIndex != _sectionIndex;
+    if (sectionChanged) {
       _shownIndex = _sectionIndex;
       _episodes = _sections[_shownIndex].episodes!;
     }
     setState(() {});
+    if (sectionChanged) _scrollToShownSection();
     if (seasonChanged) {
       _scrollController.jumpTo(_scrollOffset);
     } else if (_isSection) {
@@ -146,14 +149,16 @@ class _SectionPanelState extends State<SectionPanel> {
     } else {
       _scrollController.jumpToTop();
     }
-    _sectionListController.animateToItem(
-      alignment: 0.25,
-      index: () => _shownIndex,
-      scrollController: _sectionScrollController,
-      duration: (_) => const Duration(milliseconds: 500),
-      curve: (_) => Curves.easeInOut,
-    );
+    _scrollToShownSection();
   }
+
+  void _scrollToShownSection() => _sectionListController.animateToItem(
+    alignment: 0.25,
+    index: () => _shownIndex,
+    scrollController: _sectionScrollController,
+    duration: (_) => const Duration(milliseconds: 500),
+    curve: (_) => Curves.easeInOut,
+  );
 
   Widget _buildSection(int index) {
     final section = _sections[index];

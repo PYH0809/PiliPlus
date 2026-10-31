@@ -33,11 +33,13 @@ class _Pgc extends PgcIntroController {
 
 EpisodeItem _episode(int cid) => EpisodeItem(cid: cid, title: 'EP$cid');
 
-PgcInfoModel _item() => PgcInfoModel(
+PgcInfoModel _item({int more = 0}) => PgcInfoModel(
   seasonId: 1,
   sections: [
     Section(title: '预告', episodes: [_episode(11), _episode(12)]),
     Section(title: '花絮', episodes: [_episode(21), _episode(22)]),
+    for (var i = 1; i <= more; i++)
+      Section(title: '特别篇 $i', episodes: [_episode(100 + i)]),
   ],
 );
 
@@ -59,8 +61,8 @@ void main() {
   late _Pgc pgc;
   late List<(int? cid, PgcEpisodeType? type, int? section)> picked;
 
-  Future<void> pump(WidgetTester tester) async {
-    pgc = _Pgc(_item(), cid: 11, playingSection: 0);
+  Future<void> pump(WidgetTester tester, {int more = 0}) async {
+    pgc = _Pgc(_item(more: more), cid: 11, playingSection: 0);
     picked = [];
     await tester.pumpWidget(
       MaterialApp(
@@ -120,5 +122,29 @@ void main() {
 
     expect(find.text('EP12'), findsOneWidget);
     expect(find.text('EP21'), findsNothing);
+  });
+
+  testWidgets('as playback moves on, the section playing comes back into '
+      'sight in the titles too', (tester) async {
+    await pump(tester, more: 10);
+    // Out along the titles, to the last section.
+    await tester.scrollUntilVisible(
+      find.text('特别篇 10'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(SectionPanel),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.text('特别篇 10'));
+    await tester.pumpAndSettle();
+    expect(find.text('预告').hitTestable(), findsNothing);
+
+    pgc.cid.value = 12;
+    await tester.pumpAndSettle();
+
+    expect(find.text('预告').hitTestable(), findsOneWidget);
   });
 }
