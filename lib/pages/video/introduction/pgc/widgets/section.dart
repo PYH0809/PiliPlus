@@ -47,8 +47,12 @@ class _SectionPanelState extends State<SectionPanel> {
   late List<EpisodeItem> _episodes;
 
   late final _pgcController = widget.pgcController;
-  late final _videoDetailCtr = _pgcController.videoDetailCtr;
   int get _sectionIndex => _pgcController.sectionIndex;
+
+  /// The section shown, which only becomes the one playing as one of its
+  /// episodes is picked: the playlist, next and the share follow the one
+  /// playing.
+  late int _shownIndex;
   late final StreamSubscription<int> _listener;
   late final ScrollController _scrollController;
   late final ListController _sectionListController;
@@ -88,13 +92,13 @@ class _SectionPanelState extends State<SectionPanel> {
       keepScrollOffset: false,
       initialScrollOffset: _scrollOffset,
     );
-    _listener = _videoDetailCtr.cid.listen(_onCidChanged);
+    _listener = _pgcController.cid.listen(_onCidChanged);
     _sectionScrollController = ScrollController(keepScrollOffset: false);
     _sectionListController = ListController();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _sectionListController.jumpToItem(
         alignment: 0.25,
-        index: _sectionIndex,
+        index: _shownIndex,
         scrollController: _sectionScrollController,
       ),
     );
@@ -106,13 +110,19 @@ class _SectionPanelState extends State<SectionPanel> {
     if (!item.hasSections) return const (true, true);
     _seasonId = _pgcController.seasonId;
     _sections = item.sections!;
-    _episodes = _sections[_sectionIndex].episodes!;
+    _shownIndex = _sectionIndex;
+    _episodes = _sections[_shownIndex].episodes!;
     return const (true, false);
   }
 
   void _onCidChanged(int cid) {
     final (bool seasonChanged, bool dispose) = _initIfNeeded();
     if (dispose || !mounted) return;
+    // Playing on into another section, as with next, shows that section.
+    if (_isSection && _shownIndex != _sectionIndex) {
+      _shownIndex = _sectionIndex;
+      _episodes = _sections[_shownIndex].episodes!;
+    }
     setState(() {});
     if (seasonChanged) {
       _scrollController.jumpTo(_scrollOffset);
@@ -126,8 +136,8 @@ class _SectionPanelState extends State<SectionPanel> {
   }
 
   void _updateSection(int sectionIndex) {
-    if (_sectionIndex == sectionIndex) return;
-    _pgcController.sectionIndex = sectionIndex;
+    if (_shownIndex == sectionIndex) return;
+    _shownIndex = sectionIndex;
     _episodes = _sections[sectionIndex].episodes!;
     setState(() {});
     final episode = _episodes.getOrNull(_index);
@@ -138,7 +148,7 @@ class _SectionPanelState extends State<SectionPanel> {
     }
     _sectionListController.animateToItem(
       alignment: 0.25,
-      index: () => _sectionIndex,
+      index: () => _shownIndex,
       scrollController: _sectionScrollController,
       duration: (_) => const Duration(milliseconds: 500),
       curve: (_) => Curves.easeInOut,
@@ -159,7 +169,7 @@ class _SectionPanelState extends State<SectionPanel> {
             style: TextStyle(
               height: 1,
               fontSize: 14,
-              color: index == _sectionIndex
+              color: index == _shownIndex
                   ? colorScheme.onSecondaryContainer
                   : colorScheme.outline,
             ),
@@ -226,7 +236,11 @@ class _SectionPanelState extends State<SectionPanel> {
         if (item.badge == '会员' && !_isVip) {
           SmartDialog.showToast('需要大会员');
         }
-        widget.onChangeEpisode(item, episodeType: .section);
+        widget.onChangeEpisode(
+          item,
+          episodeType: .section,
+          sectionIndex: _shownIndex,
+        );
       },
       child: Column(
         spacing: 4,

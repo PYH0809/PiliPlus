@@ -38,6 +38,7 @@ import 'package:material_ui/material_ui.dart';
 typedef OnChangePgcEpisode = Function(
   BaseEpisodeItem episode, {
   PgcEpisodeType? episodeType,
+  int? sectionIndex,
 });
 
 class PgcIntroController extends CommonIntroController {
@@ -275,10 +276,16 @@ class PgcIntroController extends CommonIntroController {
   Future<bool> onChangeEpisode(
     BaseEpisodeItem episode, {
     PgcEpisodeType? episodeType,
+    int? sectionIndex,
   }) async {
     try {
       if (episodeType != null) {
         this.episodeType = episodeType;
+      }
+      // The section plays only once one of its episodes is picked, not as
+      // the section panel shows it.
+      if (sectionIndex != null) {
+        this.sectionIndex = sectionIndex;
       }
       final int epId = episode.epId ?? episode.id!;
       final String bvid = episode.bvid ?? this.bvid;
