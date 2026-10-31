@@ -21,16 +21,21 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
 
     // More folded replies than a page: on with them, as with the main list,
     // whose cursor is done with by then.
-    if (controller.foldNext != null) {
-      controller.loadFoldList();
-      return _buildEndItem(loading: true);
-    }
+    if (controller.foldNext != null) return _buildFoldNext();
 
     controller.onLoadMore();
     return _buildEndItem();
   }
 
-  Widget _buildFoldItem(FoldCard fold) {
+  Widget _buildFoldNext() {
+    if (controller.foldFailed) return _buildTapItem('加载失败，点击重试');
+    controller.loadFoldList();
+    return _buildEndItem(loading: true);
+  }
+
+  Widget _buildFoldItem(FoldCard fold) => _buildTapItem(fold.bottomText);
+
+  Widget _buildTapItem(String text) {
     return Container(
       height: 125,
       alignment: .topCenter,
@@ -44,7 +49,7 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
             child: Padding(
               padding: const .symmetric(vertical: 12),
               child: Text(
-                fold.bottomText,
+                text,
                 textAlign: .center,
                 style: TextStyle(fontSize: 12, color: colorScheme.outline),
               ),
@@ -76,8 +81,7 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
     }
     // A page of them all filtered out, more to come: on with them.
     if (controller.foldNext != null) {
-      controller.loadFoldList();
-      return SliverToBoxAdapter(child: _buildEndItem(loading: true));
+      return SliverToBoxAdapter(child: _buildFoldNext());
     }
     return HttpError(
       errMsg: '还没有评论',
