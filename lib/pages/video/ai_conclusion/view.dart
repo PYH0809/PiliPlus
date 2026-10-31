@@ -149,7 +149,7 @@ class AiConclusionPanel extends CommonSlidePage {
 class _AiDetailState extends State<AiConclusionPanel>
     with SingleTickerProviderStateMixin, CommonSlideMixin {
   @override
-  Widget buildPage(ThemeData theme) {
+  Widget buildPage() {
     return Material(
       color: theme.colorScheme.surface,
       child: Column(
@@ -171,7 +171,7 @@ class _AiDetailState extends State<AiConclusionPanel>
             ),
           ),
           Expanded(
-            child: enableSlide ? slideList(theme) : buildList(theme),
+            child: enableSlide ? slideList() : buildList(),
           ),
         ],
       ),
@@ -188,7 +188,7 @@ class _AiDetailState extends State<AiConclusionPanel>
   }
 
   @override
-  Widget buildList(ThemeData theme) {
+  Widget buildList() {
     return AiConclusionPanel.buildContent(
       context,
       theme,
