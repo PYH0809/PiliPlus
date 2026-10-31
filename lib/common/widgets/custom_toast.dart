@@ -1,9 +1,11 @@
-import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/scheduler.dart';
+import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
 class CustomToast extends StatelessWidget {
@@ -15,98 +17,29 @@ class CustomToast extends StatelessWidget {
 
   static final bool _glass = Pref.liquidGlass;
 
-  /// Shows [msg] over the player's video, as a skip in full screen. On glass
-  /// it is a capsule of the video's glass, as the player's notes are: the
-  /// toasts' own glass lies above the host, so over the video it showed a
-  /// bare tint, the video sharp under it.
-  static void showOverVideo(String msg, {Alignment? alignment}) {
-    if (!GlassSurfaces.installed) {
-      SmartDialog.showToast(msg, alignment: alignment);
-      return;
-    }
-    SmartDialog.showToast(
-      msg,
-      alignment: alignment,
-      builder: (_) => Padding(
-        padding: const .symmetric(horizontal: 22, vertical: 15),
-        child: Text(
-          msg,
-          textAlign: .center,
-          style: const TextStyle(
-            fontSize: 15,
-            height: 20 / 15,
-            fontWeight: .w500,
-            color: Colors.white,
-          ),
-        ),
-      ),
-      // The glass eases in and out through its t: SmartDialog's fade, an
-      // Opacity over the backdrop filter, would break it. Its opacity
-      // setting thins it as it does the toasts' own glass.
-      // It stands where the toast it replaces stood. It draws the player's
-      // video itself, as the player's menus do, rather than reading the
-      // whole screen behind it every frame it shows.
-      animationBuilder: (controller, child, _) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, child) => Padding(
-          padding: .fromLTRB(
-            24,
-            0,
-            24,
-            MediaQuery.viewPaddingOf(context).bottom + 30,
-          ),
-          child: VideoGlassSource.overPlayer(
-            child: VideoGlass.capsule(
-              note: true,
-              t: controller.value * toastOpacity,
-              child: Opacity(opacity: controller.value, child: child),
-            ),
-          ),
-        ),
-        child: child,
-      ),
-    );
-  }
+  /// Whether the player is in full screen, in place of one; tests set it.
+  @visibleForTesting
+  static RxBool? debugFullScreen;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
     if (_glass) {
-      // A capsule of glass at iOS's size, as the nav bar; it frosts rather
-      // than bends, as toasts show above the glass host. Its opacity setting
-      // thins the glass as it does the bubble.
-      return Padding(
-        padding: .fromLTRB(
-          24,
-          0,
-          24,
-          MediaQuery.viewPaddingOf(context).bottom + 30,
-        ),
-        child: LiquidGlass(
-          style: LiquidGlassStyle.pill(colorScheme).scale(toastOpacity),
-          // A pill on one line; rounded as one on more.
-          borderRadius: const .all(.circular(25)),
-          shadows: [
-            for (final shadow in floatingGlassShadows(colorScheme))
-              shadow.copyWith(
-                color: shadow.color.withValues(
-                  alpha: shadow.color.a * toastOpacity,
-                ),
-              ),
-          ],
-          child: Padding(
-            padding: const .symmetric(horizontal: 22, vertical: 15),
-            child: Text(
-              msg,
-              textAlign: .center,
-              style: TextStyle(
-                fontSize: 15,
-                height: 20 / 15,
-                fontWeight: .w500,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ),
+      final fullScreen =
+          debugFullScreen ?? PlPlayerController.instance?.isFullScreen;
+      final video = VideoGlassSource.player?.video.currentContext;
+      if (fullScreen == null || video == null) {
+        return _onGlass(context, colorScheme, false);
+      }
+      // A toast lies over the video while the player is in full screen and
+      // on show, as under a menu or a panel, not under a page pushed over
+      // it, as the live room's 弹幕屏蔽. One shown follows both: as full
+      // screen ends, on a desktop, whose window stays as it is, and as a
+      // page covers the player or uncovers it.
+      return _PlayerOnShow(
+        video: video,
+        builder: (onShow) => Obx(
+          () => _onGlass(context, colorScheme, fullScreen.value && onShow),
         ),
       );
     }
@@ -128,6 +61,127 @@ class CustomToast extends StatelessWidget {
       ),
     );
   }
+
+  Widget _onGlass(
+    BuildContext context,
+    ColorScheme colorScheme,
+    bool overVideo,
+  ) {
+    final padding = EdgeInsets.fromLTRB(
+      24,
+      0,
+      24,
+      MediaQuery.viewPaddingOf(context).bottom + 30,
+    );
+    Widget text(Color color) => Padding(
+      padding: const .symmetric(horizontal: 22, vertical: 15),
+      child: Text(
+        msg,
+        textAlign: .center,
+        style: TextStyle(
+          fontSize: 15,
+          height: 20 / 15,
+          fontWeight: .w500,
+          color: color,
+        ),
+      ),
+    );
+    if (overVideo) {
+      // In full screen a toast lies over the video, which the toasts' own
+      // glass, above the host, cannot read: it showed a bare tint there,
+      // the video sharp under it. A capsule of the video's glass, white
+      // text on it, as the player's notes are. It draws the player's video
+      // itself rather than reading the screen behind it, so SmartDialog's
+      // fade over it leaves it whole, and it costs no pass over the whole
+      // screen every frame it shows. Its opacity setting thins it as it
+      // does the toasts' own glass.
+      return Padding(
+        padding: padding,
+        child: VideoGlassSource.overPlayer(
+          child: VideoGlass.capsule(
+            note: true,
+            t: toastOpacity,
+            child: text(Colors.white),
+          ),
+        ),
+      );
+    }
+    // A capsule of glass at iOS's size, as the nav bar; it frosts rather
+    // than bends, as toasts show above the glass host. Its opacity setting
+    // thins the glass as it does the bubble.
+    return Padding(
+      padding: padding,
+      child: LiquidGlass(
+        style: LiquidGlassStyle.pill(colorScheme).scale(toastOpacity),
+        // A pill on one line; rounded as one on more.
+        borderRadius: const .all(.circular(25)),
+        shadows: [
+          for (final shadow in floatingGlassShadows(colorScheme))
+            shadow.copyWith(
+              color: shadow.color.withValues(
+                alpha: shadow.color.a * toastOpacity,
+              ),
+            ),
+        ],
+        child: text(colorScheme.onSurface),
+      ),
+    );
+  }
+}
+
+/// Builds with whether the page of [video] is on show, and again as a page
+/// pushed over it or popped changes it.
+class _PlayerOnShow extends StatefulWidget {
+  const _PlayerOnShow({required this.video, required this.builder});
+
+  final BuildContext video;
+  final Widget Function(bool onShow) builder;
+
+  @override
+  State<_PlayerOnShow> createState() => _PlayerOnShowState();
+}
+
+class _PlayerOnShowState extends State<_PlayerOnShow> {
+  late ValueListenable<TickerModeData> _mode;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = TickerMode.getValuesNotifier(widget.video)..addListener(_onChange);
+  }
+
+  // Another player, as one opened from a video while the toast shows.
+  @override
+  void didUpdateWidget(_PlayerOnShow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.video != oldWidget.video) {
+      _mode.removeListener(_onChange);
+      _mode = TickerMode.getValuesNotifier(widget.video)
+        ..addListener(_onChange);
+    }
+  }
+
+  // The navigator changes it as it builds, which this, out of its tree,
+  // must not interrupt: it builds again once that frame is done.
+  void _onChange() {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _mode.removeListener(_onChange);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_mode.value.enabled);
 }
 
 class LoadingWidget extends StatelessWidget {
