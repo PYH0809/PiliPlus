@@ -1,6 +1,7 @@
 import 'dart:async' show StreamSubscription, Timer;
 import 'dart:math' as math;
 
+import 'package:PiliPlus/common/widgets/custom_toast.dart';
 import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/segment_progress_bar.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -278,10 +279,11 @@ mixin BlockMixin on GetxController {
   }
 
   void _showBlockToast(String msg) {
-    SmartDialog.showToast(
-      msg,
-      alignment: isFullScreen ? const Alignment(0, 0.7) : null,
-    );
+    if (isFullScreen) {
+      CustomToast.showOverVideo(msg, alignment: const Alignment(0, 0.7));
+    } else {
+      SmartDialog.showToast(msg);
+    }
   }
 
   void _showVoteDialog(SegmentModel segment) {

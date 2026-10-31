@@ -1,6 +1,9 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 class CustomToast extends StatelessWidget {
@@ -11,6 +14,59 @@ class CustomToast extends StatelessWidget {
   static double toastOpacity = Pref.defaultToastOp;
 
   static final bool _glass = Pref.liquidGlass;
+
+  /// Shows [msg] over the player's video, as a skip in full screen. On glass
+  /// it is a capsule of the video's glass, as the player's notes are: the
+  /// toasts' own glass lies above the host, so over the video it showed a
+  /// bare tint, the video sharp under it.
+  static void showOverVideo(String msg, {Alignment? alignment}) {
+    if (!GlassSurfaces.installed) {
+      SmartDialog.showToast(msg, alignment: alignment);
+      return;
+    }
+    SmartDialog.showToast(
+      msg,
+      alignment: alignment,
+      builder: (_) => Padding(
+        padding: const .symmetric(horizontal: 22, vertical: 15),
+        child: Text(
+          msg,
+          textAlign: .center,
+          style: const TextStyle(
+            fontSize: 15,
+            height: 20 / 15,
+            fontWeight: .w500,
+            color: Colors.white,
+          ),
+        ),
+      ),
+      // The glass eases in and out through its t: SmartDialog's fade, an
+      // Opacity over the backdrop filter, would break it. Its opacity
+      // setting thins it as it does the toasts' own glass.
+      // It stands where the toast it replaces stood. It draws the player's
+      // video itself, as the player's menus do, rather than reading the
+      // whole screen behind it every frame it shows.
+      animationBuilder: (controller, child, _) => AnimatedBuilder(
+        animation: controller,
+        builder: (context, child) => Padding(
+          padding: .fromLTRB(
+            24,
+            0,
+            24,
+            MediaQuery.viewPaddingOf(context).bottom + 30,
+          ),
+          child: VideoGlassSource.overPlayer(
+            child: VideoGlass.capsule(
+              note: true,
+              t: controller.value * toastOpacity,
+              child: Opacity(opacity: controller.value, child: child),
+            ),
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
