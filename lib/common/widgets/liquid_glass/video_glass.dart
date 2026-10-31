@@ -211,11 +211,13 @@ class VideoGlass extends StatelessWidget {
   }
 
   /// While true, as a player's menu moves over the video, the controls'
-  /// frosted panes over the video, those on the dark style, draw their glass
-  /// from an image of it taken as it set in, their content live. Each frosts the video by itself, a blur of its own
-  /// every frame, which over the six of the full-screen controls took
-  /// thrice the render passes of their bent glass; the frost hides the video
-  /// standing still for that while. Bent glass, clear, stays live.
+  /// frosted panes over the video, those on the dark style, standing whole,
+  /// draw their glass from an image of it taken as it set in, their content
+  /// live. Each frosts the video by itself, a blur of its own every frame,
+  /// which over the six of the full-screen controls took thrice the render
+  /// passes of their bent glass; the frost hides the video standing still
+  /// for that while. Bent glass, clear, stays live, as does a pane easing in
+  /// or out.
   static final frostHeld = ValueNotifier(false);
 
   /// What the widest pane over the video last drew, for the performance
@@ -484,6 +486,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   set radius(double? value) {
     if (_radius == value) return;
     _radius = value;
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -496,6 +499,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     if (wasOn != value > 0) {
       markNeedsCompositingBitsUpdate();
     }
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -504,6 +508,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   set style(LiquidGlassStyle value) {
     if (_style == value) return;
     _style = value;
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -512,6 +517,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   set rim(LiquidGlassRim? value) {
     if (_rim == value) return;
     _rim = value;
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -677,7 +683,14 @@ class _RenderVideoGlass extends RenderProxyBox {
     // Over the video, the pane draws the video again itself; until its
     // texture shows, as while it loads, only the tint.
     final video = _filters && _source != null ? _findVideo() : null;
-    if (video != null && _holds && VideoGlass.frostHeld.value && !_bends) {
+    // Held only standing whole: a note easing in or out, as the volume's
+    // as a swipe sets it while a menu closes, frosts live, lest it hold at
+    // where it set off and then jump.
+    if (video != null &&
+        _holds &&
+        _t >= 1 &&
+        VideoGlass.frostHeld.value &&
+        !_bends) {
       if (_heldSize != size) _dropHeld();
       final image = _held ??= _takeHeld(corners, video);
       context.canvas.drawImageRect(

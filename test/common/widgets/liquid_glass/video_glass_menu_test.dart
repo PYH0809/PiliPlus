@@ -7,6 +7,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
 import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -798,8 +799,10 @@ void main() {
     // menu moves, and a menu out of the bar.
     Future<ValueNotifier<int>> openOverControls(
       WidgetTester tester,
-      VideoGlassMode mode,
-    ) async {
+      VideoGlassMode mode, {
+      // A note's pane easing in, as the volume's.
+      ValueListenable<double>? note,
+    }) async {
       await tester.runAsync(
         () => GStorage.setting.put('videoGlassMode', mode.index),
       );
@@ -835,6 +838,25 @@ void main() {
                     ),
                   ),
                 ),
+                if (note != null)
+                  Positioned(
+                    left: 20,
+                    top: 100,
+                    width: 120,
+                    height: 44,
+                    child: VideoGlassSource(
+                      video: player,
+                      child: ValueListenableBuilder(
+                        valueListenable: note,
+                        builder: (_, t, _) => VideoGlass(
+                          note: true,
+                          radius: 22,
+                          t: t,
+                          child: const Text('volume'),
+                        ),
+                      ),
+                    ),
+                  ),
                 Align(
                   alignment: const Alignment(0.6, 0.8),
                   child: VideoGlassMenus(child: _qualityButton()),
@@ -881,6 +903,33 @@ void main() {
       await tester.pumpAndSettle();
       expect(VideoGlass.frostHeld.value, isFalse);
       expect(paneFilters(tester), isNotEmpty);
+    });
+
+    testWidgets('frosted, a note easing in as a menu moves frosts live as '
+        'it eases, not held where it set off, and holds once whole', (
+      tester,
+    ) async {
+      final note = ValueNotifier(0.0);
+      addTearDown(note.dispose);
+      await openOverControls(tester, VideoGlassMode.frost, note: note);
+      await tester.tap(find.text('1080P'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(VideoGlass.frostHeld.value, isTrue);
+      expect(paneFilters(tester), isEmpty);
+
+      // As a swipe sets the volume, its note eases in, frame by frame.
+      for (final t in [0.1, 0.4, 0.8]) {
+        note.value = t;
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(paneFilters(tester), isNotEmpty, reason: 'the note at $t');
+      }
+      // Whole, it holds as the rest.
+      note.value = 1;
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(VideoGlass.frostHeld.value, isTrue);
+      expect(paneFilters(tester), isEmpty);
+      await tester.pumpAndSettle();
     });
 
     testWidgets('a menu reaching past a small player reads the screen, the '
