@@ -147,8 +147,9 @@ jobs:
 
                       编译和测试不归你管。同一个 PR 上的 `Check` workflow 会跑 `flutter analyze`（也就是类型检查）、
                       `flutter test`（玻璃渲染测试还会开 Impeller 再跑一遍），以及 Android release 编译（含 `android/`
-                      下的 Java / Kotlin 和 R8），哪项不过，PR 上就会亮红。这里没装 Flutter，也不用去跑。你只需要找
-                      analyzer、编译器和现有测试抓不到的问题；`summary` 里也不要再建议去看 CI 结果或在本机跑测试。
+                      下的 Java / Kotlin 和 R8），哪项不过，PR 上就会亮红。这里没装 Flutter，也不用去跑；Check 抓得到的
+                      问题不用再提，`summary` 里也不要再建议去看 CI 结果或在本机跑测试。Check 只编 Android：`ios/`、
+                      `macos/`、`windows/`、`linux/` 下的原生代码它不编译，这些改动照常审。
 
                       `.ai-review/` 里是这个 PR 在 GitHub 上的资料：
                       - `pr.json`：标题、描述、作者；
