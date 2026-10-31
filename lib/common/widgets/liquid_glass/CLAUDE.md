@@ -9,9 +9,9 @@ turns on every glass part. It only takes effect after a restart.
 - `LiquidGlassHost` captures what is drawn behind each pane, and the shader in `shaders/liquid_glass.frag` refracts
   that capture. `lib/main.dart` wraps the whole app in `LiquidGlassScope` + `LiquidGlassHost` in its `builder`, so
   glass works on any route or dialog. Don't add another host.
-- Refraction needs Impeller's shader filters (`ImageFilter.isShaderFilterSupported`). Without them, as in release
-  Android builds and on macOS, panes fall back to a thickened tint with a rim, not a blur. Check how a change looks
-  both ways; the Android dev flavor has Impeller on.
+- Refraction needs Impeller's shader filters (`ImageFilter.isShaderFilterSupported`). Without them, as on macOS
+  and in upstream's Android builds, panes fall back to a thickened tint with a rim, not a blur. Check how a change
+  looks both ways; this fork's Android builds have Impeller on.
 - **Without Impeller, what holds still draws from images** (`liquid_glass_skia.dart`): Flutter hands Skia a new path
   every frame, so Skia would mask and blur every pane's shadows and stroke its rims again each frame. A pane's
   shadows go into a layer of their own, which the host lays on whole device pixels, and the frost's rims into the
