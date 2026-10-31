@@ -38,6 +38,7 @@ import 'package:material_ui/material_ui.dart';
 typedef OnChangePgcEpisode = Function(
   BaseEpisodeItem episode, {
   PgcEpisodeType? episodeType,
+  int? sectionIndex,
 });
 
 class PgcIntroController extends CommonIntroController {
@@ -275,10 +276,16 @@ class PgcIntroController extends CommonIntroController {
   Future<bool> onChangeEpisode(
     BaseEpisodeItem episode, {
     PgcEpisodeType? episodeType,
+    int? sectionIndex,
   }) async {
     try {
       if (episodeType != null) {
         this.episodeType = episodeType;
+      }
+      // The section plays only once one of its episodes is picked, not as
+      // the section panel shows it.
+      if (sectionIndex != null) {
+        this.sectionIndex = sectionIndex;
       }
       final int epId = episode.epId ?? episode.id!;
       final String bvid = episode.bvid ?? this.bvid;
@@ -491,6 +498,11 @@ class PgcIntroController extends CommonIntroController {
     }
     return pgcItem.episodes!;
   }
+
+  /// The list playing as it can be downloaded: without a section's links to
+  /// other videos, which have no cid of their own.
+  List<EpisodeItem> get downloadableEpisodes =>
+      episodes.where((e) => e.cid != null && e.cid != 0).toList();
 
   EpisodeItem findEpisode(int cid) {
     return episodes.firstWhere((e) => e.cid == cid);

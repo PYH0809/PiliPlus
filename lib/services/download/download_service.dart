@@ -25,7 +25,7 @@ import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/foundation.dart'
-    show kDebugMode, debugPrint, VoidCallback;
+    show kDebugMode, debugPrint, VoidCallback, visibleForTesting;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
@@ -178,6 +178,32 @@ class DownloadService extends GetxService {
     _createDownload(entry);
   }
 
+  /// How far apart the sections' downloads sort, past the episodes': more
+  /// than any season's episodes, so that more of them, as a series airs on,
+  /// never reach a section's.
+  static const _sectionStride = 100000;
+
+  /// Where [episode] sorts in its whole season: its episodes first, at their
+  /// places, then each section's in turn, so that the offline list puts a
+  /// section's after the episodes, not among them, as [index], where it is
+  /// in the list it was picked from, would. [index] where it is in none.
+  @visibleForTesting
+  static int seasonOrder(
+    PgcInfoModel pgcItem,
+    pgc.EpisodeItem episode,
+    int index,
+  ) {
+    int place(List<pgc.EpisodeItem>? list) =>
+        list?.indexWhere((e) => e.cid == episode.cid) ?? -1;
+    final inEpisodes = place(pgcItem.episodes);
+    if (inEpisodes != -1) return inEpisodes;
+    for (final (i, section) in (pgcItem.sections ?? const []).indexed) {
+      final inSection = place(section.episodes);
+      if (inSection != -1) return (i + 1) * _sectionStride + inSection;
+    }
+    return index;
+  }
+
   void downloadBangumi({
     required int index,
     required PgcInfoModel pgcItem,
@@ -213,7 +239,7 @@ class DownloadService extends GetxService {
       rotate: 0,
       link: episode.link ?? '',
       bvid: episode.bvid ?? IdUtils.av2bv(source.avId),
-      sortIndex: index,
+      sortIndex: seasonOrder(pgcItem, episode, index),
     );
     final entry = BiliDownloadEntryInfo(
       mediaType: 2,
