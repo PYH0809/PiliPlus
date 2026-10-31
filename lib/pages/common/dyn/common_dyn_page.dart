@@ -222,10 +222,10 @@ mixin CommonDynPageMixin<T extends StatefulWidget>
           );
         }
 
-        final child = httpError(
-          errMsg: '还没有评论',
-          onReload: controller.onReload,
-        );
+        // Every reply folded: the way to them, as emptyWidget gives.
+        final child = controller.foldCard != null || controller.foldNext != null
+            ? emptyWidget()
+            : httpError(errMsg: '还没有评论', onReload: controller.onReload);
         if (controller.voteCard case final voteCard?) {
           return SliverMainAxisGroup(
             slivers: [

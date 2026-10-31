@@ -19,6 +19,13 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
     final fold = controller.foldCard;
     if (fold != null) return _buildFoldItem(fold);
 
+    // More folded replies than a page: on with them, as with the main list,
+    // whose cursor is done with by then.
+    if (controller.foldNext != null) {
+      controller.loadFoldList();
+      return _buildEndItem(loading: true);
+    }
+
     controller.onLoadMore();
     return _buildEndItem();
   }
@@ -48,13 +55,13 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
     );
   }
 
-  Widget _buildEndItem() {
+  Widget _buildEndItem({bool loading = false}) {
     return Container(
       height: 125,
       alignment: .center,
       margin: .only(bottom: padding.bottom),
       child: Text(
-        controller.isEnd ? '没有更多了' : '加载中...',
+        controller.isEnd && !loading ? '没有更多了' : '加载中...',
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 12, color: colorScheme.outline),
       ),
@@ -62,6 +69,16 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
   }
 
   Widget emptyWidget() {
+    // Every reply folded, as left out of the main list: the way to them,
+    // not that there are none.
+    if (controller.foldCard case final fold?) {
+      return SliverToBoxAdapter(child: _buildFoldItem(fold));
+    }
+    // A page of them all filtered out, more to come: on with them.
+    if (controller.foldNext != null) {
+      controller.loadFoldList();
+      return SliverToBoxAdapter(child: _buildEndItem(loading: true));
+    }
     return HttpError(
       errMsg: '还没有评论',
       onReload: controller.onReload,
