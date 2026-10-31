@@ -2091,11 +2091,13 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         child: VideoGlassSource(
           video: _videoKey,
           changes: _videoChanges,
-          // Their menus lie over the video too.
-          child: VideoGlassMenus(child: child),
+          child: child,
         ),
       );
     }
+    // Marks the popups out of the controls, which hold them up till they
+    // have gone back, and, with glass on, lie on the video's glass.
+    child = VideoGlassMenus(child: child);
     if (PlatformUtils.isDesktop) {
       return Obx(
         () => MouseRegion(

@@ -23,6 +23,23 @@ class VideoGlassMenus extends InheritedTheme {
   static bool of(BuildContext context) =>
       context.getInheritedWidgetOfExactType<VideoGlassMenus>()?._routes == 1;
 
+  /// Whether the route built below [context], a popup's, came straight out
+  /// of the player's controls, as their menus and dialogs do.
+  static bool outOfControls(BuildContext context) {
+    var found = false;
+    void visit(Element element) {
+      if (found) return;
+      if (element.widget case VideoGlassMenus(_routes: 1)) {
+        found = true;
+        return;
+      }
+      element.visitChildElements(visit);
+    }
+
+    context.visitChildElements(visit);
+    return found;
+  }
+
   @override
   Widget wrap(BuildContext context, Widget child) =>
       VideoGlassMenus._(_routes + 1, child: child);

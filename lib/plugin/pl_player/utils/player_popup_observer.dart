@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:material_ui/material_ui.dart';
@@ -9,11 +10,12 @@ abstract interface class PopupControlsHolder {
   void releaseControls();
 }
 
-/// Keeps the player's controls up while a popup over them is open, as a menu
-/// out of their buttons or a dialog, and until it has gone back: the
+/// Keeps the player's controls up while a popup out of them is open, as a
+/// menu out of their buttons or a dialog, and until it has gone back: the
 /// controls go after it, not from under a menu still returning into its
 /// button. A panel slid in, as 更多设置 or a sheet, is content of its own,
-/// and the controls hide in their time under it as before.
+/// and the controls hide in their time under it as before; so do they
+/// under a popup out of anything else ([VideoGlassMenus.outOfControls]).
 class PlayerPopupObserver extends NavigatorObserver {
   PlayerPopupObserver({PopupControlsHolder? Function()? player})
     : _player = player ?? (() => PlPlayerController.instance);
@@ -23,12 +25,9 @@ class PlayerPopupObserver extends NavigatorObserver {
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    // Only one straight over the page: a menu in a panel or a dialog is
-    // over that, not the controls.
     if (route is! PopupRoute ||
         route is PublishRoute ||
-        route is ModalBottomSheetRoute ||
-        previousRoute is! PageRoute) {
+        route is ModalBottomSheetRoute) {
       return;
     }
     final player = _player();
@@ -36,6 +35,10 @@ class PlayerPopupObserver extends NavigatorObserver {
     if (player == null || animation == null || !player.controlsShown) {
       return;
     }
+    // Held at once, so that no hide comes before the route has built; only
+    // built can it tell whether it came out of the controls, and not out of
+    // a panel, a dialog, or the page beside them, as the live room's chat,
+    // which then let them go again, their hide timed from then.
     player.holdControls();
     _held[route] = player;
     void onStatus(AnimationStatus status) {
@@ -46,6 +49,12 @@ class PlayerPopupObserver extends NavigatorObserver {
     }
 
     animation.addStatusListener(onStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = route.subtreeContext;
+      if (context == null || !VideoGlassMenus.outOfControls(context)) {
+        _release(route);
+      }
+    });
   }
 
   // Gone without its animation back.
