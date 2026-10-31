@@ -147,4 +147,28 @@ void main() {
 
     expect(find.text('预告').hitTestable(), findsOneWidget);
   });
+
+  test('the list offered for download leaves out a section\'s links to '
+      'other videos', () {
+    final pgc = _Pgc(
+      PgcInfoModel(
+        seasonId: 1,
+        sections: [
+          Section(
+            episodes: [
+              _episode(11),
+              // A link to another video, as the section panel opens it.
+              EpisodeItem(cid: 0, aid: 5, title: 'link'),
+              EpisodeItem(aid: 6, title: 'link'),
+              _episode(12),
+            ],
+          ),
+        ],
+      ),
+      cid: 11,
+      playingSection: 0,
+    );
+
+    expect(pgc.downloadableEpisodes.map((e) => e.cid), [11, 12]);
+  });
 }

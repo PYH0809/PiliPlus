@@ -499,6 +499,11 @@ class PgcIntroController extends CommonIntroController {
     return pgcItem.episodes!;
   }
 
+  /// The list playing as it can be downloaded: without a section's links to
+  /// other videos, which have no cid of their own.
+  List<EpisodeItem> get downloadableEpisodes =>
+      episodes.where((e) => e.cid != null && e.cid != 0).toList();
+
   EpisodeItem findEpisode(int cid) {
     return episodes.firstWhere((e) => e.cid == cid);
   }
