@@ -836,6 +836,36 @@ extension type AndroidHelper._(jni$_.JObject _$this) implements jni$_.JObject {
       _id_manufacturer.pointer,
     ).object<jni$_.JString?>();
   }
+
+  static final _id_stopMediaForeground = _class.staticMethodId(
+    r'stopMediaForeground',
+    r'()V',
+  );
+
+  static final _stopMediaForeground =
+      jni$_.ProtectedJniExtensions.lookup<
+            jni$_.NativeFunction<
+              jni$_.JThrowablePtr Function(
+                jni$_.Pointer<jni$_.Void>,
+                jni$_.JMethodIDPtr,
+              )
+            >
+          >('globalEnv_CallStaticVoidMethod')
+          .asFunction<
+            jni$_.JThrowablePtr Function(
+              jni$_.Pointer<jni$_.Void>,
+              jni$_.JMethodIDPtr,
+            )
+          >();
+
+  /// from: `static public void stopMediaForeground()`
+  static void stopMediaForeground() {
+    final _$$classRef = _class.reference;
+    _stopMediaForeground(
+      _$$classRef.pointer,
+      _id_stopMediaForeground.pointer,
+    ).check();
+  }
 }
 
 final class $AndroidHelper$Type$ extends jni$_.JType<AndroidHelper> {

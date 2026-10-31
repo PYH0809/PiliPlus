@@ -546,9 +546,26 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       (!state.playing ||
           (_pausedWhileBuffering && state.processingState == .buffering));
 
+  /// Takes the card's service out of the foreground, which takes its
+  /// notification with it. The service stays there while paused, and as the
+  /// card goes idle audio_service only cancels the notification, which
+  /// Android refuses for a foreground service, and stops the service, which
+  /// the app's own media browser keeps bound: the card stayed. Only Android
+  /// has the foreground service.
+  @visibleForTesting
+  void Function()? leaveForeground = Platform.isAndroid
+      ? AndroidHelper.stopMediaForeground
+      : null;
+
+  AudioProcessingState _processingState = .idle;
+
   /// Starts the paused card's clock as the card stops playing. Updates while
-  /// it stays paused, such as a seek, leave the clock running.
+  /// it stays paused, such as a seek, leave the clock running. A card going
+  /// idle leaves the foreground ([leaveForeground]).
   void _onPlaybackState(PlaybackState state) {
+    final wasIdle = _processingState == .idle;
+    _processingState = state.processingState;
+    if (!wasIdle && state.processingState == .idle) leaveForeground?.call();
     if (!_isPaused(state)) {
       _pausedCardTimer?.cancel();
       _pausedCardTimer = null;
@@ -630,13 +647,18 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     _swipeTimer?.cancel();
   }
 
-  /// Lets a paused card go, and the foreground service with it.
+  /// Lets a paused card go, and the foreground service with it. It goes as
+  /// not playing, though one paused while it buffers shows as playing: the
+  /// service takes the foreground again, and its media session up, only as
+  /// the card goes from not playing to playing.
   void _endPausedCard() {
     final state = playbackState.value;
     if (_isPaused(state)) {
       goesOn = false;
       _cardGone = true;
-      playbackState.add(state.copyWith(processingState: .idle));
+      playbackState.add(
+        state.copyWith(processingState: .idle, playing: false),
+      );
     }
   }
 
