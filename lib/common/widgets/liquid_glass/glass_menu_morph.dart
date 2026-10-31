@@ -30,6 +30,14 @@ const _contentFrom = 0.3;
 /// How long a menu takes to return into its button.
 const glassMenuReturn = glassDropletReturn;
 
+/// A menu route's linear progress, under the curves Material lays over it:
+/// closing, its curve holds still for the first third of the return.
+double glassMenuRouteTime(Animation<double> animation) => switch (animation) {
+  ProxyAnimation(:final parent?) => glassMenuRouteTime(parent),
+  CurvedAnimation(:final parent) => glassMenuRouteTime(parent),
+  _ => animation.value,
+};
+
 // The rows leave this soon into the return.
 const _dropletContentOut = 0.1;
 
@@ -351,7 +359,7 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
 
   void _handleStatus(AnimationStatus status) {
     if (status == AnimationStatus.reverse) {
-      _closedFrom ??= _linear(widget.animation);
+      _closedFrom ??= glassMenuRouteTime(widget.animation);
     } else if (status == AnimationStatus.dismissed) {
       // Landed: the button takes over from its snapshot on the frame the
       // menu goes.
@@ -398,15 +406,9 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
     if (from <= 0) {
       return glassDropletReturnSeconds;
     }
-    final left = _linear(widget.animation) / from;
+    final left = glassMenuRouteTime(widget.animation) / from;
     return (1 - left).clamp(0.0, 1.0) * glassDropletReturnSeconds;
   }
-
-  static double _linear(Animation<double> animation) => switch (animation) {
-    ProxyAnimation(:final parent?) => _linear(parent),
-    CurvedAnimation(:final parent) => _linear(parent),
-    _ => animation.value,
-  };
 
   @override
   Widget build(BuildContext context) {

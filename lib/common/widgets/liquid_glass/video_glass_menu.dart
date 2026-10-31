@@ -52,6 +52,11 @@ class VideoGlassMenus extends InheritedTheme {
 const double _fromScale = 0.6;
 // The rows show once the card has grown past this share of the way.
 const double _contentFrom = 0.35;
+// Closing, the card is gone by this share of the time the route has left
+// to return, which lasts as long as a menu's drop back into its button.
+// This card only shrinks and fades, and over all of it trailed a faint,
+// empty pane.
+const double _goneBy = 0.6;
 
 /// A popup menu over the player's video, on the video's glass, growing out of
 /// its button and back into it. As [GlassMenuMorph], a press carried on into
@@ -89,7 +94,6 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
   late final _grow = CurvedAnimation(
     parent: widget.animation,
     curve: Curves.easeOutCubic,
-    reverseCurve: Curves.easeInCubic,
   );
 
   @override
@@ -103,11 +107,42 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
   RenderBox? get pressedRowsBox =>
       _rows.currentContext?.findRenderObject() as RenderBox?;
 
+  // Where the route's own time and the card stood as it set off closing,
+  // which the card shrinks from, its rows fading with it.
+  ({double time, double t})? _closingFrom;
+
   @override
   void initState() {
     super.initState();
-    widget.animation.addListener(_onGrow);
+    widget.animation
+      ..addListener(_onGrow)
+      ..addStatusListener(_onStatus);
   }
+
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.reverse) {
+      _closingFrom ??= (
+        time: glassMenuRouteTime(widget.animation),
+        t: _grow.value,
+      );
+    }
+  }
+
+  // Closing, the card from where it stood, on the route's own time: under
+  // Material's curve the route holds still for the first third of its
+  // return, and a menu closed as it still grew would follow its opening
+  // curve back till the route ends.
+  double _closing(({double time, double t}) from) {
+    if (from.time <= 0) return 0;
+    final gone = from.time * (1 - _goneBy);
+    final left =
+        (glassMenuRouteTime(widget.animation) - gone) / (from.time - gone);
+    return from.t * Curves.easeIn.transform(left.clamp(0.0, 1.0));
+  }
+
+  // Opening, the rows wait for the card to have room for them.
+  static double _rowsOpening(double t) =>
+      ((t - _contentFrom) / (1 - _contentFrom)).clamp(0.0, 1.0);
 
   // The rows move as the menu grows: a press held still on one finds its row
   // again once they are laid out where they now are.
@@ -120,7 +155,9 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
 
   @override
   void dispose() {
-    widget.animation.removeListener(_onGrow);
+    widget.animation
+      ..removeListener(_onGrow)
+      ..removeStatusListener(_onStatus);
     _grow.dispose();
     super.dispose();
   }
@@ -185,7 +222,18 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
       animation: _grow,
       builder: (context, child) {
         // With animations off, as the menus' own glass, it stands grown.
-        final t = MediaQuery.disableAnimationsOf(context) ? 1.0 : _grow.value;
+        final still = MediaQuery.disableAnimationsOf(context);
+        final from = _closingFrom;
+        final t = still
+            ? 1.0
+            : from == null
+            ? _grow.value
+            : _closing(from);
+        // Closing, the rows fade with the card from where they stood, not
+        // before it, so that no empty card goes on shrinking after them.
+        final rows = still || from == null || from.t <= 0
+            ? _rowsOpening(t)
+            : _rowsOpening(from.t) * (t / from.t).clamp(0.0, 1.0);
         final origin = _anchorIn(context);
         final glass = VideoGlass(
           radius: widget.radius,
@@ -195,10 +243,7 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
           refract: false,
           style: style,
           rim: rim.scale(t),
-          child: Opacity(
-            opacity: ((t - _contentFrom) / (1 - _contentFrom)).clamp(0.0, 1.0),
-            child: child,
-          ),
+          child: Opacity(opacity: rows, child: child),
         );
         return Transform.scale(
           scale: lerpDouble(_fromScale, 1, t)!,
