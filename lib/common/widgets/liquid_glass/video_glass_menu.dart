@@ -4,6 +4,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -637,10 +638,31 @@ class _RenderGrowingRows extends _RenderGrowing {
     Offset.zero & row.size,
   );
 
+  List<Rect> _rowRects(RenderBox rows) => [
+    for (final row in _fadingRows(rows)) _rectOf(row, rows),
+  ];
+
+  // Where the rows stood as the image was taken. A long menu scrolled as it
+  // opens has them elsewhere, its taps on other rows than the image shows
+  // there: the image is taken again.
+  List<Rect>? _imaged;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (_image != null &&
+        child != null &&
+        !listEquals(_imaged, _rowRects(child))) {
+      _dropImage();
+    }
+    super.paint(context, offset);
+  }
+
   // The rows unfaded, which they are not as the menu sets off opening.
   @override
   void paintImage(PaintingContext context, RenderBox child) {
     final fading = _fadingRows(child);
+    _imaged = _rowRects(child);
     if (fading.isEmpty) return super.paintImage(context, child);
     for (final row in fading) {
       if (row.child case final RenderBox content) {

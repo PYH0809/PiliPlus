@@ -339,6 +339,97 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a long menu scrolled as it opens draws each row where it '
+      'now stands, as its taps find it', (tester) async {
+    final shot = GlobalKey();
+    // Long rows and short ones in turn, as many as to scroll.
+    String label(int i) => i.isEven ? '$i' : '$i' * 6;
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: shot,
+        child: MaterialApp(
+          theme: GlassSurfaces.themed(ThemeData()),
+          home: Scaffold(
+            backgroundColor: Colors.black,
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: VideoGlassMenus(
+                child: Builder(
+                  builder: (context) => Theme(
+                    data: VideoGlass.controlsTheme(Theme.of(context)),
+                    child: PopupMenuButton<int>(
+                      itemBuilder: (_) => [
+                        for (var i = 1; i <= 30; i++)
+                          PopupMenuItem(value: i, child: Text(label(i))),
+                      ],
+                      child: const Text('字幕'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('字幕'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    // A row on, as a drag scrolls it, still opening.
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(
+        of: find.byType(VideoGlassMenu),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    final step =
+        tester.getTopLeft(find.text(label(2))).dy -
+        tester.getTopLeft(find.text(label(1))).dy;
+    scrollable.position.jumpTo(step);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(
+      ModalRoute.of(tester.element(find.byType(VideoGlassMenu)))!
+          .animation!
+          .isAnimating,
+      isTrue,
+    );
+
+    // Past where a short row's text ends, a long row's goes on.
+    final rows = [
+      for (var i = 2; i <= 5; i++)
+        (
+          i,
+          tester.getRect(find.text(label(i))),
+          tester.getRect(find.text(label(i + 1))),
+        ),
+    ];
+    final drawn = await tester.runAsync(() async {
+      final boundary =
+          shot.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage();
+      final bytes = (await image.toByteData())!;
+      int green(Offset at) => bytes.getUint8(
+        (at.dy.round() * image.width + at.dx.round()) * 4 + 1,
+      );
+      return [
+        for (final (i, rect, next) in rows)
+          (
+            i,
+            green(Offset(math.max(rect.right, next.right) - 4, rect.center.dy)),
+          ),
+      ];
+    });
+    final card = drawn!.map((row) => row.$2).reduce(math.min);
+    for (final (i, green) in drawn) {
+      if (i.isOdd) {
+        expect(green, greaterThan(card + 20), reason: 'row $i, a long one');
+      } else {
+        expect(green, lessThan(card + 10), reason: 'row $i, a short one');
+      }
+    }
+    await tester.pumpAndSettle();
+  });
+
   group('the player\'s box', () {
     final player = GlobalKey();
     setUp(
