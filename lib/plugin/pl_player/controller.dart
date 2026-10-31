@@ -1429,6 +1429,15 @@ class PlPlayerController
     }
   }
 
+  /// Hides the controls at once, whatever popup holds them, as the player
+  /// goes into picture-in-picture.
+  void hideControlsNow() {
+    _hold.shown();
+    _timer?.cancel();
+    _timer = null;
+    showControls.value = false;
+  }
+
   set controls(bool visible) {
     if (visible) {
       _hold.shown();

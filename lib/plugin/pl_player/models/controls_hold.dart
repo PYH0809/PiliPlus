@@ -27,7 +27,8 @@ class ControlsHold {
     return false;
   }
 
-  /// The controls show again, which calls off a hide asked before.
+  /// The controls show again, or hide at once whatever holds them, which
+  /// calls off a hide asked before.
   void shown() => _hideAsked = false;
 
   /// A popup has gone back: once the last has, what the controls do.

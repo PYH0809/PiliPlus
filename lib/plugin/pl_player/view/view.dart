@@ -996,7 +996,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   void didUpdateWidget(covariant PLVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (Platform.isAndroid && AndroidHelper.isPipMode) {
-      plPlayerController.controls = false;
+      // At once, though a menu holds them: the window has no room for them,
+      // nor a way to close the menu.
+      plPlayerController.hideControlsNow();
     }
   }
 
