@@ -122,6 +122,42 @@ void main() {
     }
   });
 
+  testWidgets('a sheet opened before playing all moved on into a longer '
+      'season leaves 跳到当前播放 be', (tester) async {
+    final ugc = _Ugc()..videoDetail.value = _video(1, 1);
+    await pump(
+      tester,
+      EpisodePanel(
+        type: EpisodeType.season,
+        isSidePanel: false,
+        enableSlide: false,
+        introController: ugc,
+      ),
+    );
+
+    // On into a season whose current episode lies past the sheet's list.
+    ugc.videoDetail.value = VideoDetailData(
+      aid: 3,
+      bvid: 'BV3',
+      cid: 300,
+      ugcSeason: UgcSeason(
+        id: 3,
+        sections: [
+          SectionItem(
+            episodes: [for (var i = 0; i < 6; i++) _episode(300 + i)],
+          ),
+        ],
+      ),
+    );
+    ugc.playing = 5;
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('跳到当前播放'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('logged in, a season without the video\'s top-level '
       'season_id still offers its subscription', (tester) async {
     final mode = Accounts.accountMode;
@@ -187,9 +223,14 @@ void main() {
   });
 }
 
-/// Notes what is picked, in place of loading it.
+/// Notes what is picked, in place of loading it, and plays the episode
+/// [playing] of its season.
 class _Ugc extends UgcIntroController {
   final picked = <int?>[];
+  int playing = 0;
+
+  @override
+  int get seasonIndex => playing;
 
   @override
   Future<bool> onChangeEpisode(

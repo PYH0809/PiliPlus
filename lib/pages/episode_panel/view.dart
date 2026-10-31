@@ -263,12 +263,15 @@ class _EpisodePanelState extends State<EpisodePanel>
   void _jumpToBottom() => _jumpToPos(top: false);
 
   Future<void> _jumpToCurrent() async {
+    // What plays is in another season than the one shown, as a sheet
+    // opened before playing all moved on.
+    if (_seasonGone) return;
     if (_tabController != null) {
       final tabIndex = _tabIndex();
       if (_tabController!.index != tabIndex) {
         _tabController!.animateTo(tabIndex);
         await Future.pause(const Duration(milliseconds: 225));
-        if (!mounted) return;
+        if (!mounted || _seasonGone) return;
       }
     }
     _jumpToPos(offset: _calcItemOffset(_itemIndex()));
@@ -306,7 +309,7 @@ class _EpisodePanelState extends State<EpisodePanel>
 
   double _calcItemOffset(int index) {
     double offset = 0;
-    for (var i = 0; i < index; i++) {
+    for (var i = 0; i < index && i < _episodes.length; i++) {
       offset += _calcItemHeight(_episodes[i]);
     }
     return offset + 7;
