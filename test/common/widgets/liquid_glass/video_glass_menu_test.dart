@@ -575,9 +575,9 @@ void main() {
       expect(drawsVideo(), findsOneWidget);
     });
 
-    testWidgets('on the move the card runs no filter and fades no layer, '
-        'drawn from images of it at rest, and stands on live glass once '
-        'grown', (tester) async {
+    testWidgets('on the move the card runs no filter and fades nothing on a '
+        'layer of its own, drawn from images of it at rest, and stands on '
+        'live glass once grown', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: GlassSurfaces.themed(ThemeData()),
@@ -601,16 +601,27 @@ void main() {
           ),
         ),
       );
-      // Filters, which take offscreen passes, and layers the rows fade on.
+      // Filters, which take offscreen passes.
       Iterable<Layer> filters() => tester.layers.where(
         (layer) => layer is ImageFilterLayer || layer is BackdropFilterLayer,
       );
-      Iterable<Layer> fades() => tester.layers.where(
-        (layer) =>
-            layer is OpacityLayer &&
-            layer.alpha != null &&
-            layer.alpha! > 0 &&
-            layer.alpha! < 255,
+      Iterable<Layer> under(Layer layer) sync* {
+        yield layer;
+        if (layer is ContainerLayer) {
+          for (var child = layer.firstChild; child != null;) {
+            yield* under(child);
+            child = child.nextSibling;
+          }
+        }
+      }
+
+      // Partway fades, and those that hold a picture, as text, which takes
+      // an offscreen layer of its own to fade: a texture alone takes it.
+      Iterable<OpacityLayer> fades() => tester.layers
+          .whereType<OpacityLayer>()
+          .where((layer) => layer.alpha! > 0 && layer.alpha! < 255);
+      Iterable<Layer> fadedPictures() => fades().where(
+        (layer) => under(layer).any((layer) => layer is PictureLayer),
       );
 
       await tester.tap(find.text('1080P'));
@@ -619,7 +630,7 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 30));
         expect(filters(), isEmpty, reason: 'opening, frame $i');
-        expect(fades(), isEmpty, reason: 'opening, frame $i');
+        expect(fadedPictures(), isEmpty, reason: 'opening, frame $i');
       }
       await tester.pumpAndSettle();
       expect(filters(), isNotEmpty);
@@ -631,7 +642,16 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 30));
         expect(filters(), isEmpty, reason: 'closing, frame $i');
-        expect(fades(), isEmpty, reason: 'closing, frame $i');
+        expect(fadedPictures(), isEmpty, reason: 'closing, frame $i');
+      }
+      // Near its end, the card all but gone, the video drawn again under it
+      // fades with it, leaving no hole in what lies under: it alone fades,
+      // a texture.
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(fadedPictures(), isEmpty);
+      expect(fades(), isNotEmpty);
+      for (final fade in fades()) {
+        expect(under(fade).whereType<TextureLayer>(), isNotEmpty);
       }
       await tester.pumpAndSettle();
       expect(find.byType(VideoGlassMenu), findsNothing);

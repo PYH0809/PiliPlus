@@ -53,6 +53,10 @@ class VideoGlassMenus extends InheritedTheme {
 
 // The card grows out of its button from this share of its size.
 const double _fromScale = 0.6;
+// Drawn from an image, the card covers what lies under it, as its glass
+// does, once it has come this far; nearer nothing the video drawn again under
+// it fades with it, lest a hole in the controls trail a card all but gone.
+const double _coversFrom = 0.3;
 
 /// A popup menu over the player's video, on the video's glass, growing out of
 /// its button and back into it. As [GlassMenuMorph], a press carried on into
@@ -263,6 +267,7 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
               child: _Growing(
                 scale: scale,
                 origin: origin,
+                opacity: (settled / _coversFrom).clamp(0.0, 1.0),
                 child: drawn && settled > 0
                     ? overPlayer(VideoGlass.bare(radius: widget.radius))
                     : null,

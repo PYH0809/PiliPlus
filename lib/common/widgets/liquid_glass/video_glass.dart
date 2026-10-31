@@ -74,8 +74,9 @@ class VideoGlass extends StatelessWidget {
 
   /// Only the video under the pane, drawn again as it is: as the glass shows
   /// it eased out to nothing, but covering, as the glass does, what lies
-  /// between it and the video, as the controls. Off the video it draws
-  /// nothing.
+  /// between it and the video, as the controls. Past the video's edges, and
+  /// off the video, it draws nothing, so that a fade above it reaches the
+  /// texture itself, with no offscreen layer.
   const VideoGlass.bare({super.key, required double this.radius, this.child})
     : t = 1,
       style = null,
@@ -703,12 +704,8 @@ class _RenderVideoGlass extends RenderProxyBox {
     _awaitingPaint = false;
     final bends = _bends;
     final bounds = Offset.zero & size;
-    // The video as the player lays it out, over its black.
-    void paintVideo(PaintingContext context, Offset offset) {
-      context.canvas.drawRect(
-        offset & size,
-        Paint()..color = const Color(0xFF000000),
-      );
+    // The video as the player lays it out.
+    void paintTexture(PaintingContext context, Offset offset) {
       _videoTransform.layer = context.pushTransform(
         true,
         offset,
@@ -721,6 +718,15 @@ class _RenderVideoGlass extends RenderProxyBox {
         ),
         oldLayer: _videoTransform.layer,
       );
+    }
+
+    // The video over its black.
+    void paintVideo(PaintingContext context, Offset offset) {
+      context.canvas.drawRect(
+        offset & size,
+        Paint()..color = const Color(0xFF000000),
+      );
+      paintTexture(context, offset);
     }
 
     _clip.layer = context.pushClipRSuperellipse(
@@ -737,7 +743,9 @@ class _RenderVideoGlass extends RenderProxyBox {
           _blur.layer = null;
           _drawUp.layer = null;
           _drawDown.layer = null;
-          context.pushLayer(unseen, paintVideo, offset);
+          // The texture alone, no black over which it would overlap: a fade
+          // above reaches it with no layer of its own.
+          context.pushLayer(unseen, paintTexture, offset);
           return;
         }
         // The shader bends the copy, its pixels starting at the pane's
