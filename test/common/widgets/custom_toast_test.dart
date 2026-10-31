@@ -7,6 +7,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -67,14 +68,14 @@ void main() {
   );
   tearDown(() {
     VideoGlassSource.player = null;
-    CustomToast.debugOverVideo = null;
+    CustomToast.debugFullScreen = null;
   });
 
   testWidgets('in full screen a toast is on the video\'s glass, drawing the '
       'player\'s video itself, which a fade over it leaves whole', (
     tester,
   ) async {
-    CustomToast.debugOverVideo = true;
+    CustomToast.debugFullScreen = RxBool(true);
     await _pumpApp(tester);
     await _toast(tester);
 
@@ -98,7 +99,7 @@ void main() {
     await _pumpApp(tester);
     final was = await _toast(tester);
     await _settle(tester);
-    CustomToast.debugOverVideo = true;
+    CustomToast.debugFullScreen = RxBool(true);
     final now = await _toast(tester);
     await _settle(tester);
 
@@ -108,7 +109,7 @@ void main() {
   testWidgets('out of full screen a toast keeps the toasts\' own glass', (
     tester,
   ) async {
-    CustomToast.debugOverVideo = false;
+    CustomToast.debugFullScreen = RxBool(false);
     await _pumpApp(tester);
     await _toast(tester);
 
@@ -118,13 +119,70 @@ void main() {
   });
 
   testWidgets('so it does with no player on screen', (tester) async {
-    CustomToast.debugOverVideo = true;
+    CustomToast.debugFullScreen = RxBool(true);
     VideoGlassSource.player = null;
     await _pumpApp(tester);
     await _toast(tester);
 
     expect(find.byType(LiquidGlass), findsOneWidget);
     expect(find.byType(VideoGlass), findsNothing);
+    await _settle(tester);
+  });
+
+  testWidgets('under a page pushed over the player, as the live room\'s '
+      '弹幕屏蔽, a toast keeps the toasts\' own glass', (tester) async {
+    CustomToast.debugFullScreen = RxBool(true);
+    await _pumpApp(tester);
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('弹幕屏蔽')),
+          ),
+        );
+    await tester.pumpAndSettle();
+    await _toast(tester);
+
+    expect(find.byType(LiquidGlass), findsOneWidget);
+    expect(find.byType(VideoGlass), findsNothing);
+    await _settle(tester);
+  });
+
+  testWidgets('a toast shown as full screen ends follows it', (tester) async {
+    final fullScreen = CustomToast.debugFullScreen = RxBool(true);
+    await _pumpApp(tester);
+    await _toast(tester);
+    expect(find.byType(VideoGlass), findsOneWidget);
+
+    fullScreen.value = false;
+    await tester.pump();
+    expect(find.byType(VideoGlass), findsNothing);
+    expect(find.byType(LiquidGlass), findsOneWidget);
+    await _settle(tester);
+  });
+
+  testWidgets('a toast shown as a page comes over the player follows it', (
+    tester,
+  ) async {
+    CustomToast.debugFullScreen = RxBool(true);
+    await _pumpApp(tester);
+    await _toast(tester);
+    expect(find.byType(VideoGlass), findsOneWidget);
+
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('弹幕屏蔽')),
+          ),
+        );
+    // The page in, the toast still up, and the frame after.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(find.text(_msg), findsOneWidget);
+    expect(find.byType(VideoGlass), findsNothing);
+    expect(find.byType(LiquidGlass), findsOneWidget);
     await _settle(tester);
   });
 }
