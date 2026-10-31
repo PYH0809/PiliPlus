@@ -37,7 +37,7 @@ import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:collection/collection.dart';
-import 'package:easy_debounce/easy_debounce.dart';
+import 'package:easy_debounce/easy_throttle.dart';
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -82,7 +82,15 @@ class _EpisodePanelState extends State<EpisodePanel>
   late final _pgcController = _introController as PgcIntroController;
 
   // fav
-  late final int _seasonId;
+  /// The season shown, which the subscription is for. Playing all on into
+  /// another season, the page builds the side panel anew, keyed by it.
+  late final int? _seasonId;
+
+  // Played on into another season: the panel is about to go, and its tabs
+  // and subscription are for the season it showed.
+  bool get _seasonGone =>
+      _type == .season &&
+      _ugcController.videoDetail.rawValue.ugcSeason?.id != _seasonId;
   RxnBool? _favState;
 
   // reverse
@@ -99,10 +107,11 @@ class _EpisodePanelState extends State<EpisodePanel>
   late List<ugc.BaseEpisodeItem> _episodes;
 
   ScrollController? _scrollController;
-  late final Map<int, int> _posMap = {};
-  void setPosIndex(int tabIndex) {
-    _posMap[tabIndex] ??= _scrollController!.positions.length;
-  }
+
+  // Each tab's list's own position, as it registers itself: an index into the
+  // primary controller's positions counted the old lists too where the panel
+  // was built anew before they had gone, as for another season.
+  final Map<int, ScrollPosition> _positions = {};
 
   void _addUgcListener() {
     _ugcController.indexNotifier.addListener(_refresh);
@@ -114,6 +123,12 @@ class _EpisodePanelState extends State<EpisodePanel>
 
   void _refresh([_]) {
     if (!mounted) return;
+    if (_seasonGone) {
+      // Nothing it lists plays now: its current episode is let go of, and
+      // can be picked to play again.
+      setState(() {});
+      return;
+    }
     final tabIndexChanged = _syncTab(_tabIndex(), syncEpisodes: true);
     setState(() {});
     _jumpToCurrIfNeeded(tabIndexChanged);
@@ -169,7 +184,7 @@ class _EpisodePanelState extends State<EpisodePanel>
     final scrollController = PrimaryScrollController.of(context);
     if (_scrollController != scrollController) {
       _scrollController = scrollController;
-      _posMap.clear();
+      _positions.clear();
     }
   }
 
@@ -206,9 +221,11 @@ class _EpisodePanelState extends State<EpisodePanel>
         }
         _addUgcListener();
 
-        if (Accounts.main.isLogin) {
-          _seasonId = _videoDetail.seasonId!;
-          final favState = _ugcController.seasonFavState[_seasonId];
+        // The season's own id: the video's top-level season_id can be
+        // missing where it has a season.
+        _seasonId = _videoDetail.ugcSeason!.id;
+        if (_seasonId case final seasonId? when Accounts.main.isLogin) {
+          final favState = _ugcController.seasonFavState[seasonId];
           if (favState != null) {
             _favState = RxnBool(favState);
           } else {
@@ -219,7 +236,7 @@ class _EpisodePanelState extends State<EpisodePanel>
                 if (result case Success(:final response)) {
                   final seasonFav = response.seasonFav ?? false;
                   _favState!.value = seasonFav;
-                  _ugcController.seasonFavState[_seasonId] = seasonFav;
+                  _ugcController.seasonFavState[seasonId] = seasonFav;
                 }
               },
             );
@@ -252,12 +269,15 @@ class _EpisodePanelState extends State<EpisodePanel>
   void _jumpToBottom() => _jumpToPos(top: false);
 
   Future<void> _jumpToCurrent() async {
+    // What plays is in another season than the one shown, as a sheet
+    // opened before playing all moved on.
+    if (_seasonGone) return;
     if (_tabController != null) {
       final tabIndex = _tabIndex();
       if (_tabController!.index != tabIndex) {
         _tabController!.animateTo(tabIndex);
         await Future.pause(const Duration(milliseconds: 225));
-        if (!mounted) return;
+        if (!mounted || _seasonGone) return;
       }
     }
     _jumpToPos(offset: _calcItemOffset(_itemIndex()));
@@ -270,15 +290,20 @@ class _EpisodePanelState extends State<EpisodePanel>
       return;
     }
     final tabIndex = _tabController?.index ?? 0;
-    final posIndex = _posMap[tabIndex]!;
+    final position = _positions[tabIndex];
+    if (position == null || !position.hasContentDimensions) return;
     offset ??= (top == true) ^ _isReversed[tabIndex] ? 0 : null;
+    final target = offset ?? position.maxScrollExtent;
     if (scrollController is ExtendedNestedScrollController) {
-      final position = scrollController.nestedPositions.elementAt(posIndex);
-      position.localJumpTo(offset ?? position.maxScrollExtent);
-    } else {
-      final position = scrollController.positions.elementAt(posIndex);
-      position.jumpTo(offset ?? position.maxScrollExtent);
+      final nested = scrollController.nestedPositions.firstWhereOrNull(
+        (e) => identical(e, position),
+      );
+      if (nested != null) {
+        nested.localJumpTo(target);
+        return;
+      }
     }
+    position.jumpTo(target);
   }
 
   double _calcItemHeight(ugc.BaseEpisodeItem episode) {
@@ -290,11 +315,13 @@ class _EpisodePanelState extends State<EpisodePanel>
 
   double _calcItemOffset(int index) {
     double offset = 0;
-    for (var i = 0; i < index; i++) {
+    for (var i = 0; i < index && i < _episodes.length; i++) {
       offset += _calcItemHeight(_episodes[i]);
     }
     return offset + 7;
   }
+
+  static const _throttleTag = 'onChangeEpisode';
 
   @override
   void dispose() {
@@ -397,7 +424,7 @@ class _EpisodePanelState extends State<EpisodePanel>
       itemCount: episodes.length,
       itemBuilder: (context, index) {
         final episode = episodes[index];
-        final isCurrItem = isCurrTab && index == _itemIndex();
+        final isCurrItem = !_seasonGone && isCurrTab && index == _itemIndex();
         Widget episodeItem = _buildEpisodeItem(
           episode: episode,
           tabIndex: tabIndex,
@@ -430,6 +457,7 @@ class _EpisodePanelState extends State<EpisodePanel>
       itemExtentBuilder: (index, _) => _calcItemHeight(episodes[index]),
     );
 
+    final list = child;
     child = CustomScrollView(
       primary: true,
       reverse: _isReversed[tabIndex],
@@ -441,20 +469,20 @@ class _EpisodePanelState extends State<EpisodePanel>
             top: 7 + _barInset,
             bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
           ),
-          sliver: child,
+          sliver: Builder(
+            builder: (context) {
+              _positions[tabIndex] = Scrollable.of(context).position;
+              return list;
+            },
+          ),
         ),
       ],
     );
 
     if (_tabController != null) {
-      return KeepAliveWrapper(
-        onBuild: () => setPosIndex(tabIndex),
-        child: child,
-      );
-    } else {
-      setPosIndex(tabIndex);
-      return child;
+      return KeepAliveWrapper(child: child);
     }
+    return child;
   }
 
   late final _isVip = Accounts.isVideoVip;
@@ -554,8 +582,11 @@ class _EpisodePanelState extends State<EpisodePanel>
           child: InkWell(
             onTap: () {
               if (isCurrItem) return;
-              EasyDebounce.debounce(
-                'onChangeEpisode',
+              // At once, a second tap meanwhile let be: put off, the pick
+              // could come as the panel closed, and its pop then closed the
+              // page under it.
+              EasyThrottle.throttle(
+                _throttleTag,
                 const Duration(milliseconds: 200),
                 () => _onChangeEpisode(tabIndex, index, episode, title),
               );
@@ -694,7 +725,7 @@ class _EpisodePanelState extends State<EpisodePanel>
   Future<void> _onFavSeason(bool isFav) async {
     final res = await FavHttp.seasonFav(
       isFav: isFav,
-      seasonId: _seasonId,
+      seasonId: _seasonId!,
     );
     if (res.isSuccess) {
       _favState!.toggle();
@@ -722,7 +753,8 @@ class _EpisodePanelState extends State<EpisodePanel>
       menuRow('跳到底部', value: _PanelAction.bottom),
       menuRow('跳到当前播放', value: _PanelAction.current),
       const PopupMenuDivider(),
-      if (_isUgc && tabIndex == _tabIndex())
+      // The playing order is the season's that plays, not one moved on from.
+      if (_isUgc && tabIndex == _tabIndex() && !_seasonGone)
         _checkRow(
           '倒序播放',
           checked: _isDataReversed,
@@ -772,6 +804,8 @@ class _EpisodePanelState extends State<EpisodePanel>
       case _PanelAction.current:
         _jumpToCurrent();
       case _PanelAction.reversePlay:
+        // As the menu stood open, the season may have moved on.
+        if (_seasonGone) return;
         _popIfNeeded();
         widget.onReverse!();
       case _PanelAction.reverseList:

@@ -1942,6 +1942,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
               ),
               Expanded(
                 child: EpisodePanel(
+                  // Anew for each season, as playing all moves on into
+                  // another: its tabs and subscription are its own.
+                  key: ValueKey(videoDetail.ugcSeason!.id),
                   type: .season,
                   isSidePanel: true,
                   enableSlide: false,
