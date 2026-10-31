@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
+import 'package:PiliPlus/models/common/video_glass_mode.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
@@ -573,7 +574,10 @@ void main() {
         changes: ChangeNotifier(),
       ),
     );
-    tearDown(() => VideoGlassSource.player = null);
+    tearDown(() async {
+      VideoGlassSource.player = null;
+      await GStorage.setting.delete('videoGlassMode');
+    });
 
     // The quality button at the foot of a player [height] tall, as its bar
     // has it.
@@ -788,6 +792,95 @@ void main() {
       expect(green, lessThan(bare * (1 - covers) + 30));
       expect(green, lessThan(bare - 40));
       await tester.pumpAndSettle();
+    });
+
+    // The controls' pane, over the video, its content counting on as the
+    // menu moves, and a menu out of the bar.
+    Future<ValueNotifier<int>> openOverControls(
+      WidgetTester tester,
+      VideoGlassMode mode,
+    ) async {
+      await tester.runAsync(
+        () => GStorage.setting.put('videoGlassMode', mode.index),
+      );
+      final count = ValueNotifier(0);
+      addTearDown(count.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: GlassSurfaces.themed(ThemeData()),
+          home: Scaffold(
+            backgroundColor: Colors.black,
+            body: Stack(
+              children: [
+                Positioned.fill(
+                  child: SizedBox.expand(
+                    key: player,
+                    child: const Texture(textureId: 1),
+                  ),
+                ),
+                Positioned(
+                  left: 20,
+                  top: 20,
+                  width: 200,
+                  height: 44,
+                  // Under the video's source, as the player's controls.
+                  child: VideoGlassSource(
+                    video: player,
+                    child: VideoGlass(
+                      radius: 22,
+                      child: ValueListenableBuilder(
+                        valueListenable: count,
+                        builder: (_, value, _) => Text('title $value'),
+                      ),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: const Alignment(0.6, 0.8),
+                  child: VideoGlassMenus(child: _qualityButton()),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return count;
+    }
+
+    // Filters anywhere: the pane's own once the menu has gone.
+    Iterable<Layer> paneFilters(WidgetTester tester) =>
+        tester.layers.whereType<ImageFilterLayer>();
+
+    testWidgets('frosted, the controls\' glass holds still as a menu moves, '
+        'their content live, and frosts again once it stands', (
+      tester,
+    ) async {
+      final count = await openOverControls(tester, VideoGlassMode.frost);
+      expect(paneFilters(tester), isNotEmpty);
+
+      await tester.tap(find.text('1080P'));
+      await tester.pump();
+      for (var i = 1; i <= 4; i++) {
+        count.value = i;
+        await tester.pump(const Duration(milliseconds: 40));
+        // No blur at all on screen, the controls' frost an image ...
+        expect(paneFilters(tester), isEmpty, reason: 'opening, frame $i');
+        // ... and what lies on it drawn as it changes.
+        final title = find.text('title $i');
+        expect(title, findsOneWidget);
+        expect(tester.renderObject(title).debugNeedsPaint, isFalse);
+      }
+      await tester.pumpAndSettle();
+      expect(VideoGlass.frostHeld.value, isFalse);
+      expect(paneFilters(tester), isNotEmpty);
+
+      await tester.tapAt(const Offset(5, 300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(paneFilters(tester), isEmpty, reason: 'closing');
+      await tester.pumpAndSettle();
+      expect(VideoGlass.frostHeld.value, isFalse);
+      expect(paneFilters(tester), isNotEmpty);
     });
 
     testWidgets('a menu reaching past a small player reads the screen, the '

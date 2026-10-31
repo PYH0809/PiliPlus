@@ -210,6 +210,14 @@ class VideoGlass extends StatelessWidget {
     );
   }
 
+  /// While true, as a player's menu moves over the video, the controls'
+  /// frosted panes over the video, those on the dark style, draw their glass
+  /// from an image of it taken as it set in, their content live. Each frosts the video by itself, a blur of its own
+  /// every frame, which over the six of the full-screen controls took
+  /// thrice the render passes of their bent glass; the frost hides the video
+  /// standing still for that while. Bent glass, clear, stays live.
+  static final frostHeld = ValueNotifier(false);
+
   /// What the widest pane over the video last drew, for the performance
   /// overlay to show while measuring on a device.
   static final debugInfo = ValueNotifier<String>('');
@@ -237,6 +245,7 @@ class VideoGlass extends StatelessWidget {
       source: VideoGlassSource.of(context)?.video,
       changes: VideoGlassSource.of(context)?.changes,
       bare: bare,
+      holds: style == null && !bare,
       child: child,
     );
   }
@@ -321,6 +330,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.source,
     required this.changes,
     required this.bare,
+    required this.holds,
     super.child,
   });
 
@@ -335,6 +345,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final GlobalKey? source;
   final Listenable? changes;
   final bool bare;
+  final bool holds;
 
   @override
   _RenderVideoGlass createRenderObject(BuildContext context) =>
@@ -350,6 +361,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         source: source,
         changes: changes,
         bare: bare,
+        holds: holds,
       );
 
   @override
@@ -368,7 +380,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..backdropKey = backdropKey
       ..source = source
       ..changes = changes
-      ..bare = bare;
+      ..bare = bare
+      ..holds = holds;
   }
 }
 
@@ -385,7 +398,17 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._source,
     required this._changes,
     required this._bare,
+    required this._holds,
   });
+
+  // Whether VideoGlass.frostHeld holds this pane's frost.
+  bool _holds;
+  set holds(bool value) {
+    if (_holds == value) return;
+    _holds = value;
+    _dropHeld();
+    markNeedsPaint();
+  }
 
   bool _bare;
   set bare(bool value) {
@@ -577,6 +600,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     super.attach(owner);
     _program = liquidGlassProgram(_onProgram);
     _changes?.addListener(_onVideoChanged);
+    VideoGlass.frostHeld.addListener(_onFrostHeld);
     _track();
   }
 
@@ -584,6 +608,8 @@ class _RenderVideoGlass extends RenderProxyBox {
   void detach() {
     forgetLiquidGlassProgram(_onProgram);
     _changes?.removeListener(_onVideoChanged);
+    VideoGlass.frostHeld.removeListener(_onFrostHeld);
+    _dropHeld();
     _tracked.remove(this);
     super.detach();
   }
@@ -592,8 +618,44 @@ class _RenderVideoGlass extends RenderProxyBox {
   void dispose() {
     _shader?.dispose();
     _shader = null;
+    _dropHeld();
     _dropLayers();
     super.dispose();
+  }
+
+  // The glass as it set in, while VideoGlass.frostHeld holds it.
+  ui.Image? _held;
+  Size? _heldSize;
+
+  void _dropHeld() {
+    _held?.dispose();
+    _held = null;
+    _heldSize = null;
+  }
+
+  // Let go as its menu goes, after the frame has painted, it frosts live on
+  // a frame of its own: the video's own frames only draw again what was
+  // painted, and would show the frost held on.
+  void _onFrostHeld() {
+    _dropHeld();
+    markNeedsPaint();
+    SchedulerBinding.instance.scheduleFrame();
+  }
+
+  // The frost over the video, without the content, as an image.
+  ui.Image _takeHeld(BorderRadius corners, TextureBox video) {
+    final layer = OffsetLayer();
+    final context = PaintingContext(layer, Offset.zero & size);
+    _paintOverVideo(context, Offset.zero, corners, video);
+    // ignore: invalid_use_of_protected_member
+    context.stopRecordingIfNeeded();
+    final image = layer.toImageSync(
+      Offset.zero & size,
+      pixelRatio: _devicePixelRatio,
+    );
+    layer.dispose();
+    _heldSize = size;
+    return image;
   }
 
   @override
@@ -615,6 +677,18 @@ class _RenderVideoGlass extends RenderProxyBox {
     // Over the video, the pane draws the video again itself; until its
     // texture shows, as while it loads, only the tint.
     final video = _filters && _source != null ? _findVideo() : null;
+    if (video != null && _holds && VideoGlass.frostHeld.value && !_bends) {
+      if (_heldSize != size) _dropHeld();
+      final image = _held ??= _takeHeld(corners, video);
+      context.canvas.drawImageRect(
+        image,
+        Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+        offset & size,
+        Paint()..filterQuality = FilterQuality.low,
+      );
+      super.paint(context, offset);
+      return;
+    }
     if (video != null) {
       _paintOverVideo(context, offset, corners, video);
       super.paint(context, offset);

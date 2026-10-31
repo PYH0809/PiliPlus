@@ -182,6 +182,7 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
 
   @override
   void dispose() {
+    VideoGlass.frostHeld.value = false;
     widget.animation.removeStatusListener(_onStatus);
     _open
       ..removeListener(_onGrow)
@@ -272,6 +273,8 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
         final origin = _anchorIn(context);
         final moving =
             !still && (_open.isAnimating || widget.animation.isAnimating);
+        // The controls' frost under it holds still as it moves.
+        VideoGlass.frostHeld.value = moving;
         final onPlayer = _onPlayer(context);
         Widget overPlayer(Widget pane) =>
             onPlayer ? VideoGlassSource.overPlayer(child: pane) : pane;

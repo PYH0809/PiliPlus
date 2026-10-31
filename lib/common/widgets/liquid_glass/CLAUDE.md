@@ -34,7 +34,9 @@ turns on every glass part. It only takes effect after a restart.
   an image too, each row's part taking the fade Material gives that row, as fading text needs a layer of its own.
   It is live glass again once it stands still. It opens on `GlassMenuMorph`'s spring (`glassMenuOpenSpring`) and
   shrinks back as its menu with no button to return into does (`glassMenuShrink`), from where it stood, its rows
-  fading with it rather than leaving first.
+  fading with it rather than leaving first. While it moves, the controls' frosted panes over the video hold their
+  glass still (`VideoGlass.frostHeld`): drawn from an image taken as it set off, their content live. Bent glass,
+  clear, stays live.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.
