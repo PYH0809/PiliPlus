@@ -15,6 +15,7 @@ import 'package:PiliPlus/common/widgets/gesture/player_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_support.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
 import 'package:PiliPlus/common/widgets/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
@@ -2088,7 +2089,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         child: VideoGlassSource(
           video: _videoKey,
           changes: _videoChanges,
-          child: child,
+          // Their menus lie over the video too.
+          child: VideoGlassMenus(child: child),
         ),
       );
     }

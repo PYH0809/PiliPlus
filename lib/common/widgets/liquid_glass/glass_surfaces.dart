@@ -8,6 +8,8 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_switch.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
 import 'package:material_ui/material_ui.dart';
 
 // FlClash's menu and alert, after iOS: a menu is a card of rows inset in it,
@@ -66,23 +68,40 @@ abstract final class GlassSurfaces {
     SurfaceBuilders.dialogActions = (context, actions) =>
         GlassAlertActions(actions: actions);
     SurfaceBuilders.popupMenu = (context, shape, child, animation, anchor) {
-      final theme = Theme.of(context);
+      // A menu out of the player's controls lies over the video, which only
+      // the video's glass can read; dark, as the controls are.
+      final overVideo = VideoGlassMenus.of(context);
+      final theme = overVideo
+          ? VideoGlass.controlsTheme(Theme.of(context))
+          : Theme.of(context);
+      final content = _OnGlass(
+        child: Theme(
+          data: withoutRipples(theme).copyWith(
+            dividerTheme: theme.dividerTheme.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.14),
+              thickness: 1,
+              space: _menuInset * 2 + 1,
+            ),
+          ),
+          child: Material(type: MaterialType.transparency, child: child),
+        ),
+      );
+      if (overVideo) {
+        return Theme(
+          data: theme,
+          child: VideoGlassMenu(
+            animation: animation,
+            anchor: anchor,
+            radius: _menuRadius,
+            child: content,
+          ),
+        );
+      }
       return GlassMenuMorph(
         animation: animation,
         anchor: anchor,
         radius: _menuRadius,
-        child: _OnGlass(
-          child: Theme(
-            data: withoutRipples(theme).copyWith(
-              dividerTheme: theme.dividerTheme.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.14),
-                thickness: 1,
-                space: _menuInset * 2 + 1,
-              ),
-            ),
-            child: Material(type: MaterialType.transparency, child: child),
-          ),
-        ),
+        child: content,
       );
     };
     SurfaceBuilders.popupMenuItemShape = const RoundedSuperellipseBorder(
