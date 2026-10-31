@@ -4,11 +4,13 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/models/common/episode_panel_type.dart';
+import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/episode_panel/view.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -22,33 +24,29 @@ List<Part> _parts(int count) => [
 EpisodePanel _panel({
   bool isReversed = false,
   VoidCallback? onReverse,
-  VoidCallback? onClose,
   int count = 30,
 }) => EpisodePanel(
   enableSlide: false,
-  ugcIntroController: UgcIntroController(),
-  heroTag: 'test',
   type: EpisodeType.part,
-  aid: 1,
-  bvid: 'BV1xx411c7mD',
-  cid: 1,
-  cover: null,
-  list: [_parts(count)],
-  isSupportReverse: true,
-  isReversed: isReversed,
+  isSidePanel: false,
+  introController: UgcIntroController()
+    ..videoDetail.value = (VideoDetailData(
+      aid: 1,
+      bvid: 'BV1xx411c7mD',
+      pages: _parts(count),
+    )..isPageReversed = isReversed),
   onReverse: onReverse ?? () {},
-  onChangeEpisode: (_) async => true,
-  onClose: onClose ?? () {},
 );
 
 /// Pumps [panel] on a route of its own over a home page, as the sheet is.
+/// The panel closes itself with Get.back, so the app is a GetMaterialApp.
 Future<void> _pump(WidgetTester tester, Widget panel) async {
   tester.view
     ..physicalSize = const Size(412, 915)
     ..devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    const MaterialApp(home: Scaffold(body: Text('home'))),
+    const GetMaterialApp(home: Scaffold(body: Text('home'))),
   );
   tester
       .state<NavigatorState>(find.byType(Navigator))
@@ -125,15 +123,23 @@ void main() {
 
     testWidgets('跳到底部 and 跳到顶部 scroll the list', (tester) async {
       await _pump(tester, _panel());
-      final list = tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView))
-          .controller!;
+      // The list scrolls on the primary scroll controller, so read its own.
+      ScrollPosition list() => tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(CustomScrollView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
 
       await _pick(tester, '跳到底部');
-      expect(list.offset, greaterThan(1000));
+      expect(list().pixels, greaterThan(1000));
 
       await _pick(tester, '跳到顶部');
-      expect(list.offset, 0);
+      expect(list().pixels, 0);
     });
 
     testWidgets('倒序显示 turns the list over and shows a check after', (
@@ -161,25 +167,10 @@ void main() {
       expect(_checkOf('倒序播放'), findsOneWidget);
     });
 
-    testWidgets('倒序播放 acts once the menu has gone, so closing the sheet '
-        'closes the sheet', (tester) async {
-      late BuildContext sheet;
+    testWidgets('倒序播放 acts once the menu has gone, so the sheet it closes '
+        'first is the sheet, not the menu', (tester) async {
       var reversed = 0;
-      await _pump(
-        tester,
-        Builder(
-          builder: (context) {
-            sheet = context;
-            return _panel(
-              // As the video page's: Get.back, then reverse.
-              onReverse: () {
-                Navigator.of(sheet).pop();
-                reversed++;
-              },
-            );
-          },
-        ),
-      );
+      await _pump(tester, _panel(onReverse: () => reversed++));
 
       await _pick(tester, '倒序播放');
 
