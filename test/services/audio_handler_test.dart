@@ -279,6 +279,52 @@ void main() {
     );
   });
 
+  test('as the last page closes, the card leaves the foreground, which takes '
+      'its notification with it', () async {
+    var left = 0;
+    handler.leaveForeground = () => left++;
+    addTearDown(() => handler.leaveForeground = null);
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+    await pumpEventQueue();
+    expect(left, 0);
+
+    handler
+      ..onVideoDetailDispose('video')
+      ..clearIfNeeded();
+    await pumpEventQueue();
+
+    expect(left, 1);
+  });
+
+  test('a paused card stays in the foreground until its time is up, then '
+      'leaves it', () async {
+    var left = 0;
+    handler
+      ..leaveForeground = (() => left++)
+      ..pausedCardLifetime = const Duration(milliseconds: 30);
+    addTearDown(() {
+      handler
+        ..leaveForeground = null
+        ..pausedCardLifetime = const Duration(minutes: 10);
+    });
+    handler.onVideoDetailChange(item(), 1, 'video');
+    play();
+    handler.onUpdateState(
+      .paused,
+      false,
+      false,
+      position: const Duration(seconds: 180),
+      speed: 1,
+    );
+    await pumpEventQueue();
+    expect(left, 0);
+
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(left, 1);
+  });
+
   test('a paused card gone after its time stays gone through the paused '
       'player\'s later updates, until it plays or a new item comes', () async {
     handler.pausedCardLifetime = const Duration(milliseconds: 30);

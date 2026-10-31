@@ -35,6 +35,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
 import com.github.dart_lang.jni_flutter.JniFlutterPlugin;
+import com.ryanheise.audioservice.AudioServiceForeground;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -335,6 +336,10 @@ public final class AndroidHelper {
 
     public static String manufacturer() {
         return Build.MANUFACTURER;
+    }
+
+    public static void stopMediaForeground() {
+        AudioServiceForeground.stop();
     }
 
     public static final class ToDart {
