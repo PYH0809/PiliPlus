@@ -133,7 +133,7 @@ class _EpisodePanelState extends State<EpisodePanel>
         case .pgc:
           tabIndexChanged = _lastTabIndex != _pgcController.seasonIndex;
           _pgcItem = _pgcController.pgcItem;
-          _episodes = _pgcItem.episodes!;
+          _episodes = _pgcItem.episodes ?? const [];
       }
     }
     _lastTabIndex = tabIndex;
@@ -232,7 +232,9 @@ class _EpisodePanelState extends State<EpisodePanel>
         _tabIndex = () => 0;
         _itemIndex = () => _pgcController.episodeIndex;
         _pgcItem = _pgcController.pgcItem;
-        _episodes = _pgcItem.episodes!;
+        // A season can have sections and no episodes: the side panel then
+        // lists none, rather than throwing.
+        _episodes = _pgcItem.episodes ?? const [];
         _addPgcListener();
     }
 
