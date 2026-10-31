@@ -122,7 +122,13 @@ class _EpisodePanelState extends State<EpisodePanel>
   }
 
   void _refresh([_]) {
-    if (!mounted || _seasonGone) return;
+    if (!mounted) return;
+    if (_seasonGone) {
+      // Nothing it lists plays now: its current episode is let go of, and
+      // can be picked to play again.
+      setState(() {});
+      return;
+    }
     final tabIndexChanged = _syncTab(_tabIndex(), syncEpisodes: true);
     setState(() {});
     _jumpToCurrIfNeeded(tabIndexChanged);
@@ -418,7 +424,7 @@ class _EpisodePanelState extends State<EpisodePanel>
       itemCount: episodes.length,
       itemBuilder: (context, index) {
         final episode = episodes[index];
-        final isCurrItem = isCurrTab && index == _itemIndex();
+        final isCurrItem = !_seasonGone && isCurrTab && index == _itemIndex();
         Widget episodeItem = _buildEpisodeItem(
           episode: episode,
           tabIndex: tabIndex,
@@ -747,7 +753,8 @@ class _EpisodePanelState extends State<EpisodePanel>
       menuRow('跳到底部', value: _PanelAction.bottom),
       menuRow('跳到当前播放', value: _PanelAction.current),
       const PopupMenuDivider(),
-      if (_isUgc && tabIndex == _tabIndex())
+      // The playing order is the season's that plays, not one moved on from.
+      if (_isUgc && tabIndex == _tabIndex() && !_seasonGone)
         _checkRow(
           '倒序播放',
           checked: _isDataReversed,
@@ -797,6 +804,8 @@ class _EpisodePanelState extends State<EpisodePanel>
       case _PanelAction.current:
         _jumpToCurrent();
       case _PanelAction.reversePlay:
+        // As the menu stood open, the season may have moved on.
+        if (_seasonGone) return;
         _popIfNeeded();
         widget.onReverse!();
       case _PanelAction.reverseList:

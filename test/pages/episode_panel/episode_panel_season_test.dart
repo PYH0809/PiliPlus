@@ -158,6 +158,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a sheet of a season played on from lets its episode that '
+      'played be picked again, and offers no playing order', (tester) async {
+    final ugc = _Ugc()..videoDetail.value = _video(1, 1);
+    await pump(
+      tester,
+      EpisodePanel(
+        type: EpisodeType.season,
+        isSidePanel: false,
+        enableSlide: false,
+        introController: ugc,
+      ),
+    );
+
+    ugc.videoDetail.value = _video(2, 1);
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    ugc.indexNotifier.notifyListeners();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    expect(find.text('倒序播放'), findsNothing);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    // The episode that played, first of the old season.
+    await tester.tap(find.text('EP100'));
+    await tester.pump();
+    expect(ugc.picked, [100]);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('logged in, a season without the video\'s top-level '
       'season_id still offers its subscription', (tester) async {
     final mode = Accounts.accountMode;
