@@ -1643,7 +1643,8 @@ class VideoDetailController extends GetxController
     } else {
       try {
         pgcItem = pgcIntroCtr.pgcItem;
-        episodes = pgcItem.episodes;
+        // The list playing: a section's, when one of its episodes plays.
+        episodes = pgcIntroCtr.episodes;
       } catch (e, s) {
         if (kDebugMode) {
           debugPrint('download pgc: $e\n\n$s');
