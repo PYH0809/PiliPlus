@@ -70,6 +70,14 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
   @override
   Animation<double> get menuAnimation => widget.animation;
 
+  // The rows, inside the growing transform: a row lit while the menu still
+  // grows stands where it will be once grown.
+  final _rows = GlobalKey();
+
+  @override
+  RenderBox? get pressedRowsBox =>
+      _rows.currentContext?.findRenderObject() as RenderBox?;
+
   @override
   void dispose() {
     _grow.dispose();
@@ -96,12 +104,13 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
     // A press slid on into the menu stands its row on a platter, as a tap
     // does.
     final pressed = pressedRect;
-    final rows = pressed == null
-        ? widget.child
-        : CustomPaint(
-            painter: _PressedRow(pressed, theme.highlightColor),
-            child: widget.child,
-          );
+    final rows = CustomPaint(
+      key: _rows,
+      painter: pressed == null
+          ? null
+          : _PressedRow(pressed, theme.highlightColor),
+      child: widget.child,
+    );
     return AnimatedBuilder(
       animation: _grow,
       builder: (context, child) {

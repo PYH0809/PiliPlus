@@ -184,8 +184,13 @@ mixin GlassMenuPressTarget<T extends StatefulWidget> on State<T> {
 
   PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>? _pressed;
 
-  /// The row the press lights, in this menu's box.
+  /// The row the press lights, in [pressedRowsBox].
   Rect? pressedRect;
+
+  /// The box [pressedRect] is in, where the menu paints it: the menu's own,
+  /// unless its rows lie under a transform of their own, as while a menu
+  /// grows.
+  RenderBox? get pressedRowsBox => null;
 
   @override
   void initState() {
@@ -225,7 +230,8 @@ mixin GlassMenuPressTarget<T extends StatefulWidget> on State<T> {
           )
           when item.mounted && item.widget.enabled) {
         final row = entry.target as RenderBox;
-        return (item, row.localToGlobal(.zero, ancestor: box) & row.size);
+        final rows = pressedRowsBox ?? box;
+        return (item, row.localToGlobal(.zero, ancestor: rows) & row.size);
       }
     }
     return null;

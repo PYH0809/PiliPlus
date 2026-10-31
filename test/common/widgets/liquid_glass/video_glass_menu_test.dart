@@ -118,4 +118,42 @@ void main() {
     expect(picked, 64);
     expect(find.byType(VideoGlassMenu), findsNothing);
   });
+
+  testWidgets('a row lit while the menu still grows stays lit where it is '
+      'once grown', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GlassSurfaces.themed(ThemeData()),
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(child: VideoGlassMenus(child: _qualityButton())),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('1080P')),
+    );
+    // A third of the way open, the card still small.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    await gesture.moveTo(tester.getCenter(find.text('720P 准高清')));
+    await tester.pump();
+    // Held still while it grows the rest of the way.
+    await tester.pumpAndSettle();
+
+    final rows = find.descendant(
+      of: find.byType(VideoGlassMenu),
+      matching: find.byType(CustomPaint),
+    );
+    final paint = tester.widget<CustomPaint>(rows.first);
+    final platter = ((paint.painter! as dynamic).row as Rect).shift(
+      tester.getTopLeft(rows.first),
+    );
+    // On the row: its middle where the row's text is.
+    final text = tester.getCenter(find.text('720P 准高清'));
+    expect((platter.center.dy - text.dy).abs(), lessThan(1));
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
 }
