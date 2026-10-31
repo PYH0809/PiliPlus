@@ -1,0 +1,96 @@
+name: Check
+
+# Checks every pull request and every push to main: the analyzer, which is
+# also the type check, must find no errors or warnings; the tests must pass,
+# the glass ones under Impeller too; and a release APK must build, which
+# compiles the Java and Kotlin under android/ and runs R8, none of which the
+# analyzer or the tests see. The APK is the dev flavor, signed with the debug
+# key, so it needs no secrets and runs on pull requests from forks as well.
+#
+# Every pull request runs it, those that change only Markdown too, so that
+# merging can wait on it.
+
+on:
+    pull_request:
+    push:
+        branches:
+            - main
+        paths-ignore:
+            - "**.md"
+    workflow_dispatch:
+
+concurrency:
+    group: check-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    test:
+        name: Analyze and test
+        runs-on: ubuntu-latest
+        steps:
+            - name: 代码迁出
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            # flutter test builds the native assets for the host.
+            - name: Install Linux libraries
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
+
+            - name: 安装Flutter
+              uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+              with:
+                  channel: stable
+                  flutter-version-file: pubspec.yaml
+                  cache: true
+
+            - name: Apply Patch
+              shell: pwsh
+              run: lib/scripts/patch.ps1 android
+
+            - name: Analyze
+              run: flutter analyze --no-fatal-infos
+
+            - name: Test
+              run: flutter test --no-pub
+
+            - name: Test glass under Impeller
+              run: >-
+                  flutter test --no-pub --enable-impeller
+                  test/common/widgets/liquid_glass
+                  test/pages/audio/audio_backdrop_test.dart
+                  test/pages/common/dyn/action_bar_render_test.dart
+
+    android:
+        name: Build Android
+        runs-on: ubuntu-latest
+        steps:
+            - name: 代码迁出
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: 构建Java环境
+              uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+              with:
+                  distribution: "zulu"
+                  java-version: "17"
+                  cache: "gradle"
+                  cache-dependency-path: |
+                      android/*.gradle*
+                      android/**/gradle-wrapper.properties
+
+            - name: 安装Flutter
+              uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+              with:
+                  channel: stable
+                  flutter-version-file: pubspec.yaml
+                  cache: true
+
+            - name: Apply Patch
+              shell: pwsh
+              run: lib/scripts/patch.ps1 android
+
+            - name: Build the dev APK
+              run: flutter build apk --release --target-platform android-arm64 --android-project-arg dev=1 --no-pub
