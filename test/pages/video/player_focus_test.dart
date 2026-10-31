@@ -15,8 +15,9 @@ class _MediaPlayer implements Player {
 
 // The player as PlayerFocus drives it with held arrow keys: a held back key
 // steps the seek position back on the long-press timer, and its release
-// seeks there, or a step back for a tap; a held volume key steps the volume
-// on the same timer.
+// seeks there, or a step back for a tap; a held forward key speeds up on
+// the same timer, and its release slows down, or a step forward for a tap;
+// a held volume key steps the volume on it.
 class _Player implements PlPlayerController {
   @override
   bool isLive = false;
@@ -29,6 +30,9 @@ class _Player implements PlPlayerController {
 
   @override
   bool backKeyHeld = false;
+
+  @override
+  bool forwardKeyHeld = false;
 
   @override
   void cancelLongPressTimer() {
@@ -65,6 +69,22 @@ class _Player implements PlPlayerController {
       // A tap, a step back from where playback is.
       seeks.add(position.value - 10);
     }
+  }
+
+  @override
+  final fastForBackwardDuration = const Duration(seconds: 10);
+
+  final forwards = <int>[];
+
+  @override
+  void onForward(Duration duration) => forwards.add(duration.inSeconds);
+
+  @override
+  final longPressStatus = false.obs;
+
+  @override
+  Future<void> setLongPressStatus(bool val) async {
+    longPressStatus.value = val;
   }
 
   @override
@@ -184,6 +204,63 @@ void main() {
 
     await pushPage(tester);
     expect(player.isSeeking.value, isTrue);
+  });
+
+  testWidgets('a tap of the forward key steps forward once', (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(seconds: 1));
+    expect(player.forwards, [10]);
+    expect(player.longPressStatus.value, isFalse);
+  });
+
+  testWidgets('a held forward key speeds up and slows down as it comes up', (
+    tester,
+  ) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(player.longPressStatus.value, isTrue);
+
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(player.longPressStatus.value, isFalse);
+    expect(player.forwards, isEmpty);
+  });
+
+  testWidgets('a forward key held into its speed-up till the player has its '
+      'focus back comes up without a step forward', (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(player.longPressStatus.value, isTrue);
+
+    await pushPage(tester);
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    // The release comes back to the player.
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(player.forwards, isEmpty);
+    expect(player.longPressStatus.value, isFalse);
+  });
+
+  testWidgets('a forward key held into its speed-up as a page opens over the '
+      'player slows down', (tester) async {
+    await pumpPlayer(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(player.longPressStatus.value, isTrue);
+
+    await pushPage(tester);
+    expect(player.longPressStatus.value, isFalse);
+    // The release goes to the page on top.
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump(const Duration(seconds: 1));
+    expect(player.forwards, isEmpty);
   });
 
   testWidgets('a volume key held as a page opens over the player stops', (
