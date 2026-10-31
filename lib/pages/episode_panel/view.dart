@@ -107,10 +107,11 @@ class _EpisodePanelState extends State<EpisodePanel>
   late List<ugc.BaseEpisodeItem> _episodes;
 
   ScrollController? _scrollController;
-  late final Map<int, int> _posMap = {};
-  void setPosIndex(int tabIndex) {
-    _posMap[tabIndex] ??= _scrollController!.positions.length;
-  }
+
+  // Each tab's list's own position, as it registers itself: an index into the
+  // primary controller's positions counted the old lists too where the panel
+  // was built anew before they had gone, as for another season.
+  final Map<int, ScrollPosition> _positions = {};
 
   void _addUgcListener() {
     _ugcController.indexNotifier.addListener(_refresh);
@@ -177,7 +178,7 @@ class _EpisodePanelState extends State<EpisodePanel>
     final scrollController = PrimaryScrollController.of(context);
     if (_scrollController != scrollController) {
       _scrollController = scrollController;
-      _posMap.clear();
+      _positions.clear();
     }
   }
 
@@ -280,15 +281,20 @@ class _EpisodePanelState extends State<EpisodePanel>
       return;
     }
     final tabIndex = _tabController?.index ?? 0;
-    final posIndex = _posMap[tabIndex]!;
+    final position = _positions[tabIndex];
+    if (position == null || !position.hasContentDimensions) return;
     offset ??= (top == true) ^ _isReversed[tabIndex] ? 0 : null;
+    final target = offset ?? position.maxScrollExtent;
     if (scrollController is ExtendedNestedScrollController) {
-      final position = scrollController.nestedPositions.elementAt(posIndex);
-      position.localJumpTo(offset ?? position.maxScrollExtent);
-    } else {
-      final position = scrollController.positions.elementAt(posIndex);
-      position.jumpTo(offset ?? position.maxScrollExtent);
+      final nested = scrollController.nestedPositions.firstWhereOrNull(
+        (e) => identical(e, position),
+      );
+      if (nested != null) {
+        nested.localJumpTo(target);
+        return;
+      }
     }
+    position.jumpTo(target);
   }
 
   double _calcItemHeight(ugc.BaseEpisodeItem episode) {
@@ -442,6 +448,7 @@ class _EpisodePanelState extends State<EpisodePanel>
       itemExtentBuilder: (index, _) => _calcItemHeight(episodes[index]),
     );
 
+    final list = child;
     child = CustomScrollView(
       primary: true,
       reverse: _isReversed[tabIndex],
@@ -453,20 +460,20 @@ class _EpisodePanelState extends State<EpisodePanel>
             top: 7 + _barInset,
             bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
           ),
-          sliver: child,
+          sliver: Builder(
+            builder: (context) {
+              _positions[tabIndex] = Scrollable.of(context).position;
+              return list;
+            },
+          ),
         ),
       ],
     );
 
     if (_tabController != null) {
-      return KeepAliveWrapper(
-        onBuild: () => setPosIndex(tabIndex),
-        child: child,
-      );
-    } else {
-      setPosIndex(tabIndex);
-      return child;
+      return KeepAliveWrapper(child: child);
     }
+    return child;
   }
 
   late final _isVip = Accounts.isVideoVip;

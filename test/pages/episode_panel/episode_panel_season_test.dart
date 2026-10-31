@@ -31,6 +31,8 @@ VideoDetailData _video(int id, int sections, {int? topSeasonId}) =>
     VideoDetailData(
       aid: 1,
       bvid: 'BV1',
+      // Its own cid: VideoDetailData is equal by it.
+      cid: id * 100,
       seasonId: topSeasonId,
       ugcSeason: UgcSeason(
         id: id,
@@ -76,6 +78,49 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('built anew for another season, as the page does, its jumps '
+      'go to its own list', (tester) async {
+    final ugc = UgcIntroController()..videoDetail.value = _video(1, 1);
+    final season = ValueNotifier(1);
+    addTearDown(season.dispose);
+    tester.view
+      ..physicalSize = const Size(412, 915)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      GetMaterialApp(
+        home: Scaffold(
+          // As the page's side panel: keyed by the season it shows.
+          body: ValueListenableBuilder(
+            valueListenable: season,
+            builder: (context, id, _) => EpisodePanel(
+              key: ValueKey(id),
+              type: EpisodeType.season,
+              isSidePanel: true,
+              enableSlide: false,
+              introController: ugc,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Played on into another season of one section.
+    ugc.videoDetail.value = _video(2, 1);
+    season.value = 2;
+    await tester.pumpAndSettle();
+    expect(find.text('EP200'), findsOneWidget);
+
+    for (final row in ['跳到底部', '跳到顶部', '跳到当前播放']) {
+      await tester.tap(find.byTooltip('更多'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(row));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: row);
+    }
+  });
 
   testWidgets('logged in, a season without the video\'s top-level '
       'season_id still offers its subscription', (tester) async {
