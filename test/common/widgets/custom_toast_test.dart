@@ -185,4 +185,37 @@ void main() {
     expect(find.byType(LiquidGlass), findsOneWidget);
     await _settle(tester);
   });
+
+  testWidgets('a toast shown as another video opens over the first follows '
+      'the new player', (tester) async {
+    CustomToast.debugFullScreen = RxBool(true);
+    await _pumpApp(tester);
+    await _toast(tester);
+
+    // Another video's page over the first, its player taking over.
+    final next = GlobalKey();
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              backgroundColor: Colors.black,
+              body: SizedBox.expand(key: next),
+            ),
+          ),
+        );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    VideoGlassSource.player = (video: next, changes: ChangeNotifier());
+    // Full screen moves the view's padding, as the screen turns, and the
+    // toast builds again.
+    tester.view.viewPadding = const FakeViewPadding(left: 90);
+    addTearDown(tester.view.resetViewPadding);
+    await tester.pump();
+
+    expect(find.text(_msg), findsOneWidget);
+    expect(find.byType(VideoGlass), findsOneWidget);
+    await _settle(tester);
+  });
 }

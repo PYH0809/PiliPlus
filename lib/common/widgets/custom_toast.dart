@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -141,12 +142,23 @@ class _PlayerOnShow extends StatefulWidget {
 }
 
 class _PlayerOnShowState extends State<_PlayerOnShow> {
-  late final _mode = TickerMode.getValuesNotifier(widget.video);
+  late ValueListenable<TickerModeData> _mode;
 
   @override
   void initState() {
     super.initState();
-    _mode.addListener(_onChange);
+    _mode = TickerMode.getValuesNotifier(widget.video)..addListener(_onChange);
+  }
+
+  // Another player, as one opened from a video while the toast shows.
+  @override
+  void didUpdateWidget(_PlayerOnShow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.video != oldWidget.video) {
+      _mode.removeListener(_onChange);
+      _mode = TickerMode.getValuesNotifier(widget.video)
+        ..addListener(_onChange);
+    }
   }
 
   // The navigator changes it as it builds, which this, out of its tree,
