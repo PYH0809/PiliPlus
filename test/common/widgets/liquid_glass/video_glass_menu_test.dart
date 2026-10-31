@@ -269,4 +269,63 @@ void main() {
     expect(find.byType(GlassMenuMorph), findsOneWidget);
     expect(find.byType(VideoGlassMenu), findsNothing);
   });
+
+  testWidgets('a press held still as the menu grows lights the row that '
+      'letting go there picks', (tester) async {
+    int? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GlassSurfaces.themed(ThemeData()),
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: Align(
+            alignment: const Alignment(0.6, 0.8),
+            child: VideoGlassMenus(
+              child: PopupMenuButton<int>(
+                tooltip: '倍速',
+                onSelected: (value) => picked = value,
+                itemBuilder: (_) => [
+                  for (var i = 1; i <= 6; i++)
+                    PopupMenuItem(value: i, child: Text('${i}X')),
+                ],
+                child: const Text('1.0X'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('1.0X')),
+    );
+    // Early on, the card still small, on to the row farthest from the
+    // button, and held there.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    final finger = tester.getCenter(find.text('1X'));
+    await gesture.moveTo(finger);
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    final rows = find.descendant(
+      of: find.byType(VideoGlassMenu),
+      matching: find.byType(CustomPaint),
+    );
+    final paint = tester.widget<CustomPaint>(rows.first);
+    final platter = ((paint.painter! as dynamic).row as Rect).shift(
+      tester.getTopLeft(rows.first),
+    );
+    expect(platter.contains(finger), isTrue);
+    // The row lit.
+    final lit = [
+      for (var i = 1; i <= 6; i++)
+        if (platter.contains(tester.getCenter(find.text('${i}X')))) i,
+    ];
+    expect(lit, hasLength(1));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(picked, lit.single);
+  });
 }

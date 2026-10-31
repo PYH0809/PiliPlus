@@ -87,7 +87,23 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
       _rows.currentContext?.findRenderObject() as RenderBox?;
 
   @override
+  void initState() {
+    super.initState();
+    widget.animation.addListener(_onGrow);
+  }
+
+  // The rows move as the menu grows: a press held still on one finds its row
+  // again once they are laid out where they now are.
+  void _onGrow() {
+    if (widget.animation.status != AnimationStatus.forward) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) trackAgain();
+    });
+  }
+
+  @override
   void dispose() {
+    widget.animation.removeListener(_onGrow);
     _grow.dispose();
     super.dispose();
   }

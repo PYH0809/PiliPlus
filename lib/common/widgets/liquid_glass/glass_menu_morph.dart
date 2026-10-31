@@ -184,6 +184,16 @@ mixin GlassMenuPressTarget<T extends StatefulWidget> on State<T> {
 
   PopupMenuItemState<dynamic, PopupMenuItem<dynamic>>? _pressed;
 
+  // Where the press last was, to find its row again as the rows move.
+  Offset? _pressAt;
+
+  /// Finds the press's row again where the rows now are, as while a menu
+  /// grows under a finger held still, so that what it lights is what letting
+  /// go there picks.
+  void trackAgain() {
+    if (_pressAt case final position?) _track(position);
+  }
+
   /// The row the press lights, in [pressedRowsBox].
   Rect? pressedRect;
 
@@ -241,6 +251,7 @@ mixin GlassMenuPressTarget<T extends StatefulWidget> on State<T> {
     if (menuClosing) {
       return;
     }
+    _pressAt = position;
     final found = position == null ? null : _itemAt(position);
     if (!identical(found?.$1, _pressed)) {
       if (found != null) {
