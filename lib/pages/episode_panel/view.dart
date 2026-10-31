@@ -37,7 +37,7 @@ import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:collection/collection.dart';
-import 'package:easy_debounce/easy_debounce.dart';
+import 'package:easy_debounce/easy_throttle.dart';
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -82,7 +82,15 @@ class _EpisodePanelState extends State<EpisodePanel>
   late final _pgcController = _introController as PgcIntroController;
 
   // fav
-  late final int _seasonId;
+  /// The season shown, which the subscription is for. Playing all on into
+  /// another season, the page builds the side panel anew, keyed by it.
+  late final int? _seasonId;
+
+  // Played on into another season: the panel is about to go, and its tabs
+  // and subscription are for the season it showed.
+  bool get _seasonGone =>
+      _type == .season &&
+      _ugcController.videoDetail.rawValue.ugcSeason?.id != _seasonId;
   RxnBool? _favState;
 
   // reverse
@@ -113,7 +121,7 @@ class _EpisodePanelState extends State<EpisodePanel>
   }
 
   void _refresh([_]) {
-    if (!mounted) return;
+    if (!mounted || _seasonGone) return;
     final tabIndexChanged = _syncTab(_tabIndex(), syncEpisodes: true);
     setState(() {});
     _jumpToCurrIfNeeded(tabIndexChanged);
@@ -206,9 +214,11 @@ class _EpisodePanelState extends State<EpisodePanel>
         }
         _addUgcListener();
 
-        if (Accounts.main.isLogin) {
-          _seasonId = _videoDetail.seasonId!;
-          final favState = _ugcController.seasonFavState[_seasonId];
+        // The season's own id: the video's top-level season_id can be
+        // missing where it has a season.
+        _seasonId = _videoDetail.ugcSeason!.id;
+        if (_seasonId case final seasonId? when Accounts.main.isLogin) {
+          final favState = _ugcController.seasonFavState[seasonId];
           if (favState != null) {
             _favState = RxnBool(favState);
           } else {
@@ -219,7 +229,7 @@ class _EpisodePanelState extends State<EpisodePanel>
                 if (result case Success(:final response)) {
                   final seasonFav = response.seasonFav ?? false;
                   _favState!.value = seasonFav;
-                  _ugcController.seasonFavState[_seasonId] = seasonFav;
+                  _ugcController.seasonFavState[seasonId] = seasonFav;
                 }
               },
             );
@@ -295,6 +305,8 @@ class _EpisodePanelState extends State<EpisodePanel>
     }
     return offset + 7;
   }
+
+  static const _throttleTag = 'onChangeEpisode';
 
   @override
   void dispose() {
@@ -554,8 +566,11 @@ class _EpisodePanelState extends State<EpisodePanel>
           child: InkWell(
             onTap: () {
               if (isCurrItem) return;
-              EasyDebounce.debounce(
-                'onChangeEpisode',
+              // At once, a second tap meanwhile let be: put off, the pick
+              // could come as the panel closed, and its pop then closed the
+              // page under it.
+              EasyThrottle.throttle(
+                _throttleTag,
                 const Duration(milliseconds: 200),
                 () => _onChangeEpisode(tabIndex, index, episode, title),
               );
@@ -694,7 +709,7 @@ class _EpisodePanelState extends State<EpisodePanel>
   Future<void> _onFavSeason(bool isFav) async {
     final res = await FavHttp.seasonFav(
       isFav: isFav,
-      seasonId: _seasonId,
+      seasonId: _seasonId!,
     );
     if (res.isSuccess) {
       _favState!.toggle();
