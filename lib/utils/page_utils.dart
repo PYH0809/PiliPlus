@@ -701,6 +701,7 @@ abstract final class PageUtils {
             cid: episode.cid!,
             seasonId: response.seasonId!,
             epId: episode.epId!,
+            pgcType: response.type,
             cover: episode.cover,
             title: episode.title,
             progress: progress,
