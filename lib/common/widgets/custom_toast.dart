@@ -43,14 +43,24 @@ class CustomToast extends StatelessWidget {
       // The glass eases in and out through its t: SmartDialog's fade, an
       // Opacity over the backdrop filter, would break it. Its opacity
       // setting thins it as it does the toasts' own glass.
+      // It stands where the toast it replaces stood. It draws the player's
+      // video itself, as the player's menus do, rather than reading the
+      // whole screen behind it every frame it shows.
       animationBuilder: (controller, child, _) => AnimatedBuilder(
         animation: controller,
         builder: (context, child) => Padding(
-          padding: const .symmetric(horizontal: 24),
-          child: VideoGlass.capsule(
-            note: true,
-            t: controller.value * toastOpacity,
-            child: Opacity(opacity: controller.value, child: child),
+          padding: .fromLTRB(
+            24,
+            0,
+            24,
+            MediaQuery.viewPaddingOf(context).bottom + 30,
+          ),
+          child: VideoGlassSource.overPlayer(
+            child: VideoGlass.capsule(
+              note: true,
+              t: controller.value * toastOpacity,
+              child: Opacity(opacity: controller.value, child: child),
+            ),
           ),
         ),
         child: child,

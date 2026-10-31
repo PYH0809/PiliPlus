@@ -70,6 +70,67 @@ void main() {
     expect(glass, findsNothing);
   });
 
+  group('over the player', () {
+    final player = GlobalKey();
+    setUp(
+      () => VideoGlassSource.player = (
+        video: player,
+        changes: ChangeNotifier(),
+      ),
+    );
+    tearDown(() => VideoGlassSource.player = null);
+
+    Future<Rect> toastAt(WidgetTester tester, {required bool video}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: GlassSurfaces.themed(ThemeData()),
+          builder: FlutterSmartDialog.init(toastBuilder: CustomToast.new),
+          home: Scaffold(
+            backgroundColor: Colors.black,
+            body: SizedBox.expand(key: player),
+          ),
+        ),
+      );
+      const alignment = Alignment(0, 0.7);
+      if (video) {
+        CustomToast.showOverVideo('已跳过广告片段', alignment: alignment);
+      } else {
+        SmartDialog.showToast('已跳过广告片段', alignment: alignment);
+      }
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final rect = tester.getRect(find.text('已跳过广告片段'));
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(milliseconds: 300));
+      return rect;
+    }
+
+    testWidgets('it draws the player\'s video, not the whole screen behind '
+        'it', (tester) async {
+      await _pumpApp(tester);
+      CustomToast.showOverVideo('已跳过广告片段');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.ancestor(
+          of: find.byType(VideoGlass),
+          matching: find.byType(VideoGlassSource),
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(milliseconds: 300));
+    });
+
+    testWidgets('it stands where the toast it replaces stood', (
+      tester,
+    ) async {
+      final was = await toastAt(tester, video: false);
+      final now = await toastAt(tester, video: true);
+      expect((now.center.dy - was.center.dy).abs(), lessThan(1));
+    });
+  });
+
   testWidgets('elsewhere a toast keeps the toasts\' own glass', (
     tester,
   ) async {
