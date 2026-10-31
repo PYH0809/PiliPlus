@@ -70,7 +70,24 @@ class VideoGlass extends StatelessWidget {
     this.note = false,
     this.refract = true,
     this.child,
-  });
+  }) : bare = false;
+
+  /// Only the video under the pane, drawn again as it is, over its black: as
+  /// the glass shows it eased out to nothing, but covering, as the glass
+  /// does, what lies between it and the video, as the controls. Off the video
+  /// it draws nothing. [t] fades it: the black past the video's edges and the
+  /// video, which overlap nowhere, each take the fade by themselves, with no
+  /// offscreen layer.
+  const VideoGlass.bare({
+    super.key,
+    required double this.radius,
+    this.t = 1,
+    this.child,
+  }) : style = null,
+       rim = null,
+       note = false,
+       refract = false,
+       bare = true;
 
   /// A pane as round as it is short.
   const VideoGlass.capsule({
@@ -81,7 +98,8 @@ class VideoGlass extends StatelessWidget {
     this.note = false,
     this.refract = true,
     this.child,
-  }) : radius = null;
+  }) : radius = null,
+       bare = false;
 
   /// A disc [size] across, [child] at its center.
   VideoGlass.circle({
@@ -94,6 +112,7 @@ class VideoGlass extends StatelessWidget {
     this.refract = true,
     Widget? child,
   }) : radius = null,
+       bare = false,
        child = SizedBox.square(
          dimension: size,
          child: Center(child: child),
@@ -112,6 +131,9 @@ class VideoGlass extends StatelessWidget {
   /// Whether the pane may bend what lies under it. A thick pane, as a
   /// panel's, shows little of the bending, which over a wide pane costs much.
   final bool refract;
+
+  /// Whether the pane only draws the video again, as [VideoGlass.bare].
+  final bool bare;
   final Widget? child;
 
   /// Replaces a button's fill with the glass, keeping its focus and
@@ -188,6 +210,16 @@ class VideoGlass extends StatelessWidget {
     );
   }
 
+  /// While true, as a player's menu moves over the video, the controls'
+  /// frosted panes over the video, those on the dark style, standing whole,
+  /// draw their glass from an image of it taken as it set in, their content
+  /// live. Each frosts the video by itself, a blur of its own every frame,
+  /// which over the six of the full-screen controls took thrice the render
+  /// passes of their bent glass; the frost hides the video standing still
+  /// for that while. Bent glass, clear, stays live, as does a pane easing in
+  /// or out.
+  static final frostHeld = ValueNotifier(false);
+
   /// What the widest pane over the video last drew, for the performance
   /// overlay to show while measuring on a device.
   static final debugInfo = ValueNotifier<String>('');
@@ -214,6 +246,8 @@ class VideoGlass extends StatelessWidget {
       backdropKey: BackdropGroup.of(context)?.backdropKey,
       source: VideoGlassSource.of(context)?.video,
       changes: VideoGlassSource.of(context)?.changes,
+      bare: bare,
+      holds: style == null && !bare,
       child: child,
     );
   }
@@ -297,6 +331,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.backdropKey,
     required this.source,
     required this.changes,
+    required this.bare,
+    required this.holds,
     super.child,
   });
 
@@ -310,6 +346,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final BackdropKey? backdropKey;
   final GlobalKey? source;
   final Listenable? changes;
+  final bool bare;
+  final bool holds;
 
   @override
   _RenderVideoGlass createRenderObject(BuildContext context) =>
@@ -324,6 +362,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         backdropKey: backdropKey,
         source: source,
         changes: changes,
+        bare: bare,
+        holds: holds,
       );
 
   @override
@@ -341,7 +381,9 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..screenSize = screenSize
       ..backdropKey = backdropKey
       ..source = source
-      ..changes = changes;
+      ..changes = changes
+      ..bare = bare
+      ..holds = holds;
   }
 }
 
@@ -357,7 +399,25 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._backdropKey,
     required this._source,
     required this._changes,
+    required this._bare,
+    required this._holds,
   });
+
+  // Whether VideoGlass.frostHeld holds this pane's frost.
+  bool _holds;
+  set holds(bool value) {
+    if (_holds == value) return;
+    _holds = value;
+    _dropHeld();
+    markNeedsPaint();
+  }
+
+  bool _bare;
+  set bare(bool value) {
+    if (_bare == value) return;
+    _bare = value;
+    markNeedsPaint();
+  }
 
   Listenable? _changes;
   set changes(Listenable? value) {
@@ -426,6 +486,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   set radius(double? value) {
     if (_radius == value) return;
     _radius = value;
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -438,6 +499,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     if (wasOn != value > 0) {
       markNeedsCompositingBitsUpdate();
     }
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -446,6 +508,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   set style(LiquidGlassStyle value) {
     if (_style == value) return;
     _style = value;
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -454,6 +517,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   set rim(LiquidGlassRim? value) {
     if (_rim == value) return;
     _rim = value;
+    _dropHeld();
     markNeedsPaint();
   }
 
@@ -506,6 +570,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   final _bend = LayerHandle<ImageFilterLayer>();
   final _videoTransform = LayerHandle<TransformLayer>();
   final _unseen = LayerHandle<LiquidGlassUnseenLayer>();
+  final _bareFade = LayerHandle<OpacityLayer>();
   final _drawUp = LayerHandle<ImageFilterLayer>();
   final _drawDown = LayerHandle<TransformLayer>();
 
@@ -517,6 +582,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     _bend.layer = null;
     _videoTransform.layer = null;
     _unseen.layer = null;
+    _bareFade.layer = null;
     _drawUp.layer = null;
     _drawDown.layer = null;
   }
@@ -540,6 +606,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     super.attach(owner);
     _program = liquidGlassProgram(_onProgram);
     _changes?.addListener(_onVideoChanged);
+    VideoGlass.frostHeld.addListener(_onFrostHeld);
     _track();
   }
 
@@ -547,6 +614,8 @@ class _RenderVideoGlass extends RenderProxyBox {
   void detach() {
     forgetLiquidGlassProgram(_onProgram);
     _changes?.removeListener(_onVideoChanged);
+    VideoGlass.frostHeld.removeListener(_onFrostHeld);
+    _dropHeld();
     _tracked.remove(this);
     super.detach();
   }
@@ -555,8 +624,44 @@ class _RenderVideoGlass extends RenderProxyBox {
   void dispose() {
     _shader?.dispose();
     _shader = null;
+    _dropHeld();
     _dropLayers();
     super.dispose();
+  }
+
+  // The glass as it set in, while VideoGlass.frostHeld holds it.
+  ui.Image? _held;
+  Size? _heldSize;
+
+  void _dropHeld() {
+    _held?.dispose();
+    _held = null;
+    _heldSize = null;
+  }
+
+  // Let go as its menu goes, after the frame has painted, it frosts live on
+  // a frame of its own: the video's own frames only draw again what was
+  // painted, and would show the frost held on.
+  void _onFrostHeld() {
+    _dropHeld();
+    markNeedsPaint();
+    SchedulerBinding.instance.scheduleFrame();
+  }
+
+  // The frost over the video, without the content, as an image.
+  ui.Image _takeHeld(BorderRadius corners, TextureBox video) {
+    final layer = OffsetLayer();
+    final context = PaintingContext(layer, Offset.zero & size);
+    _paintOverVideo(context, Offset.zero, corners, video);
+    // ignore: invalid_use_of_protected_member
+    context.stopRecordingIfNeeded();
+    final image = layer.toImageSync(
+      Offset.zero & size,
+      pixelRatio: _devicePixelRatio,
+    );
+    layer.dispose();
+    _heldSize = size;
+    return image;
   }
 
   @override
@@ -578,8 +683,34 @@ class _RenderVideoGlass extends RenderProxyBox {
     // Over the video, the pane draws the video again itself; until its
     // texture shows, as while it loads, only the tint.
     final video = _filters && _source != null ? _findVideo() : null;
+    // Held only standing whole: a note easing in or out, as the volume's
+    // as a swipe sets it while a menu closes, frosts live, lest it hold at
+    // where it set off and then jump.
+    if (video != null &&
+        _holds &&
+        _t >= 1 &&
+        VideoGlass.frostHeld.value &&
+        !_bends) {
+      if (_heldSize != size) _dropHeld();
+      final image = _held ??= _takeHeld(corners, video);
+      context.canvas.drawImageRect(
+        image,
+        Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+        offset & size,
+        Paint()..filterQuality = FilterQuality.low,
+      );
+      super.paint(context, offset);
+      return;
+    }
     if (video != null) {
       _paintOverVideo(context, offset, corners, video);
+      super.paint(context, offset);
+      return;
+    }
+    if (_bare) {
+      _dropLayers();
+      _placed = null;
+      _videoAt = null;
       super.paint(context, offset);
       return;
     }
@@ -666,12 +797,8 @@ class _RenderVideoGlass extends RenderProxyBox {
     _awaitingPaint = false;
     final bends = _bends;
     final bounds = Offset.zero & size;
-    // The video as the player lays it out, over its black.
-    void paintVideo(PaintingContext context, Offset offset) {
-      context.canvas.drawRect(
-        offset & size,
-        Paint()..color = const Color(0xFF000000),
-      );
+    // The video as the player lays it out.
+    void paintTexture(PaintingContext context, Offset offset) {
       _videoTransform.layer = context.pushTransform(
         true,
         offset,
@@ -686,6 +813,15 @@ class _RenderVideoGlass extends RenderProxyBox {
       );
     }
 
+    // The video over its black.
+    void paintVideo(PaintingContext context, Offset offset) {
+      context.canvas.drawRect(
+        offset & size,
+        Paint()..color = const Color(0xFF000000),
+      );
+      paintTexture(context, offset);
+    }
+
     _clip.layer = context.pushClipRSuperellipse(
       needsCompositing,
       offset,
@@ -695,6 +831,43 @@ class _RenderVideoGlass extends RenderProxyBox {
         // A glass host, as a menu's over the player, replays what lies
         // behind it but never sees the texture: it leaves this out.
         final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
+        if (_bare) {
+          _bend.layer = null;
+          _blur.layer = null;
+          _drawUp.layer = null;
+          _drawDown.layer = null;
+          context.pushLayer(unseen, (context, offset) {
+            // The black past the video's edges, as the player lays it out,
+            // and the video beside it, each faded by itself.
+            final shown = MatrixUtils.transformRect(
+              toPane,
+              Offset.zero & video.size,
+            ).shift(offset);
+            final pane = offset & size;
+            final black = Paint()..color = Color.fromRGBO(0, 0, 0, _t);
+            for (final band in [
+              Rect.fromLTRB(pane.left, pane.top, pane.right, shown.top),
+              Rect.fromLTRB(pane.left, shown.bottom, pane.right, pane.bottom),
+              Rect.fromLTRB(pane.left, shown.top, shown.left, shown.bottom),
+              Rect.fromLTRB(shown.right, shown.top, pane.right, shown.bottom),
+            ]) {
+              final inPane = band.intersect(pane);
+              if (!inPane.isEmpty) context.canvas.drawRect(inPane, black);
+            }
+            if (_t >= 1) {
+              _bareFade.layer = null;
+              paintTexture(context, offset);
+              return;
+            }
+            _bareFade.layer = context.pushOpacity(
+              offset,
+              (_t * 255).round(),
+              paintTexture,
+              oldLayer: _bareFade.layer,
+            );
+          }, offset);
+          return;
+        }
         // The shader bends the copy, its pixels starting at the pane's
         // corner, as its layer covers the pane alone, and frosts it as it
         // samples: the style's little frost costs it less than a blur's
