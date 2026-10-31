@@ -1,5 +1,6 @@
+import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
-import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A player whose controls popups over it hold up.
 abstract interface class PopupControlsHolder {
@@ -9,8 +10,10 @@ abstract interface class PopupControlsHolder {
 }
 
 /// Keeps the player's controls up while a popup over them is open, as a menu
-/// out of their buttons, and until it has gone back: the controls go after
-/// it, not from under a menu still returning into its button.
+/// out of their buttons or a dialog, and until it has gone back: the
+/// controls go after it, not from under a menu still returning into its
+/// button. A panel slid in, as 更多设置 or a sheet, is content of its own,
+/// and the controls hide in their time under it as before.
 class PlayerPopupObserver extends NavigatorObserver {
   PlayerPopupObserver({PopupControlsHolder? Function()? player})
     : _player = player ?? (() => PlPlayerController.instance);
@@ -20,7 +23,11 @@ class PlayerPopupObserver extends NavigatorObserver {
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (route is! PopupRoute) return;
+    if (route is! PopupRoute ||
+        route is PublishRoute ||
+        route is ModalBottomSheetRoute) {
+      return;
+    }
     final player = _player();
     final animation = route.animation;
     if (player == null || animation == null || !player.controlsShown) {

@@ -328,4 +328,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(picked, lit.single);
   });
+
+  testWidgets('with animations off the menu stands grown at once, as the '
+      'menus\' own glass does', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GlassSurfaces.themed(ThemeData()),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Center(child: VideoGlassMenus(child: _qualityButton())),
+        ),
+      ),
+    );
+    await tester.tap(find.text('1080P'));
+    await tester.pump();
+    await tester.pump();
+
+    final grow = tester.widget<Transform>(
+      find
+          .descendant(
+            of: find.byType(VideoGlassMenu),
+            matching: find.byType(Transform),
+          )
+          .first,
+    );
+    // Its x scale: Transform.scale leaves z at 1.
+    expect(grow.transform.storage[0], 1);
+    await tester.pumpAndSettle();
+  });
 }

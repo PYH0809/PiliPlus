@@ -1,3 +1,4 @@
+import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/player_popup_observer.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -92,5 +93,42 @@ void main() {
 
     expect(player.held, 1);
     expect(player.released, 1);
+  });
+
+  testWidgets('a dialog over the controls holds them too', (tester) async {
+    await pump(tester);
+    showDialog<void>(
+      context: home,
+      builder: (_) => const AlertDialog(content: Text('保存字幕')),
+    );
+    await tester.pumpAndSettle();
+    expect(player.held, 1);
+
+    Navigator.of(home).pop();
+    await tester.pumpAndSettle();
+    expect(player.released, 1);
+  });
+
+  testWidgets('a panel slid in, as 更多设置, or a sheet, holds nothing: the '
+      'controls hide under it in their time', (tester) async {
+    await pump(tester);
+    Navigator.of(home).push(
+      PublishRoute<void>(
+        pageBuilder: (_, _, _) => const Text('更多设置'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Navigator.of(home).pop();
+    await tester.pumpAndSettle();
+    showModalBottomSheet<void>(
+      context: home,
+      builder: (_) => const Text('选集'),
+    );
+    await tester.pumpAndSettle();
+    Navigator.of(home).pop();
+    await tester.pumpAndSettle();
+
+    expect(player.held, 0);
+    expect(player.released, 0);
   });
 }

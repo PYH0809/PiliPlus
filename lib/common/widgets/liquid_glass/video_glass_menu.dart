@@ -95,7 +95,7 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
   // The rows move as the menu grows: a press held still on one finds its row
   // again once they are laid out where they now are.
   void _onGrow() {
-    if (widget.animation.status != AnimationStatus.forward) return;
+    if (menuClosing) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) trackAgain();
     });
@@ -167,7 +167,8 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
     return AnimatedBuilder(
       animation: _grow,
       builder: (context, child) {
-        final t = _grow.value;
+        // With animations off, as the menus' own glass, it stands grown.
+        final t = MediaQuery.disableAnimationsOf(context) ? 1.0 : _grow.value;
         final origin = _anchorIn(context);
         final glass = VideoGlass(
           radius: widget.radius,
