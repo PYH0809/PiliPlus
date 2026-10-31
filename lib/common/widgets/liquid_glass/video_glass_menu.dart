@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'dart:ui' show lerpDouble;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_spring.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:flutter/foundation.dart' show listEquals;
@@ -52,13 +53,6 @@ class VideoGlassMenus extends InheritedTheme {
 
 // The card grows out of its button from this share of its size.
 const double _fromScale = 0.6;
-// The rows show once the card has grown past this share of the way.
-const double _contentFrom = 0.35;
-// Closing, the card is gone by this share of the time the route has left
-// to return, which lasts as long as a menu's drop back into its button.
-// This card only shrinks and fades, and over all of it trailed a faint,
-// empty pane.
-const double _goneBy = 0.6;
 
 /// A popup menu over the player's video, on the video's glass, growing out of
 /// its button and back into it. As [GlassMenuMorph], a press carried on into
@@ -92,11 +86,12 @@ class VideoGlassMenu extends StatefulWidget {
 }
 
 class _VideoGlassMenuState extends State<VideoGlassMenu>
-    with GlassMenuPressTarget<VideoGlassMenu> {
-  late final _grow = CurvedAnimation(
-    parent: widget.animation,
-    curve: Curves.easeOutCubic,
-  );
+    with SingleTickerProviderStateMixin, GlassMenuPressTarget<VideoGlassMenu> {
+  // How far the card has grown, on the spring the menus' own glass opens on:
+  // its little overshoot carries the card's size past its own, not its glass.
+  late final _open = GlassSpring(this, 0);
+  bool _started = false;
+  late final _motion = Listenable.merge([_open, widget.animation]);
 
   @override
   Animation<double> get menuAnimation => widget.animation;
@@ -116,35 +111,46 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
   @override
   void initState() {
     super.initState();
-    widget.animation
-      ..addListener(_onGrow)
-      ..addStatusListener(_onStatus);
+    widget.animation.addStatusListener(_onStatus);
+    _open.addListener(_onGrow);
   }
 
-  void _onStatus(AnimationStatus status) {
-    if (status == AnimationStatus.reverse) {
-      _closingFrom ??= (
-        time: glassMenuRouteTime(widget.animation),
-        t: _grow.value,
-      );
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_started) {
+      _started = true;
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _open.jumpTo(1);
+      } else {
+        _open.springTo(1, glassMenuOpenSpring);
+      }
     }
   }
 
-  // Closing, the card from where it stood, on the route's own time: under
-  // Material's curve the route holds still for the first third of its
-  // return, and a menu closed as it still grew would follow its opening
-  // curve back till the route ends.
-  double _closing(({double time, double t}) from) {
-    if (from.time <= 0) return 0;
-    final gone = from.time * (1 - _goneBy);
-    final left =
-        (glassMenuRouteTime(widget.animation) - gone) / (from.time - gone);
-    return from.t * Curves.easeIn.transform(left.clamp(0.0, 1.0));
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.reverse && _closingFrom == null) {
+      _closingFrom = (
+        time: glassMenuRouteTime(widget.animation),
+        t: _open.value,
+      );
+      // The card shrinks from here on, as it stands.
+      if (_open.isAnimating) _open.jumpTo(_open.value);
+    }
   }
+
+  // Closing, the card shrinks back into where it opened from, as the menus'
+  // own glass does with no button to return into, from where it stood and on
+  // the route's own time: under Material's curve the route holds still for
+  // the first third of its return. It is all but gone well before the route:
+  // under a 255th of itself from 85% of the way.
+  double _closing(({double time, double t}) from) =>
+      from.t *
+      glassMenuShrink(glassMenuReturnTime(widget.animation, from.time));
 
   // Opening, the rows wait for the card to have room for them.
   static double _rowsOpening(double t) =>
-      ((t - _contentFrom) / (1 - _contentFrom)).clamp(0.0, 1.0);
+      ((t - glassMenuContentFrom) / (1 - glassMenuContentFrom)).clamp(0.0, 1.0);
 
   // The rows move as the menu grows: a press held still on one finds its row
   // again once they are laid out where they now are.
@@ -157,10 +163,10 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
 
   @override
   void dispose() {
-    widget.animation
+    widget.animation.removeStatusListener(_onStatus);
+    _open
       ..removeListener(_onGrow)
-      ..removeStatusListener(_onStatus);
-    _grow.dispose();
+      ..dispose();
     super.dispose();
   }
 
@@ -221,7 +227,7 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
       child: widget.child,
     );
     return AnimatedBuilder(
-      animation: _grow,
+      animation: _motion,
       builder: (context, child) {
         // With animations off, as the menus' own glass, it stands grown.
         final still = MediaQuery.disableAnimationsOf(context);
@@ -229,8 +235,10 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
         final t = still
             ? 1.0
             : from == null
-            ? _grow.value
+            ? _open.value
             : _closing(from);
+        // The glass and the fades stop at whole; only the size overshoots.
+        final settled = t.clamp(0.0, 1.0);
         // Closing, the rows fade with the card from where they stood, not
         // before it, so that no empty card goes on shrinking after them.
         final rowsOpacity = still || from == null || from.t <= 0
@@ -238,7 +246,8 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
             : _rowsOpening(from.t) * (t / from.t).clamp(0.0, 1.0);
         final scale = lerpDouble(_fromScale, 1, t)!;
         final origin = _anchorIn(context);
-        final moving = !still && widget.animation.isAnimating;
+        final moving =
+            !still && (_open.isAnimating || widget.animation.isAnimating);
         final onPlayer = _onPlayer(context);
         Widget overPlayer(Widget pane) =>
             onPlayer ? VideoGlassSource.overPlayer(child: pane) : pane;
@@ -254,7 +263,7 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
               child: _Growing(
                 scale: scale,
                 origin: origin,
-                child: drawn && t > 0
+                child: drawn && settled > 0
                     ? overPlayer(VideoGlass.bare(radius: widget.radius))
                     : null,
               ),
@@ -263,17 +272,17 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
               child: _Growing(
                 scale: scale,
                 origin: origin,
-                opacity: drawn ? t : 1,
+                opacity: drawn ? settled : 1,
                 drawn: drawn,
                 child: overPlayer(
                   VideoGlass(
                     radius: widget.radius,
-                    t: drawn ? 1 : t,
+                    t: drawn ? 1 : settled,
                     // A card this wide shows little of a bend, which costs a
                     // shader pass over it every frame.
                     refract: false,
                     style: style,
-                    rim: drawn ? rim : rim.scale(t),
+                    rim: drawn ? rim : rim.scale(settled),
                     child: const SizedBox.expand(),
                   ),
                 ),

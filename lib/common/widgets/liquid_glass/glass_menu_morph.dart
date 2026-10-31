@@ -16,16 +16,16 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
-// As measured on iOS by FlClash: one spring, with a little overshoot, opens a
-// menu out of its button.
-final _openSpring = SpringDescription.withDampingRatio(
+/// As measured on iOS by FlClash: one spring, with a little overshoot, opens
+/// a menu out of its button.
+final glassMenuOpenSpring = SpringDescription.withDampingRatio(
   mass: 1,
   stiffness: 400,
   ratio: 0.754,
 );
 
-// The rows show once the card has grown past this share of the way.
-const _contentFrom = 0.3;
+/// The rows show once the card has grown past this share of the way.
+const glassMenuContentFrom = 0.3;
 
 /// How long a menu takes to return into its button.
 const glassMenuReturn = glassDropletReturn;
@@ -37,6 +37,24 @@ double glassMenuRouteTime(Animation<double> animation) => switch (animation) {
   CurvedAnimation(:final parent) => glassMenuRouteTime(parent),
   _ => animation.value,
 };
+
+/// How far into its return, in seconds, a menu whose route set off closing
+/// from [closedFrom] has come. Closing follows the route, which then takes
+/// the menu away, from its linear progress: Material's curve would hold it
+/// still at first. A menu closed before it opened all the way plays the
+/// whole return in the time its route has left.
+double glassMenuReturnTime(Animation<double> animation, double closedFrom) {
+  if (closedFrom <= 0) {
+    return glassDropletReturnSeconds;
+  }
+  final left = glassMenuRouteTime(animation) / closedFrom;
+  return (1 - left).clamp(0.0, 1.0) * glassDropletReturnSeconds;
+}
+
+/// How much is left of a menu with no button to return into, [returnTime]
+/// into its return: it shrinks back to where it opened from.
+double glassMenuShrink(double returnTime) =>
+    1 - Curves.easeOutCubic.transform(returnTime / glassDropletReturnSeconds);
 
 // The rows leave this soon into the return.
 const _dropletContentOut = 0.1;
@@ -375,7 +393,7 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
       if (MediaQuery.disableAnimationsOf(context)) {
         _open.jumpTo(1);
       } else {
-        _open.springTo(1, _openSpring);
+        _open.springTo(1, glassMenuOpenSpring);
       }
     }
   }
@@ -394,21 +412,8 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
 
   bool get _closing => menuClosing;
 
-  // Closing follows the route, which then takes the menu away, from its
-  // linear progress: Material's curve would hold it still at first. A menu
-  // closed before it opened all the way plays the whole return in the time
-  // its route has left.
-  double? get _returnTime {
-    if (!_closing) {
-      return null;
-    }
-    final from = _closedFrom ?? 1;
-    if (from <= 0) {
-      return glassDropletReturnSeconds;
-    }
-    final left = glassMenuRouteTime(widget.animation) / from;
-    return (1 - left).clamp(0.0, 1.0) * glassDropletReturnSeconds;
-  }
+  double? get _returnTime =>
+      _closing ? glassMenuReturnTime(widget.animation, _closedFrom ?? 1) : null;
 
   @override
   Widget build(BuildContext context) {
@@ -433,8 +438,9 @@ class _GlassMenuMorphState extends State<GlassMenuMorph>
           rim: rim.scale(settled),
           shadows: menuShadows(colorScheme, settled),
           colorScheme: colorScheme,
-          contentOpacity: ((progress - _contentFrom) / (1 - _contentFrom))
-              .clamp(0.0, 1.0),
+          contentOpacity:
+              ((progress - glassMenuContentFrom) / (1 - glassMenuContentFrom))
+                  .clamp(0.0, 1.0),
           pressed: pressedRect,
           pressColor: theme.highlightColor,
           sourceImage: _sourceImage,
@@ -585,10 +591,7 @@ class _RenderMenuMorph extends RenderProxyBox {
     // to the point as the route closes.
     final progress = time == null
         ? config.progress
-        : math.min(
-            config.progress,
-            1 - Curves.easeOutCubic.transform(time / glassDropletReturnSeconds),
-          );
+        : math.min(config.progress, glassMenuShrink(time));
     final rect = Rect.lerp(from, Offset.zero & size, progress)!;
     if (rect.width <= 0 || rect.height <= 0) {
       _clear();

@@ -31,6 +31,9 @@ class GlassSpring extends ChangeNotifier implements ValueListenable<double> {
 
   double get target => _simulation == null ? _value : _target;
 
+  /// Whether it is still springing toward its [target].
+  bool get isAnimating => _simulation != null;
+
   double get velocity => _simulation?.dx(_now - _start) ?? 0;
 
   double get acceleration {

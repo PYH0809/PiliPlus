@@ -6,6 +6,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -59,6 +60,20 @@ double _card(WidgetTester tester) {
   );
   return pane.t * ((tester.widget(growing.first) as dynamic).opacity as double);
 }
+
+/// The card's size, which overshoots as it springs open.
+double _scale(WidgetTester tester) =>
+    (tester.widget(
+          find
+              .descendant(
+                of: find.byType(VideoGlassMenu),
+                matching: find.byWidgetPredicate(
+                  (widget) => widget.runtimeType.toString() == '_Growing',
+                ),
+              )
+              .first,
+        ) as dynamic).scale
+        as double;
 
 /// The fade the rows take with the card.
 double _rows(WidgetTester tester) =>
@@ -207,9 +222,9 @@ void main() {
       if (t > 0) {
         expect(rows, greaterThan(0), reason: 'the card at $t, no rows on it');
       }
-      // 60% of the way, and a frame.
-      if (ms >= 316) {
-        expect(t, 0, reason: 'at $ms ms');
+      // Under a 255th of itself from 85% of the way, and a frame.
+      if (ms >= 441) {
+        expect(t, lessThan(1 / 255), reason: 'at $ms ms');
         goneBeforeRoute = true;
       }
     }
@@ -237,18 +252,84 @@ void main() {
     var last = rows();
     expect(last, lessThan(1));
 
+    var card = _card(tester);
+
     // Away from the menu, as a tap outside closes it.
     await tester.tapAt(const Offset(5, 5));
     var goneBeforeRoute = false;
+    var first = true;
     while (menu.evaluate().isNotEmpty) {
       await tester.pump(const Duration(milliseconds: 16));
       if (menu.evaluate().isEmpty) break;
       expect(rows(), lessThanOrEqualTo(last));
       last = rows();
-      if (_card(tester) == 0) goneBeforeRoute = true;
+      // On from where the card stood, shrinking at once, never growing on.
+      final now = _card(tester);
+      expect(now, lessThanOrEqualTo(card));
+      if (first) expect(now, greaterThan(card - 0.15));
+      first = false;
+      card = now;
+      if (now < 1 / 255) goneBeforeRoute = true;
     }
     // Not left to follow its opening curve back till the route ends.
     expect(goneBeforeRoute, isTrue);
+  });
+
+  testWidgets('opens on the menus\' own spring, its size a little past whole '
+      'and back, its glass never past', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GlassSurfaces.themed(ThemeData()),
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(child: VideoGlassMenus(child: _qualityButton())),
+        ),
+      ),
+    );
+    await tester.tap(find.text('1080P'));
+    await tester.pump();
+    // The spring's own overshoot, which a curve to 1 never shows.
+    final spring = SpringSimulation(glassMenuOpenSpring, 0, 1, 0);
+    var most = 0.0;
+    for (var ms = 0; ms <= 600; ms += 4) {
+      most = math.max(most, spring.x(ms / 1000));
+    }
+    var grown = 0.0;
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      grown = math.max(grown, (_scale(tester) - 0.6) / 0.4);
+      expect(_card(tester), lessThanOrEqualTo(1));
+    }
+    expect(grown, greaterThan(1.01));
+    expect(grown, closeTo(most, 0.01));
+    await tester.pumpAndSettle();
+    expect(_scale(tester), 1);
+  });
+
+  testWidgets('closing, the card shrinks back as the menus\' own glass does '
+      'with no button to return into, on the route\'s own time', (
+    tester,
+  ) async {
+    await _open(tester, VideoGlassMenus(child: _qualityButton()));
+    await tester.tap(find.text('720P 准高清'));
+    await tester.pump();
+
+    final menu = find.byType(VideoGlassMenu);
+    final route = ModalRoute.of(tester.element(menu))!.animation!;
+    var frames = 0;
+    while (true) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (menu.evaluate().isEmpty) break;
+      // How far into the return, on the route's linear time.
+      final share = 1 - glassMenuRouteTime(route);
+      expect(
+        _card(tester),
+        closeTo(1 - Curves.easeOutCubic.transform(share), 0.01),
+        reason: '${(share * 100).round()}% into the return',
+      );
+      frames++;
+    }
+    expect(frames, greaterThan(20));
   });
 
   testWidgets('drawn from an image as it grows, each row still fades in on '
