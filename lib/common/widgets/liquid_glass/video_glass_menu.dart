@@ -10,14 +10,22 @@ import 'package:material_ui/material_ui.dart';
 /// [VideoGlassMenu]. It is an [InheritedTheme] so that the menu's route,
 /// which captures its button's themes, carries it.
 class VideoGlassMenus extends InheritedTheme {
-  const VideoGlassMenus({super.key, required super.child});
+  const VideoGlassMenus({super.key, required super.child}) : _routes = 0;
 
+  const VideoGlassMenus._(this._routes, {required super.child});
+
+  /// How many routes carried the mark here from the controls: a menu
+  /// straight out of them is one, a menu out of a dialog they opened two,
+  /// which lies over the dialog, not the video.
+  final int _routes;
+
+  /// Whether [context] is in a menu straight out of the player's controls.
   static bool of(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<VideoGlassMenus>() != null;
+      context.getInheritedWidgetOfExactType<VideoGlassMenus>()?._routes == 1;
 
   @override
   Widget wrap(BuildContext context, Widget child) =>
-      VideoGlassMenus(child: child);
+      VideoGlassMenus._(_routes + 1, child: child);
 
   @override
   bool updateShouldNotify(VideoGlassMenus oldWidget) => false;
@@ -84,6 +92,35 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
     super.dispose();
   }
 
+  /// Whether the menu lies on the player, where the video's glass draws its
+  /// video and the black around it; a menu reaching past it, as a tall one
+  /// out of a small player's bar, reads the screen instead, page and all.
+  /// The menu's place, once laid out, before its scale, against what shows
+  /// of the player.
+  bool _onPlayer(BuildContext context) {
+    final menu = context.findRenderObject();
+    final player = VideoGlassSource.player?.video.currentContext
+        ?.findRenderObject();
+    if (menu is! RenderBox || !menu.hasSize) return true;
+    if (player is! RenderBox || !player.attached || !player.hasSize) {
+      return true;
+    }
+    Rect onScreen(RenderBox box) => MatrixUtils.transformRect(
+      box.getTransformTo(null),
+      Offset.zero & box.size,
+    );
+    // What shows of the player: a video zoomed in reaches past it, clipped.
+    var bounds = onScreen(player);
+    for (RenderObject? node = player.parent; node != null; node = node.parent) {
+      if (node is RenderClipRect || node is RenderClipRRect) {
+        bounds = bounds.intersect(onScreen(node as RenderBox));
+      }
+    }
+    bounds = bounds.inflate(0.5);
+    final rect = onScreen(menu);
+    return bounds.contains(rect.topLeft) && bounds.contains(rect.bottomRight);
+  }
+
   /// Where the anchor's center lies in the menu, once it has been laid out.
   Offset? _anchorIn(BuildContext context) {
     final anchor = widget.anchor;
@@ -116,28 +153,26 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
       builder: (context, child) {
         final t = _grow.value;
         final origin = _anchorIn(context);
+        final glass = VideoGlass(
+          radius: widget.radius,
+          t: t,
+          // A card this wide shows little of a bend, which costs a shader
+          // pass over it every frame.
+          refract: false,
+          style: style,
+          rim: rim.scale(t),
+          child: Opacity(
+            opacity: ((t - _contentFrom) / (1 - _contentFrom)).clamp(0.0, 1.0),
+            child: child,
+          ),
+        );
         return Transform.scale(
           scale: lerpDouble(_fromScale, 1, t)!,
           alignment: origin == null ? Alignment.center : Alignment.topLeft,
           origin: origin,
-          child: VideoGlassSource.overPlayer(
-            child: VideoGlass(
-              radius: widget.radius,
-              t: t,
-              // A card this wide shows little of a bend, which costs a
-              // shader pass over it every frame.
-              refract: false,
-              style: style,
-              rim: rim.scale(t),
-              child: Opacity(
-                opacity: ((t - _contentFrom) / (1 - _contentFrom)).clamp(
-                  0.0,
-                  1.0,
-                ),
-                child: child,
-              ),
-            ),
-          ),
+          child: _onPlayer(context)
+              ? VideoGlassSource.overPlayer(child: glass)
+              : glass,
         );
       },
       child: rows,

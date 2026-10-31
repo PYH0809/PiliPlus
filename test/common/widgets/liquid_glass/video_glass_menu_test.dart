@@ -156,4 +156,117 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
   });
+
+  group('the player\'s box', () {
+    final player = GlobalKey();
+    setUp(
+      () => VideoGlassSource.player = (
+        video: player,
+        changes: ChangeNotifier(),
+      ),
+    );
+    tearDown(() => VideoGlassSource.player = null);
+
+    // The quality button at the foot of a player [height] tall, as its bar
+    // has it.
+    Future<void> openOnPlayer(
+      WidgetTester tester,
+      double height, {
+      double zoom = 1,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: GlassSurfaces.themed(ThemeData()),
+          home: Scaffold(
+            backgroundColor: Colors.white,
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: 400,
+                height: height,
+                child: Stack(
+                  children: [
+                    // The video, zoomed in as a pinch does, clipped to the
+                    // player.
+                    Positioned.fill(
+                      child: ClipRect(
+                        child: Transform.scale(
+                          scale: zoom,
+                          child: SizedBox.expand(key: player),
+                        ),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: VideoGlassMenus(child: _qualityButton()),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('1080P'));
+      await tester.pumpAndSettle();
+    }
+
+    Finder drawsVideo() => find.descendant(
+      of: find.byType(VideoGlassMenu),
+      matching: find.byType(VideoGlassSource),
+    );
+
+    testWidgets('a menu on the player draws its video', (tester) async {
+      await openOnPlayer(tester, 600);
+      expect(drawsVideo(), findsOneWidget);
+    });
+
+    testWidgets('a menu reaching past a small player reads the screen, the '
+        'page past the player not drawn black', (tester) async {
+      await openOnPlayer(tester, 60);
+      expect(find.byType(VideoGlassMenu), findsOneWidget);
+      expect(drawsVideo(), findsNothing);
+    });
+
+    testWidgets('so it does past a small player zoomed in, its video reaching '
+        'past what shows of it', (tester) async {
+      await openOnPlayer(tester, 60, zoom: 6);
+      expect(find.byType(VideoGlassMenu), findsOneWidget);
+      expect(drawsVideo(), findsNothing);
+    });
+  });
+
+  testWidgets('a menu out of a dialog the controls opened is over the '
+      'dialog, not the video, and keeps the menus\' own glass', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GlassSurfaces.themed(ThemeData()),
+        home: Scaffold(
+          body: Center(
+            child: VideoGlassMenus(
+              child: Builder(
+                builder: (context) => TextButton(
+                  // As 保存字幕 opens its dialog, its format a menu in it.
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => Dialog(child: _qualityButton()),
+                  ),
+                  child: const Text('保存字幕'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('保存字幕'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1080P'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GlassMenuMorph), findsOneWidget);
+    expect(find.byType(VideoGlassMenu), findsNothing);
+  });
 }
