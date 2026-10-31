@@ -72,18 +72,22 @@ class VideoGlass extends StatelessWidget {
     this.child,
   }) : bare = false;
 
-  /// Only the video under the pane, drawn again as it is: as the glass shows
-  /// it eased out to nothing, but covering, as the glass does, what lies
-  /// between it and the video, as the controls. Past the video's edges, and
-  /// off the video, it draws nothing, so that a fade above it reaches the
-  /// texture itself, with no offscreen layer.
-  const VideoGlass.bare({super.key, required double this.radius, this.child})
-    : t = 1,
-      style = null,
-      rim = null,
-      note = false,
-      refract = false,
-      bare = true;
+  /// Only the video under the pane, drawn again as it is, over its black: as
+  /// the glass shows it eased out to nothing, but covering, as the glass
+  /// does, what lies between it and the video, as the controls. Off the video
+  /// it draws nothing. [t] fades it: the black past the video's edges and the
+  /// video, which overlap nowhere, each take the fade by themselves, with no
+  /// offscreen layer.
+  const VideoGlass.bare({
+    super.key,
+    required double this.radius,
+    this.t = 1,
+    this.child,
+  }) : style = null,
+       rim = null,
+       note = false,
+       refract = false,
+       bare = true;
 
   /// A pane as round as it is short.
   const VideoGlass.capsule({
@@ -537,6 +541,7 @@ class _RenderVideoGlass extends RenderProxyBox {
   final _bend = LayerHandle<ImageFilterLayer>();
   final _videoTransform = LayerHandle<TransformLayer>();
   final _unseen = LayerHandle<LiquidGlassUnseenLayer>();
+  final _bareFade = LayerHandle<OpacityLayer>();
   final _drawUp = LayerHandle<ImageFilterLayer>();
   final _drawDown = LayerHandle<TransformLayer>();
 
@@ -548,6 +553,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     _bend.layer = null;
     _videoTransform.layer = null;
     _unseen.layer = null;
+    _bareFade.layer = null;
     _drawUp.layer = null;
     _drawDown.layer = null;
   }
@@ -743,9 +749,36 @@ class _RenderVideoGlass extends RenderProxyBox {
           _blur.layer = null;
           _drawUp.layer = null;
           _drawDown.layer = null;
-          // The texture alone, no black over which it would overlap: a fade
-          // above reaches it with no layer of its own.
-          context.pushLayer(unseen, paintTexture, offset);
+          context.pushLayer(unseen, (context, offset) {
+            // The black past the video's edges, as the player lays it out,
+            // and the video beside it, each faded by itself.
+            final shown = MatrixUtils.transformRect(
+              toPane,
+              Offset.zero & video.size,
+            ).shift(offset);
+            final pane = offset & size;
+            final black = Paint()..color = Color.fromRGBO(0, 0, 0, _t);
+            for (final band in [
+              Rect.fromLTRB(pane.left, pane.top, pane.right, shown.top),
+              Rect.fromLTRB(pane.left, shown.bottom, pane.right, pane.bottom),
+              Rect.fromLTRB(pane.left, shown.top, shown.left, shown.bottom),
+              Rect.fromLTRB(shown.right, shown.top, pane.right, shown.bottom),
+            ]) {
+              final inPane = band.intersect(pane);
+              if (!inPane.isEmpty) context.canvas.drawRect(inPane, black);
+            }
+            if (_t >= 1) {
+              _bareFade.layer = null;
+              paintTexture(context, offset);
+              return;
+            }
+            _bareFade.layer = context.pushOpacity(
+              offset,
+              (_t * 255).round(),
+              paintTexture,
+              oldLayer: _bareFade.layer,
+            );
+          }, offset);
           return;
         }
         // The shader bends the copy, its pixels starting at the pane's

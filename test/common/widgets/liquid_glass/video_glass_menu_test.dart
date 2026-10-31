@@ -657,6 +657,85 @@ void main() {
       expect(find.byType(VideoGlassMenu), findsNothing);
     });
 
+    testWidgets('fading out, past the video\'s edges the card still covers '
+        'what lies under it with the black the player has there', (
+      tester,
+    ) async {
+      final shot = GlobalKey();
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: shot,
+          child: MaterialApp(
+            theme: GlassSurfaces.themed(ThemeData()),
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  // A video letterboxed in the player, which shows white
+                  // around it, as the controls would under the card.
+                  Positioned.fill(
+                    child: ColoredBox(
+                      key: player,
+                      color: Colors.white,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 400,
+                          height: 225,
+                          child: Texture(textureId: 1),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: const Alignment(0.95, 0.9),
+                    child: VideoGlassMenus(child: _qualityButton()),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('1080P'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pump();
+      // Most of the way back, the card thin, the black under it fading.
+      await tester.pump(const Duration(milliseconds: 220));
+      final t = _card(tester);
+      final covers = tester
+          .widgetList<VideoGlass>(find.byType(VideoGlass))
+          .firstWhere((glass) => glass.bare)
+          .t;
+      expect(covers, inExclusiveRange(0, 1));
+
+      // A point on the card's edge, past the video, where its rows are not.
+      final menu = tester.getRect(find.byType(VideoGlassMenu));
+      final button = tester.getCenter(find.text('1080P'));
+      final scale = _scale(tester);
+      Offset scaled(Offset at) => button + (at - button) * scale;
+      final at = scaled(Offset(menu.right - 6, menu.center.dy));
+      expect(
+        tester.getRect(find.byType(Texture)).contains(at),
+        isFalse,
+        reason: 'the point lies past the video',
+      );
+      final green = await tester.runAsync(() async {
+        final boundary =
+            shot.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage();
+        final bytes = (await image.toByteData())!;
+        return bytes.getUint8(
+          (at.dy.round() * image.width + at.dx.round()) * 4 + 1,
+        );
+      });
+      // Under the card's thin glass, the white shows only as far as the
+      // black over it has faded.
+      final bare = (1 - t) * 255;
+      expect(green, lessThan(bare * (1 - covers) + 30));
+      expect(green, lessThan(bare - 40));
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('a menu reaching past a small player reads the screen, the '
         'page past the player not drawn black', (tester) async {
       await openOnPlayer(tester, 60);

@@ -267,9 +267,13 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
               child: _Growing(
                 scale: scale,
                 origin: origin,
-                opacity: (settled / _coversFrom).clamp(0.0, 1.0),
                 child: drawn && settled > 0
-                    ? overPlayer(VideoGlass.bare(radius: widget.radius))
+                    ? overPlayer(
+                        VideoGlass.bare(
+                          radius: widget.radius,
+                          t: (settled / _coversFrom).clamp(0.0, 1.0),
+                        ),
+                      )
                     : null,
               ),
             ),
