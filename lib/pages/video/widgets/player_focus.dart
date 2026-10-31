@@ -62,14 +62,22 @@ class PlayerFocus extends StatelessWidget {
 
   /// A key held as the player loses focus, as Enter opens the danmaku page
   /// or a page is pushed over the player, comes up there, not here: stop
-  /// what it repeats, and leave the steps of a held back key without the
-  /// seek its release makes, even if the release comes back here.
+  /// what it repeats, leave the steps of a held back key without the seek
+  /// its release makes, and the speed-up of a held forward key as its
+  /// release would, without a step forward, even if the release comes back
+  /// here.
   void _onFocusLost() {
     plPlayerController.cancelLongPressTimer();
     if (plPlayerController.backKeyHeld) {
       plPlayerController
         ..backKeyHeld = false
         ..isSeeking.value = false;
+    }
+    if (plPlayerController.forwardKeyHeld) {
+      plPlayerController.forwardKeyHeld = false;
+      if (plPlayerController.longPressStatus.value) {
+        plPlayerController.setLongPressStatus(false);
+      }
     }
   }
 
@@ -174,6 +182,7 @@ class PlayerFocus extends StatelessWidget {
     if (key == LogicalKeyboardKey.arrowRight) {
       if (!plPlayerController.isLive) {
         if (event is KeyDownEvent) {
+          plPlayerController.forwardKeyHeld = true;
           if (hasPlayer && !plPlayerController.longPressStatus.value) {
             plPlayerController
               ..longPressTimer?.cancel()
@@ -184,8 +193,10 @@ class PlayerFocus extends StatelessWidget {
                   ..setLongPressStatus(true),
               );
           }
-        } else if (event is KeyUpEvent) {
-          plPlayerController.cancelLongPressTimer();
+        } else if (event is KeyUpEvent && plPlayerController.forwardKeyHeld) {
+          plPlayerController
+            ..forwardKeyHeld = false
+            ..cancelLongPressTimer();
           if (hasPlayer) {
             if (plPlayerController.longPressStatus.value) {
               plPlayerController.setLongPressStatus(false);
