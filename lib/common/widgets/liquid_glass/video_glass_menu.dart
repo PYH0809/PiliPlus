@@ -112,6 +112,21 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
   // which the card shrinks from, its rows fading with it.
   ({double time, double t})? _closingFrom;
 
+  // The pointers down on the rows. A row pressed, as hovered or focused,
+  // stands on Material's ink, which its Material draws under the rows, out
+  // of their image: meanwhile they draw live.
+  final _pressing = <int>{};
+
+  void _onPointer(PointerEvent event) {
+    final had = _pressing.isNotEmpty;
+    if (event is PointerDownEvent) {
+      _pressing.add(event.pointer);
+    } else {
+      _pressing.remove(event.pointer);
+    }
+    if (had != _pressing.isNotEmpty) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -228,7 +243,12 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
       painter: pressed == null
           ? null
           : _PressedRow(pressed, theme.highlightColor),
-      child: widget.child,
+      child: Listener(
+        onPointerDown: _onPointer,
+        onPointerUp: _onPointer,
+        onPointerCancel: _onPointer,
+        child: widget.child,
+      ),
     );
     return AnimatedBuilder(
       animation: _motion,
@@ -301,7 +321,11 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
               scale: scale,
               origin: origin,
               opacity: rowsOpacity,
-              drawn: moving,
+              drawn:
+                  moving &&
+                  _pressing.isEmpty &&
+                  FocusManager.instance.highlightMode ==
+                      FocusHighlightMode.touch,
               fades: widget.animation,
               child: child,
             ),

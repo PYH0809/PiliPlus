@@ -420,6 +420,60 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a row pressed as the menu opens stands on its platter at '
+      'once, as Material\'s ink draws it', (tester) async {
+    final shot = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: shot,
+        child: MaterialApp(
+          theme: GlassSurfaces.themed(ThemeData()),
+          home: Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(child: VideoGlassMenus(child: _qualityButton())),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('1080P'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    // Pressed straight, not slid on into from the button: the menu's
+    // scroll view holds the press a moment, then the ink fades in.
+    final row = tester.getRect(find.text('720P 准高清'));
+    final gesture = await tester.startGesture(row.center);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+    expect(
+      ModalRoute.of(
+            tester.element(find.byType(VideoGlassMenu)),
+          )!.animation!.isAnimating ||
+          (_scale(tester) - 1).abs() > 1e-3,
+      isTrue,
+      reason: 'still opening',
+    );
+
+    // Past where the row's text ends, its platter, or the card bare.
+    final rows = await tester.runAsync(() async {
+      final boundary =
+          shot.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage();
+      final bytes = (await image.toByteData())!;
+      int green(Offset at) => bytes.getUint8(
+        (at.dy.round() * image.width + at.dx.round()) * 4 + 1,
+      );
+      final other = tester.getRect(find.text('1080P 高清'));
+      return (
+        pressed: green(Offset(row.right + 12, row.center.dy)),
+        other: green(Offset(other.right + 12, other.center.dy)),
+      );
+    });
+    expect(rows!.pressed, greaterThan(rows.other + 15));
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('a long menu scrolled as it opens draws each row where it '
       'now stands, as its taps find it', (tester) async {
     final shot = GlobalKey();
