@@ -162,6 +162,9 @@ class VideoGlass extends StatelessWidget {
     );
     // The text and icons too, or a menu item without a color of its own
     // stays dark on the dark glass.
+    // A menu item's label, and the check at its end, which takes its color,
+    // as well: the glass theme set it from the light scheme.
+    final label = theme.popupMenuTheme.labelTextStyle;
     return theme.copyWith(
       colorScheme: dark,
       textTheme: theme.textTheme.apply(
@@ -169,6 +172,19 @@ class VideoGlass extends StatelessWidget {
         displayColor: dark.onSurface,
       ),
       iconTheme: theme.iconTheme.copyWith(color: dark.onSurfaceVariant),
+      popupMenuTheme: label == null
+          ? null
+          : theme.popupMenuTheme.copyWith(
+              labelTextStyle: WidgetStateProperty.resolveWith(
+                (states) => label
+                    .resolve(states)
+                    ?.copyWith(
+                      color: dark.onSurface.withValues(
+                        alpha: states.contains(WidgetState.disabled) ? 0.38 : 1,
+                      ),
+                    ),
+              ),
+            ),
     );
   }
 

@@ -20,6 +20,7 @@ import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/video/video_shot/data.dart';
 import 'package:PiliPlus/pages/danmaku/danmaku_model.dart';
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
+import 'package:PiliPlus/plugin/pl_player/models/controls_hold.dart';
 import 'package:PiliPlus/plugin/pl_player/models/data_source.dart';
 import 'package:PiliPlus/plugin/pl_player/models/data_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/double_tap_type.dart';
@@ -30,6 +31,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/video_fit_type.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/danmaku_options.dart';
+import 'package:PiliPlus/plugin/pl_player/utils/player_popup_observer.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/services/service_locator.dart';
 import 'package:PiliPlus/utils/accounts.dart';
@@ -75,7 +77,9 @@ import 'package:window_manager/window_manager.dart';
 typedef PlayCallback = Future<void>? Function();
 typedef PlayOwner = ({String tag, Type? type});
 
-class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+class PlPlayerController
+    with BlockConfigMixin, AudioNormalizationMixin
+    implements PopupControlsHolder {
   Player? _videoPlayerController;
   VideoController? _videoController;
 
@@ -1318,11 +1322,40 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     // tapped away, their cost with them.
     if (Pref.perfOverlay) return;
     _timer = Timer(showControlDuration, () {
-      if (!isSeeking.value && !tripling) {
+      if (!isSeeking.value && !tripling && !_hold.held) {
         controls = false;
       }
       _timer = null;
     });
+  }
+
+  /// Popups over the player, as a menu out of its controls, holding the
+  /// controls up: `PlayerPopupObserver`.
+  final _hold = ControlsHold();
+
+  @override
+  bool get controlsShown => showControls.value;
+
+  /// Keeps the controls up, as a popup out of them opens.
+  @override
+  void holdControls() {
+    _hold.hold();
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  /// Lets the controls go again once the popup has gone back, as a menu
+  /// returns into its button: at once if they were to hide meanwhile, else
+  /// in their usual time from then.
+  @override
+  void releaseControls() {
+    switch (_hold.release()) {
+      case ControlsRelease.hide:
+        controls = false;
+      case ControlsRelease.hideLater:
+        if (showControls.value) hideTaskControls();
+      case null:
+    }
   }
 
   void onSeekStart(int seekFrom) {
@@ -1396,7 +1429,21 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     }
   }
 
+  /// Hides the controls at once, whatever popup holds them, as the player
+  /// goes into picture-in-picture.
+  void hideControlsNow() {
+    _hold.shown();
+    _timer?.cancel();
+    _timer = null;
+    showControls.value = false;
+  }
+
   set controls(bool visible) {
+    if (visible) {
+      _hold.shown();
+    } else if (!_hold.hideNow()) {
+      return;
+    }
     showControls.value = visible;
     _timer?.cancel();
     if (visible) {

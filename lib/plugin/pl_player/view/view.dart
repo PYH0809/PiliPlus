@@ -15,6 +15,7 @@ import 'package:PiliPlus/common/widgets/gesture/player_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_support.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
 import 'package:PiliPlus/common/widgets/loading_widget.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
 import 'package:PiliPlus/common/widgets/player_bar.dart';
@@ -995,7 +996,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
   void didUpdateWidget(covariant PLVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (Platform.isAndroid && AndroidHelper.isPipMode) {
-      plPlayerController.controls = false;
+      // At once, though a menu holds them: the window has no room for them,
+      // nor a way to close the menu.
+      plPlayerController.hideControlsNow();
     }
   }
 
@@ -2092,6 +2095,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         ),
       );
     }
+    // Marks the popups out of the controls, which hold them up till they
+    // have gone back, and, with glass on, lie on the video's glass.
+    child = VideoGlassMenus(child: child);
     if (PlatformUtils.isDesktop) {
       return Obx(
         () => MouseRegion(
