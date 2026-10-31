@@ -6,11 +6,12 @@ name: Check
 # compiles the Java and Kotlin under android/ and runs R8, none of which the
 # analyzer or the tests see. The APK is the dev flavor, signed with the debug
 # key, so it needs no secrets and runs on pull requests from forks as well.
+#
+# Every pull request runs it, those that change only Markdown too, so that
+# merging can wait on it.
 
 on:
     pull_request:
-        paths-ignore:
-            - "**.md"
     push:
         branches:
             - main
