@@ -1452,6 +1452,11 @@ class PlPlayerController
   }
 
   Timer? longPressTimer;
+
+  /// Whether the back key went down on the player and is held there still:
+  /// once the player has lost focus, its release is not the player's.
+  bool backKeyHeld = false;
+
   void cancelLongPressTimer() {
     longPressTimer?.cancel();
     longPressTimer = null;

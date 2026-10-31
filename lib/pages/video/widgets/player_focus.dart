@@ -46,6 +46,9 @@ class PlayerFocus extends StatelessWidget {
   Widget build(BuildContext context) {
     return Focus(
       autofocus: true,
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) _onFocusLost();
+      },
       onKeyEvent: (node, event) {
         final handled = _handleKey(context, event);
         if (handled || _shouldHandle(event.logicalKey)) {
@@ -55,6 +58,19 @@ class PlayerFocus extends StatelessWidget {
       },
       child: child,
     );
+  }
+
+  /// A key held as the player loses focus, as Enter opens the danmaku page
+  /// or a page is pushed over the player, comes up there, not here: stop
+  /// what it repeats, and leave the steps of a held back key without the
+  /// seek its release makes, even if the release comes back here.
+  void _onFocusLost() {
+    plPlayerController.cancelLongPressTimer();
+    if (plPlayerController.backKeyHeld) {
+      plPlayerController
+        ..backKeyHeld = false
+        ..isSeeking.value = false;
+    }
   }
 
   bool get isFullScreen => plPlayerController.isFullScreen.value;
@@ -136,14 +152,17 @@ class PlayerFocus extends StatelessWidget {
         if (event is KeyDownEvent) {
           if (hasPlayer) {
             plPlayerController
+              ..backKeyHeld = true
               ..longPressTimer?.cancel()
               ..longPressTimer = Timer.periodic(
                 const Duration(milliseconds: 200),
                 plPlayerController.multiBackwardStart,
               );
           }
-        } else if (event is KeyUpEvent) {
-          plPlayerController.cancelLongPressTimer();
+        } else if (event is KeyUpEvent && plPlayerController.backKeyHeld) {
+          plPlayerController
+            ..backKeyHeld = false
+            ..cancelLongPressTimer();
           if (hasPlayer) {
             plPlayerController.multiBackwardEnd();
           }
