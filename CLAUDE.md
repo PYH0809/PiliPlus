@@ -98,6 +98,7 @@ Module notes: `lib/common/widgets/liquid_glass/CLAUDE.md`.
 
 | Workflow | Runs on | Notes |
 | -------- | ------- | ----- |
+| `check.yml` | Every PR and push to main | `flutter analyze` (0 errors, 0 warnings), `flutter test`, the glass tests again with `--enable-impeller`, and a release dev APK built with the debug key, which compiles `android/` and runs R8. Needs no secrets |
 | `build.yml` | manual | Platforms are inputs; Android signs with the `SIGN_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` secrets, then checks each APK with `apksigner` and logs its SHA-256 |
 | `ai_review.yml` | The owner's PRs out of draft, each push; anyone's PR by hand, with a PR number and a model | Codex reviews in Chinese through OpenRouter (`OPENROUTER_API_KEY`); the `AI_REVIEW_MODEL` variable picks the model. The footer gives the tokens and an estimated cost. Never blocks merging |
 
