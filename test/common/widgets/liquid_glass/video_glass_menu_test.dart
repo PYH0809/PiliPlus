@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass_menu.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
@@ -42,6 +44,33 @@ Future<void> _open(WidgetTester tester, Widget button) async {
   await tester.tap(find.text('1080P'));
   await tester.pumpAndSettle();
 }
+
+/// How far the card has eased in, its glass's own [VideoGlass.t] or, on the
+/// move, the fade of the image it is drawn from.
+double _card(WidgetTester tester) {
+  final menu = find.byType(VideoGlassMenu);
+  final glass = find.descendant(of: menu, matching: find.byType(VideoGlass));
+  final pane = tester.widgetList<VideoGlass>(glass).firstWhere((g) => !g.bare);
+  final growing = find.ancestor(
+    of: find.byWidget(pane),
+    matching: find.byWidgetPredicate(
+      (widget) => widget.runtimeType.toString() == '_Growing',
+    ),
+  );
+  return pane.t * ((tester.widget(growing.first) as dynamic).opacity as double);
+}
+
+/// The fade the rows take with the card.
+double _rows(WidgetTester tester) =>
+    (tester.widget(
+          find.descendant(
+            of: find.byType(VideoGlassMenu),
+            matching: find.byWidgetPredicate(
+              (widget) => widget.runtimeType.toString() == '_GrowingRows',
+            ),
+          ),
+        ) as dynamic).opacity
+        as double;
 
 void main() {
   late Directory tempDir;
@@ -164,7 +193,6 @@ void main() {
     await tester.pump();
 
     final menu = find.byType(VideoGlassMenu);
-    final glass = find.descendant(of: menu, matching: find.byType(VideoGlass));
     var ms = 0;
     var goneBeforeRoute = false;
     // Frame by frame through the route's return, 500 ms.
@@ -172,12 +200,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       ms += 16;
       if (menu.evaluate().isEmpty) break;
-      final t = tester.widget<VideoGlass>(glass).t;
-      final rows = tester
-          .widget<Opacity>(
-            find.descendant(of: glass, matching: find.byType(Opacity)).first,
-          )
-          .opacity;
+      final t = _card(tester);
+      final rows = _rows(tester);
       // Not held still, as Material's curve holds the route at first.
       if (ms <= 32) expect(t, lessThan(1), reason: 'at $ms ms');
       if (t > 0) {
@@ -209,19 +233,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 60));
 
     final menu = find.byType(VideoGlassMenu);
-    double rows() => tester
-        .widget<Opacity>(
-          find
-              .descendant(
-                of: find.descendant(
-                  of: menu,
-                  matching: find.byType(VideoGlass),
-                ),
-                matching: find.byType(Opacity),
-              )
-              .first,
-        )
-        .opacity;
+    double rows() => _rows(tester);
     var last = rows();
     expect(last, lessThan(1));
 
@@ -233,14 +245,98 @@ void main() {
       if (menu.evaluate().isEmpty) break;
       expect(rows(), lessThanOrEqualTo(last));
       last = rows();
-      final glass = find.descendant(
-        of: menu,
-        matching: find.byType(VideoGlass),
-      );
-      if (tester.widget<VideoGlass>(glass).t == 0) goneBeforeRoute = true;
+      if (_card(tester) == 0) goneBeforeRoute = true;
     }
     // Not left to follow its opening curve back till the route ends.
     expect(goneBeforeRoute, isTrue);
+  });
+
+  testWidgets('drawn from an image as it grows, each row still fades in on '
+      'Material\'s own time, one after another', (tester) async {
+    final shot = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: shot,
+        child: MaterialApp(
+          theme: GlassSurfaces.themed(ThemeData()),
+          home: Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: VideoGlassMenus(
+                child: Builder(
+                  builder: (context) => Theme(
+                    data: VideoGlass.controlsTheme(Theme.of(context)),
+                    child: PopupMenuButton<int>(
+                      itemBuilder: (_) => [
+                        for (var i = 1; i <= 4; i++)
+                          PopupMenuItem(value: i, child: Text('$i$i$i$i')),
+                      ],
+                      child: const Text('1.0X'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('1.0X'));
+    await tester.pump();
+    // Most of the way open, the last rows still coming in.
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 35));
+    }
+    final rows = tester
+        .renderObjectList<RenderAnimatedOpacity>(
+          find.descendant(
+            of: find.byType(VideoGlassMenu),
+            matching: find.byType(FadeTransition),
+          ),
+        )
+        .toList();
+    expect(rows, hasLength(4));
+    final fades = [for (final row in rows) row.opacity.value];
+    expect(fades.first, 1);
+    expect(fades.last, lessThan(0.6));
+
+    // How bright each row's text is drawn over the card: its brightest
+    // pixel, less the card's beside it.
+    final brightness = await tester.runAsync(() async {
+      final boundary =
+          shot.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage();
+      final bytes = (await image.toByteData())!;
+      double contrast(Rect rect) {
+        var most = 0;
+        var least = 255;
+        final around = rect.inflate(4);
+        for (var y = around.top.ceil(); y < around.bottom; y++) {
+          for (var x = around.left.ceil(); x < around.right; x++) {
+            final green = bytes.getUint8((y * image.width + x) * 4 + 1);
+            most = math.max(most, green);
+            least = math.min(least, green);
+          }
+        }
+        return (most - least) / 255;
+      }
+
+      return [
+        for (var i = 1; i <= 4; i++)
+          contrast(tester.getRect(find.text('$i$i$i$i'))),
+      ];
+    });
+    // Each row as bright as Material's fade has it: the last ones dimmer,
+    // not all one fade.
+    for (var i = 1; i < 4; i++) {
+      expect(
+        brightness![i],
+        closeTo(brightness[0] * fades[i], 0.06),
+        reason: 'row ${i + 1} at its fade ${fades[i]}',
+      );
+    }
+    expect(brightness![0], greaterThan(0.5));
+    await tester.pumpAndSettle();
   });
 
   group('the player\'s box', () {
@@ -305,6 +401,68 @@ void main() {
     testWidgets('a menu on the player draws its video', (tester) async {
       await openOnPlayer(tester, 600);
       expect(drawsVideo(), findsOneWidget);
+    });
+
+    testWidgets('on the move the card runs no filter and fades no layer, '
+        'drawn from images of it at rest, and stands on live glass once '
+        'grown', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: GlassSurfaces.themed(ThemeData()),
+          home: Scaffold(
+            backgroundColor: Colors.black,
+            body: Stack(
+              children: [
+                // The video, a texture under the player's box.
+                Positioned.fill(
+                  child: SizedBox.expand(
+                    key: player,
+                    child: const Texture(textureId: 1),
+                  ),
+                ),
+                Align(
+                  alignment: const Alignment(0.6, 0.8),
+                  child: VideoGlassMenus(child: _qualityButton()),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      // Filters, which take offscreen passes, and layers the rows fade on.
+      Iterable<Layer> filters() => tester.layers.where(
+        (layer) => layer is ImageFilterLayer || layer is BackdropFilterLayer,
+      );
+      Iterable<Layer> fades() => tester.layers.where(
+        (layer) =>
+            layer is OpacityLayer &&
+            layer.alpha != null &&
+            layer.alpha! > 0 &&
+            layer.alpha! < 255,
+      );
+
+      await tester.tap(find.text('1080P'));
+      await tester.pump();
+      // Most of the way open, the rows coming in one after another.
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 30));
+        expect(filters(), isEmpty, reason: 'opening, frame $i');
+        expect(fades(), isEmpty, reason: 'opening, frame $i');
+      }
+      await tester.pumpAndSettle();
+      expect(filters(), isNotEmpty);
+      expect(find.text('720P 准高清'), findsOneWidget);
+
+      // Away from the menu, as a tap outside closes it.
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pump();
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 30));
+        expect(filters(), isEmpty, reason: 'closing, frame $i');
+        expect(fades(), isEmpty, reason: 'closing, frame $i');
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(VideoGlassMenu), findsNothing);
     });
 
     testWidgets('a menu reaching past a small player reads the screen, the '
@@ -433,16 +591,19 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final grow = tester.widget<Transform>(
-      find
-          .descendant(
-            of: find.byType(VideoGlassMenu),
-            matching: find.byType(Transform),
-          )
-          .first,
+    final growing = tester.widgetList(
+      find.descendant(
+        of: find.byType(VideoGlassMenu),
+        matching: find.byWidgetPredicate(
+          (widget) => widget.runtimeType.toString().startsWith('_Growing'),
+        ),
+      ),
     );
-    // Its x scale: Transform.scale leaves z at 1.
-    expect(grow.transform.storage[0], 1);
+    expect(growing, isNotEmpty);
+    for (final widget in growing) {
+      expect((widget as dynamic).scale, 1);
+    }
+    expect(_card(tester), 1);
     await tester.pumpAndSettle();
   });
 }

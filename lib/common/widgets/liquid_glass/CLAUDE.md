@@ -29,7 +29,10 @@ turns on every glass part. It only takes effect after a restart.
   player's edge gets new offscreen textures every frame. The snapshot is taken as a slide sets off and the bar
   drawn live the frame after it lands, both while it stands still, so over the 100 ms the glass shows the video as
   it was. A pane inside a snapshot must draw the video again (`VideoGlassSource`): a backdrop filter there reads
-  nothing.
+  nothing. A popup menu over the video (`VideoGlassMenu`) grows and shrinks the same way: its frosted card is drawn
+  from an image of it at rest, fading in over `VideoGlass.bare` (the video drawn again, unfrosted), and its rows from
+  an image too, each row's part taking the fade Material gives that row, as fading text needs a layer of its own.
+  It is live glass again once it stands still.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.

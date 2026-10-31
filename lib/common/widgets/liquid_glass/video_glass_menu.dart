@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'dart:ui' show lerpDouble;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_menu_morph.dart';
@@ -231,27 +232,61 @@ class _VideoGlassMenuState extends State<VideoGlassMenu>
             : _closing(from);
         // Closing, the rows fade with the card from where they stood, not
         // before it, so that no empty card goes on shrinking after them.
-        final rows = still || from == null || from.t <= 0
+        final rowsOpacity = still || from == null || from.t <= 0
             ? _rowsOpening(t)
             : _rowsOpening(from.t) * (t / from.t).clamp(0.0, 1.0);
+        final scale = lerpDouble(_fromScale, 1, t)!;
         final origin = _anchorIn(context);
-        final glass = VideoGlass(
-          radius: widget.radius,
-          t: t,
-          // A card this wide shows little of a bend, which costs a shader
-          // pass over it every frame.
-          refract: false,
-          style: style,
-          rim: rim.scale(t),
-          child: Opacity(opacity: rows, child: child),
-        );
-        return Transform.scale(
-          scale: lerpDouble(_fromScale, 1, t)!,
-          alignment: origin == null ? Alignment.center : Alignment.topLeft,
-          origin: origin,
-          child: _onPlayer(context)
-              ? VideoGlassSource.overPlayer(child: glass)
-              : glass,
+        final moving = !still && widget.animation.isAnimating;
+        final onPlayer = _onPlayer(context);
+        Widget overPlayer(Widget pane) =>
+            onPlayer ? VideoGlassSource.overPlayer(child: pane) : pane;
+        // On the move over the player, the card is drawn from an image of
+        // its glass at rest, fading in over the video drawn again under it:
+        // the glass grown and thinned frame by frame took offscreen passes
+        // of new sizes each frame. A backdrop filter, off the player or
+        // with none to draw from, reads nothing in an image.
+        final drawn = moving && onPlayer && VideoGlassSource.player != null;
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: _Growing(
+                scale: scale,
+                origin: origin,
+                child: drawn && t > 0
+                    ? overPlayer(VideoGlass.bare(radius: widget.radius))
+                    : null,
+              ),
+            ),
+            Positioned.fill(
+              child: _Growing(
+                scale: scale,
+                origin: origin,
+                opacity: drawn ? t : 1,
+                drawn: drawn,
+                child: overPlayer(
+                  VideoGlass(
+                    radius: widget.radius,
+                    t: drawn ? 1 : t,
+                    // A card this wide shows little of a bend, which costs a
+                    // shader pass over it every frame.
+                    refract: false,
+                    style: style,
+                    rim: drawn ? rim : rim.scale(t),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+            _GrowingRows(
+              scale: scale,
+              origin: origin,
+              opacity: rowsOpacity,
+              drawn: moving,
+              fades: widget.animation,
+              child: child,
+            ),
+          ],
         );
       },
       child: rows,
@@ -265,13 +300,386 @@ class _PressedRow extends CustomPainter {
   final Rect row;
   final Color color;
 
+  static RSuperellipse shape(Rect row) =>
+      RSuperellipse.fromRectAndRadius(row, const Radius.circular(16));
+
   @override
-  void paint(Canvas canvas, Size size) => canvas.drawRSuperellipse(
-    RSuperellipse.fromRectAndRadius(row, const Radius.circular(16)),
-    Paint()..color = color,
-  );
+  void paint(Canvas canvas, Size size) =>
+      canvas.drawRSuperellipse(shape(row), Paint()..color = color);
 
   @override
   bool shouldRepaint(_PressedRow oldDelegate) =>
       row != oldDelegate.row || color != oldDelegate.color;
+}
+
+/// Scales [child] about [origin], a point in its box, or its center, and
+/// fades it by [opacity]; while [drawn], from an image of it at rest, taken
+/// as it sets off.
+///
+/// An image only moves: the glass in it, grown and faded frame by frame,
+/// took offscreen passes of new sizes every frame, which Impeller allocates
+/// anew. The child draws as at rest into the image, unscaled, so that glass
+/// in it draws the video under where it will stand.
+class _Growing extends SingleChildRenderObjectWidget {
+  const _Growing({
+    required this.scale,
+    required this.origin,
+    this.opacity = 1,
+    this.drawn = false,
+    super.child,
+  });
+
+  final double scale;
+  final Offset? origin;
+  final double opacity;
+  final bool drawn;
+
+  @override
+  _RenderGrowing createRenderObject(BuildContext context) => _RenderGrowing(
+    scale: scale,
+    origin: origin,
+    opacity: opacity,
+    drawn: drawn,
+    devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+  );
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderGrowing renderObject) {
+    renderObject
+      ..scale = scale
+      ..origin = origin
+      ..opacity = opacity
+      ..drawn = drawn
+      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+  }
+}
+
+class _RenderGrowing extends RenderProxyBox {
+  _RenderGrowing({
+    required this._scale,
+    required this._origin,
+    required this._opacity,
+    required this._drawn,
+    required this._devicePixelRatio,
+  });
+
+  double _scale;
+  set scale(double value) {
+    if (_scale == value) return;
+    _scale = value;
+    markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
+
+  Offset? _origin;
+  set origin(Offset? value) {
+    if (_origin == value) return;
+    _origin = value;
+    markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
+
+  double _opacity;
+  set opacity(double value) {
+    if (_opacity == value) return;
+    _opacity = value;
+    markNeedsPaint();
+  }
+
+  bool _drawn;
+  set drawn(bool value) {
+    if (_drawn == value) return;
+    _drawn = value;
+    if (!value) _dropImage();
+    markNeedsPaint();
+  }
+
+  double _devicePixelRatio;
+  set devicePixelRatio(double value) {
+    if (_devicePixelRatio == value) return;
+    _devicePixelRatio = value;
+    _dropImage();
+    markNeedsPaint();
+  }
+
+  ui.Image? _image;
+  Size? _imageSize;
+  // A platform view, which no image holds, keeps the child live.
+  bool _unsnappable = false;
+  // Drawing the image: the child stands at rest, unscaled.
+  bool _atRest = false;
+  final _transformLayer = LayerHandle<TransformLayer>();
+  final _opacityLayer = LayerHandle<OpacityLayer>();
+
+  void _dropImage() {
+    _image?.dispose();
+    _image = null;
+    _imageSize = null;
+  }
+
+  @override
+  void detach() {
+    _dropImage();
+    super.detach();
+  }
+
+  @override
+  void dispose() {
+    _dropImage();
+    _transformLayer.layer = null;
+    _opacityLayer.layer = null;
+    super.dispose();
+  }
+
+  Matrix4 get _transform {
+    if (_atRest || _scale == 1) return Matrix4.identity();
+    final origin = _origin ?? size.center(Offset.zero);
+    return Matrix4.translationValues(origin.dx, origin.dy, 0)
+      ..scaleByDouble(_scale, _scale, 1, 1)
+      ..translateByDouble(-origin.dx, -origin.dy, 0, 1);
+  }
+
+  /// Paints what the image holds of [child], as at rest.
+  void paintImage(PaintingContext context, RenderBox child) =>
+      context.paintChild(child, Offset.zero);
+
+  ui.Image? _takeImage(RenderBox child) {
+    if (_unsnappable) return null;
+    final layer = OffsetLayer();
+    _atRest = true;
+    try {
+      // As SnapshotWidget paints its child to take it.
+      final context = PaintingContext(layer, Offset.zero & size);
+      paintImage(context, child);
+      // ignore: invalid_use_of_protected_member
+      context.stopRecordingIfNeeded();
+    } finally {
+      _atRest = false;
+    }
+    if (!layer.supportsRasterization()) {
+      layer.dispose();
+      _unsnappable = true;
+      return null;
+    }
+    final image = layer.toImageSync(
+      Offset.zero & size,
+      pixelRatio: _devicePixelRatio,
+    );
+    layer.dispose();
+    _imageSize = size;
+    return image;
+  }
+
+  /// Draws [image], the child's at rest, faded by [opacity].
+  void drawImage(Canvas canvas, ui.Image image, double opacity) =>
+      canvas.drawImageRect(
+        image,
+        Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+        Offset.zero & size,
+        Paint()
+          ..color = Color.fromRGBO(0, 0, 0, opacity)
+          ..filterQuality = FilterQuality.low,
+      );
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null || _opacity <= 0) {
+      _transformLayer.layer = null;
+      _opacityLayer.layer = null;
+      return;
+    }
+    if (_drawn) {
+      if (_imageSize != size) _dropImage();
+      if (_image ??= _takeImage(child) case final image?) {
+        _transformLayer.layer = null;
+        _opacityLayer.layer = null;
+        final canvas = context.canvas
+          ..save()
+          ..translate(offset.dx, offset.dy)
+          ..transform(_transform.storage);
+        drawImage(canvas, image, _opacity);
+        canvas.restore();
+        return;
+      }
+    }
+    void paintFaded(PaintingContext context, Offset offset) {
+      if (_opacity >= 1) {
+        _opacityLayer.layer = null;
+        context.paintChild(child, offset);
+        return;
+      }
+      _opacityLayer.layer = context.pushOpacity(
+        offset,
+        (_opacity * 255).round(),
+        (context, offset) => context.paintChild(child, offset),
+        oldLayer: _opacityLayer.layer,
+      );
+    }
+
+    if (_scale == 1) {
+      _transformLayer.layer = null;
+      paintFaded(context, offset);
+      return;
+    }
+    _transformLayer.layer = context.pushTransform(
+      needsCompositing,
+      offset,
+      _transform,
+      paintFaded,
+      oldLayer: _transformLayer.layer,
+    );
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      result.addWithPaintTransform(
+        transform: _transform,
+        position: position,
+        hitTest: (result, position) =>
+            super.hitTestChildren(result, position: position),
+      );
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) =>
+      transform.multiply(_transform);
+}
+
+/// [_Growing] for the menu's rows, which Material fades in and out one
+/// after another, each on a layer of its own while it fades, as text never
+/// takes a fade drawn straight: drawn, each row's part of the image takes
+/// its fade instead, and the platter under a pressed row is drawn live.
+class _GrowingRows extends _Growing {
+  const _GrowingRows({
+    required super.scale,
+    required super.origin,
+    super.opacity,
+    super.drawn,
+    required this.fades,
+    super.child,
+  });
+
+  /// What Material's fades of the rows run on, the menu's route: the rows'
+  /// parts of the image take them as it ticks, though the card stand still.
+  final Listenable fades;
+
+  @override
+  _RenderGrowingRows createRenderObject(BuildContext context) =>
+      _RenderGrowingRows(
+        scale: scale,
+        origin: origin,
+        opacity: opacity,
+        drawn: drawn,
+        fades: fades,
+        devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      );
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderGrowing renderObject) {
+    super.updateRenderObject(context, renderObject);
+    (renderObject as _RenderGrowingRows).fades = fades;
+  }
+}
+
+class _RenderGrowingRows extends _RenderGrowing {
+  _RenderGrowingRows({
+    required super.scale,
+    required super.origin,
+    required super.opacity,
+    required super.drawn,
+    required this._fades,
+    required super.devicePixelRatio,
+  });
+
+  Listenable _fades;
+  set fades(Listenable value) {
+    if (_fades == value) return;
+    if (attached) {
+      _fades.removeListener(_onFade);
+      value.addListener(_onFade);
+    }
+    _fades = value;
+  }
+
+  void _onFade() {
+    if (_drawn) markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _fades.addListener(_onFade);
+  }
+
+  @override
+  void detach() {
+    _fades.removeListener(_onFade);
+    super.detach();
+  }
+
+  // Each row fading in or out as Material has it, outermost first.
+  List<RenderAnimatedOpacity> _fadingRows(RenderObject rows) {
+    final found = <RenderAnimatedOpacity>[];
+    void visit(RenderObject child) {
+      if (child is RenderAnimatedOpacity) {
+        found.add(child);
+      } else {
+        child.visitChildren(visit);
+      }
+    }
+
+    rows.visitChildren(visit);
+    return found;
+  }
+
+  Rect _rectOf(RenderBox row, RenderBox rows) => MatrixUtils.transformRect(
+    row.getTransformTo(rows),
+    Offset.zero & row.size,
+  );
+
+  // The rows unfaded, which they are not as the menu sets off opening.
+  @override
+  void paintImage(PaintingContext context, RenderBox child) {
+    final fading = _fadingRows(child);
+    if (fading.isEmpty) return super.paintImage(context, child);
+    for (final row in fading) {
+      if (row.child case final RenderBox content) {
+        context.paintChild(content, _rectOf(row, child).topLeft);
+      }
+    }
+  }
+
+  @override
+  void drawImage(Canvas canvas, ui.Image image, double opacity) {
+    final child = this.child!;
+    final fading = _fadingRows(child);
+    if (fading.isEmpty) return super.drawImage(canvas, image, opacity);
+    if (child case RenderCustomPaint(
+      painter: _PressedRow(:final row, :final color),
+    )) {
+      canvas.drawRSuperellipse(
+        _PressedRow.shape(row),
+        Paint()..color = color.withValues(alpha: color.a * opacity),
+      );
+    }
+    final bounds = Offset.zero & size;
+    final paint = Paint()..filterQuality = FilterQuality.low;
+    for (final row in fading) {
+      final alpha = opacity * row.opacity.value;
+      final rect = _rectOf(row, child).intersect(bounds);
+      if (alpha <= 0 || rect.isEmpty) continue;
+      final pixels = Rect.fromLTRB(
+        rect.left * _devicePixelRatio,
+        rect.top * _devicePixelRatio,
+        rect.right * _devicePixelRatio,
+        rect.bottom * _devicePixelRatio,
+      );
+      canvas.drawImageRect(
+        image,
+        pixels,
+        rect,
+        paint..color = Color.fromRGBO(0, 0, 0, alpha.clamp(0.0, 1.0)),
+      );
+    }
+  }
 }

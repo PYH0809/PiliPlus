@@ -70,7 +70,19 @@ class VideoGlass extends StatelessWidget {
     this.note = false,
     this.refract = true,
     this.child,
-  });
+  }) : bare = false;
+
+  /// Only the video under the pane, drawn again as it is: as the glass shows
+  /// it eased out to nothing, but covering, as the glass does, what lies
+  /// between it and the video, as the controls. Off the video it draws
+  /// nothing.
+  const VideoGlass.bare({super.key, required double this.radius, this.child})
+    : t = 1,
+      style = null,
+      rim = null,
+      note = false,
+      refract = false,
+      bare = true;
 
   /// A pane as round as it is short.
   const VideoGlass.capsule({
@@ -81,7 +93,8 @@ class VideoGlass extends StatelessWidget {
     this.note = false,
     this.refract = true,
     this.child,
-  }) : radius = null;
+  }) : radius = null,
+       bare = false;
 
   /// A disc [size] across, [child] at its center.
   VideoGlass.circle({
@@ -94,6 +107,7 @@ class VideoGlass extends StatelessWidget {
     this.refract = true,
     Widget? child,
   }) : radius = null,
+       bare = false,
        child = SizedBox.square(
          dimension: size,
          child: Center(child: child),
@@ -112,6 +126,9 @@ class VideoGlass extends StatelessWidget {
   /// Whether the pane may bend what lies under it. A thick pane, as a
   /// panel's, shows little of the bending, which over a wide pane costs much.
   final bool refract;
+
+  /// Whether the pane only draws the video again, as [VideoGlass.bare].
+  final bool bare;
   final Widget? child;
 
   /// Replaces a button's fill with the glass, keeping its focus and
@@ -214,6 +231,7 @@ class VideoGlass extends StatelessWidget {
       backdropKey: BackdropGroup.of(context)?.backdropKey,
       source: VideoGlassSource.of(context)?.video,
       changes: VideoGlassSource.of(context)?.changes,
+      bare: bare,
       child: child,
     );
   }
@@ -297,6 +315,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
     required this.backdropKey,
     required this.source,
     required this.changes,
+    required this.bare,
     super.child,
   });
 
@@ -310,6 +329,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
   final BackdropKey? backdropKey;
   final GlobalKey? source;
   final Listenable? changes;
+  final bool bare;
 
   @override
   _RenderVideoGlass createRenderObject(BuildContext context) =>
@@ -324,6 +344,7 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
         backdropKey: backdropKey,
         source: source,
         changes: changes,
+        bare: bare,
       );
 
   @override
@@ -341,7 +362,8 @@ class _VideoGlassPane extends SingleChildRenderObjectWidget {
       ..screenSize = screenSize
       ..backdropKey = backdropKey
       ..source = source
-      ..changes = changes;
+      ..changes = changes
+      ..bare = bare;
   }
 }
 
@@ -357,7 +379,15 @@ class _RenderVideoGlass extends RenderProxyBox {
     required this._backdropKey,
     required this._source,
     required this._changes,
+    required this._bare,
   });
+
+  bool _bare;
+  set bare(bool value) {
+    if (_bare == value) return;
+    _bare = value;
+    markNeedsPaint();
+  }
 
   Listenable? _changes;
   set changes(Listenable? value) {
@@ -583,6 +613,13 @@ class _RenderVideoGlass extends RenderProxyBox {
       super.paint(context, offset);
       return;
     }
+    if (_bare) {
+      _dropLayers();
+      _placed = null;
+      _videoAt = null;
+      super.paint(context, offset);
+      return;
+    }
     if (!_filters || _source != null) {
       // No backdrop to read: the tint thickens to stand in for the frost,
       // as LiquidGlass's does without shader filters.
@@ -695,6 +732,14 @@ class _RenderVideoGlass extends RenderProxyBox {
         // A glass host, as a menu's over the player, replays what lies
         // behind it but never sees the texture: it leaves this out.
         final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
+        if (_bare) {
+          _bend.layer = null;
+          _blur.layer = null;
+          _drawUp.layer = null;
+          _drawDown.layer = null;
+          context.pushLayer(unseen, paintVideo, offset);
+          return;
+        }
         // The shader bends the copy, its pixels starting at the pane's
         // corner, as its layer covers the pane alone, and frosts it as it
         // samples: the style's little frost costs it less than a blur's
