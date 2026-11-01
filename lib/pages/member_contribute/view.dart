@@ -1,6 +1,7 @@
 import 'package:PiliPlus/common/widgets/hit_test.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
+import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/models/common/member/contribute_type.dart';
 import 'package:PiliPlus/models_new/space/space/tab2.dart';
 import 'package:PiliPlus/pages/member_article/view.dart';
@@ -61,8 +62,7 @@ class _MemberContributeState extends State<MemberContribute>
         ? GlassCategoryTabs(
             controller: _controller.tabController!,
             labels: [for (final item in _controller.items!) item.title ?? ''],
-            child: TabBarView(
-              physics: const NeverScrollableScrollPhysics(),
+            child: tabBarView(
               controller: _controller.tabController,
               children: _controller.items!.map(_getPageFromType).toList(),
             ),
@@ -103,8 +103,7 @@ class _MemberContributeState extends State<MemberContribute>
                 ),
               ),
               Expanded(
-                child: TabBarView(
-                  physics: const NeverScrollableScrollPhysics(),
+                child: tabBarView(
                   controller: _controller.tabController,
                   children: _controller.items!.map(_getPageFromType).toList(),
                 ),

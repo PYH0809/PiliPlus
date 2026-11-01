@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/pages/fav/pgc/child_view.dart';
 import 'package:PiliPlus/pages/fav/pgc/controller.dart';
 import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
@@ -101,9 +102,8 @@ class _FavPgcPageState extends State<FavPgcPage>
           ],
         ),
         Expanded(
-          child: TabBarView(
+          child: tabBarView(
             controller: _tabController,
-            physics: const NeverScrollableScrollPhysics(),
             children: List.generate(
               3,
               (index) => FavPgcChildPage(

@@ -1,6 +1,7 @@
 import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_fab.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
+import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/models/common/pgc_review_type.dart';
 import 'package:PiliPlus/pages/pgc_review/child/controller.dart';
 import 'package:PiliPlus/pages/pgc_review/child/view.dart';
@@ -15,10 +16,15 @@ class PgcReviewPage extends StatefulWidget {
     super.key,
     required this.name,
     required this.mediaId,
+    this.isDxAllowed,
   });
 
   final String name;
   final dynamic mediaId;
+
+  /// Where across the reviews a swipe may turn their tabs: the panel this
+  /// shows on keeps its edges for closing.
+  final bool Function(double dx)? isDxAllowed;
 
   @override
   State<PgcReviewPage> createState() => _PgcReviewPageState();
@@ -90,9 +96,9 @@ class _PgcReviewPageState extends State<PgcReviewPage>
             },
           ),
           Expanded(
-            child: TabBarView(
+            child: tabBarView(
               controller: _tabController,
-              physics: const NeverScrollableScrollPhysics(),
+              isDxAllowed: widget.isDxAllowed,
               children: PgcReviewType.values
                   .map(
                     (e) => PgcReviewChildPage(
