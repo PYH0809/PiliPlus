@@ -6,7 +6,6 @@ import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/dyn_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
-import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
@@ -17,7 +16,7 @@ import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart'
     show NoOverscrollIndicator;
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
-    show ReloadScrollPhysics, platformAlwaysClampingPhysics;
+    show ReloadScrollPhysics, platformAlwaysClampingPhysics, tabBarView;
 import 'package:PiliPlus/common/widgets/sliver/sliver_floating_header.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_to_box_adapter.dart';
 import 'package:PiliPlus/common/widgets/tap_region_surface.dart';
@@ -403,12 +402,9 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
       reply = refreshIndicator(onRefresh: controller.onRefresh, child: reply);
     }
 
-    final child = TabBarView(
+    final child = tabBarView(
       controller: tabController,
       hitTestBehavior: .translucent,
-      physics: const NeverScrollableScrollPhysics(),
-      horizontalDragGestureRecognizer:
-          CustomHorizontalDragGestureRecognizer.new,
       children: DynType.values
           .map(
             (e) => switch (e) {

@@ -103,6 +103,7 @@ class _IntroDetailState extends State<PgcIntroPanel>
         PgcReviewPage(
           name: widget.item.title!,
           mediaId: widget.item.mediaId,
+          isDxAllowed: isDxAllowed,
         ),
       ],
     );

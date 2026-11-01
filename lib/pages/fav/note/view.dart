@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/pages/fav/note/child_view.dart';
 import 'package:PiliPlus/pages/fav/note/controller.dart';
 import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
@@ -108,9 +109,8 @@ class _FavNotePageState extends State<FavNotePage>
           ],
         ),
         Expanded(
-          child: TabBarView(
+          child: tabBarView(
             controller: _tabController,
-            physics: const NeverScrollableScrollPhysics(),
             children: const [
               FavNoteChildPage(isPublish: false),
               FavNoteChildPage(isPublish: true),
