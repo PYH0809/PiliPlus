@@ -123,7 +123,7 @@ void main() {
 
     testWidgets('跳到底部 and 跳到顶部 scroll the list', (tester) async {
       await _pump(tester, _panel());
-      // The list scrolls on the primary scroll controller, so read its own.
+      // The list's own position, as each tab's list has one.
       ScrollPosition list() => tester
           .state<ScrollableState>(
             find
@@ -139,7 +139,9 @@ void main() {
       expect(list().pixels, greaterThan(1000));
 
       await _pick(tester, '跳到顶部');
-      expect(list().pixels, 0);
+      // Back to the first row, at the top.
+      expect(list().pixels, lessThan(112));
+      expect(find.text('P1 第1集').hitTestable(), findsOneWidget);
     });
 
     testWidgets('倒序显示 turns the list over and shows a check after', (

@@ -1514,7 +1514,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     : const Offset(0.0, 0.8),
                 child: Obx(
                   () => _indicator(
-                    visible: plPlayerController.isSeeking.value,
+                    visible:
+                        plPlayerController.isSeeking.value &&
+                        plPlayerController.hoverDx == null,
                     radius: 64,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -1671,6 +1673,7 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                         BottomControl(
                           maxWidth: maxWidth,
                           isFullScreen: isFullScreen,
+                          animCtr: _animationController,
                           controller: plPlayerController,
                           videoDetailController: videoDetailController,
                           buildBottomControl: () => buildBottomControl(

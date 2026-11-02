@@ -69,7 +69,7 @@ void main() {
         home: Scaffold(
           body: SectionPanel(
             pgcController: pgc,
-            showEpisodes: ({required type}) {},
+            showEpisodes: ({required type, episodeType}) {},
             onChangeEpisode: (
               BaseEpisodeItem episode, {
               PgcEpisodeType? episodeType,
