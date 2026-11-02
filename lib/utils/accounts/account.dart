@@ -1,14 +1,19 @@
+import 'dart:async' show FutureOr;
+
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/grpc_headers.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
+import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart' show Options;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:hive_ce/hive.dart';
 
 sealed class Account {
@@ -230,7 +235,20 @@ class AnonymousAccount extends Account {
     } catch (_) {
       cookieJar.setBuvid3();
     }
+    // The web cookies were set from the jar at the start, before this filled
+    // it; not over those of an account logged in meanwhile.
+    if (Accounts.main == this) {
+      try {
+        await syncWebCookie(this);
+      } catch (e) {
+        if (kDebugMode) debugPrint('failed to sync web cookies: $e');
+      }
+    }
   }
+
+  @visibleForTesting
+  static FutureOr<void> Function(Account account) syncWebCookie =
+      LoginUtils.setWebCookie;
 
   factory AnonymousAccount() => _instance;
 
