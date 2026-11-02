@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/accounts/grpc_headers.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
@@ -217,7 +218,13 @@ class AnonymousAccount extends Account {
     try {
       final res = await Request().get(
         '/x/frontend/finger/spi',
-        options: Options(extra: {'account': const NoAccount()}),
+        // Without a toast on failure: one is made up then.
+        options: Options(
+          extra: const {
+            'account': NoAccount(),
+            AccountManager.silent: true,
+          },
+        ),
       );
       // A later one, as after a login, has it: an answer coming after that
       // one's would swap the cookies back.

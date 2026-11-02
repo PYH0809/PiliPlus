@@ -8,6 +8,7 @@ import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
@@ -27,6 +28,9 @@ class _SpiAdapter implements HttpClientAdapter {
   /// Answers the SPI with an error.
   bool fail = false;
 
+  /// Whether each SPI request asked to go without a toast on failure.
+  final silent = <bool>[];
+
   /// The paths of the other requests.
   final others = <String>[];
 
@@ -41,6 +45,7 @@ class _SpiAdapter implements HttpClientAdapter {
       return ResponseBody.fromString('{}', 200);
     }
     requests++;
+    silent.add(options.extra[AccountManager.silent] == true);
     final n = requests;
     await hold?.future;
     if (holdEach != null) await (holdEach![n] = Completer()).future;
@@ -180,6 +185,9 @@ void main() {
 
     expect(_cookie(account.cookieJar, 'buvid3'), isNotNull);
     expect(adapter.others, contains(Api.activateBuvidApi));
+    // Failing, the fetch shows no toast: a buvid is made up instead.
+    expect(adapter.silent, isNotEmpty);
+    expect(adapter.silent, everyElement(isTrue));
     expect(account.activated, isTrue);
   });
 
