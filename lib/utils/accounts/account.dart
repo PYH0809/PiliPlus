@@ -195,8 +195,12 @@ class AnonymousAccount extends Account {
   @override
   Future<void> delete() {
     grpcHeaders['x-bili-fawkes-req-bin'] = GrpcHeaders.fawkes;
-    // As at the start: the server's buvid, made up here only if that fails.
-    return cookieJar.deleteAll().whenComplete(_getBuvid);
+    // One made up at once, so that a login waiting on this goes on; the
+    // server's comes after it, as at the start.
+    return cookieJar.deleteAll().whenComplete(() {
+      cookieJar.setBuvid3();
+      _getBuvid();
+    });
   }
 
   static final _instance = AnonymousAccount._();
