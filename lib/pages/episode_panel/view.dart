@@ -133,10 +133,6 @@ class _EpisodePanelState extends State<EpisodePanel>
   }
 
   void _refresh([_]) {
-    if (!_isUgc && _isSidePanel && _pgcController.episodeType != .episode) {
-      return;
-    }
-
     if (!mounted) return;
     if (_seasonGone) {
       // Nothing it lists plays now: its current episode is let go of, and
@@ -146,6 +142,13 @@ class _EpisodePanelState extends State<EpisodePanel>
     }
     final tabIndexChanged = _syncTab(_tabIndex(), syncEpisodes: true);
     setState(() {});
+
+    // The side panel lists the episodes: while a section's plays, none of
+    // them does, and it has nothing to jump to. It still follows the season
+    // and lets go of the episode that played.
+    if (!_isUgc && _isSidePanel && _pgcController.episodeType != .episode) {
+      return;
+    }
     _jumpToCurrIfNeeded(tabIndexChanged);
   }
 
