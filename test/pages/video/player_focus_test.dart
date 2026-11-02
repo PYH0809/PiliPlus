@@ -49,6 +49,12 @@ class _Player implements PlPlayerController {
   @override
   final seekPosition = RxInt(0);
 
+  @override
+  double? hoverDx;
+
+  @override
+  final showPreview = false.obs;
+
   int steps = 0;
   final seeks = <int>[];
 
@@ -131,6 +137,25 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
   }
+
+  testWidgets('a back key going down ends a hover on the progress bar, so '
+      'the seek is the key\'s', (tester) async {
+    await pumpPlayer(tester);
+    // Hovered three quarters along, its preview up.
+    player
+      ..hoverDx = 300
+      ..seekPosition.value = 450
+      ..showPreview.value = true;
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+    expect(player.hoverDx, isNull);
+    expect(player.showPreview.value, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+    // Back from where playback is, not from the hovered time.
+    expect(player.seeks.single, lessThan(60));
+  });
 
   testWidgets('a held back key steps back and seeks there as it comes up', (
     tester,

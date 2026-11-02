@@ -41,6 +41,8 @@ class _Player extends Fake implements PlPlayerController {
   bool get isFileSource => false;
   @override
   double? hoverDx;
+  @override
+  bool backKeyHeld = false;
 
   @override
   void updatePreviewIndex(int seconds) {}
@@ -152,6 +154,7 @@ void main() {
     await pump(tester);
     // As multiBackwardStart has it, a step back from 30 s.
     player
+      ..backKeyHeld = true
       ..isSeeking.value = true
       ..seekPosition.value = 20;
     await hover(tester, await mouse(tester), 0.8);

@@ -57,7 +57,11 @@ class BottomControl extends StatelessWidget {
   void _onHover(double dx, int seconds, [double barShift = 0]) {
     // Seeking otherwise, as with the back key held, seekPosition is where it
     // goes to.
-    if (animCtr.isAnimating || controller.isSeeking.value) return;
+    if (animCtr.isAnimating ||
+        controller.isSeeking.value ||
+        controller.backKeyHeld) {
+      return;
+    }
     controller
       ..hoverDx = dx + barShift
       ..seekPosition.value = seconds
