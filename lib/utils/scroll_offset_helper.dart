@@ -60,9 +60,14 @@ double calcItemHeight(ugc.BaseEpisodeItem episode) {
   required int index,
   required int itemCount,
   double extent = _kItemHeight,
+  // The list's padding: a row brought to the top keeps the top padding above
+  // it, and near the end the jump stops where the list does, after its
+  // bottom padding, instead of short of it with the last row cut off.
+  double topPadding = _kTopPadding,
+  double bottomPadding = _kBottomPadding,
 }) {
   final offset = extent * index;
-  final remain = (itemCount - index - 1) * extent;
+  final remain = (itemCount - index - 1) * extent + topPadding + bottomPadding;
   return (offset, remain);
 }
 
