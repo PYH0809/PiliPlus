@@ -19,17 +19,28 @@ List<Part> _parts(int count) => [
     Part(cid: i, page: i, part: 'P$i 第$i集', duration: 60),
 ];
 
+/// A video playing its part at [current], counted from 0.
+class _Ugc extends UgcIntroController {
+  _Ugc(this.current);
+
+  final int current;
+
+  @override
+  int get partIndex => current;
+}
+
 /// The 分P panel as the video page opens it in its sheet: titled, with a way
 /// to close and to reverse the order it plays in.
 EpisodePanel _panel({
   bool isReversed = false,
   VoidCallback? onReverse,
   int count = 30,
+  int current = 0,
 }) => EpisodePanel(
   enableSlide: false,
   type: EpisodeType.part,
   isSidePanel: false,
-  introController: UgcIntroController()
+  introController: _Ugc(current)
     ..videoDetail.value = (VideoDetailData(
       aid: 1,
       bvid: 'BV1xx411c7mD',
@@ -123,7 +134,7 @@ void main() {
 
     testWidgets('跳到底部 and 跳到顶部 scroll the list', (tester) async {
       await _pump(tester, _panel());
-      // The list scrolls on the primary scroll controller, so read its own.
+      // The list's own position, as each tab's list has one.
       ScrollPosition list() => tester
           .state<ScrollableState>(
             find
@@ -139,7 +150,9 @@ void main() {
       expect(list().pixels, greaterThan(1000));
 
       await _pick(tester, '跳到顶部');
-      expect(list().pixels, 0);
+      // Back to the first row, at the top.
+      expect(list().pixels, lessThan(112));
+      expect(find.text('P1 第1集').hitTestable(), findsOneWidget);
     });
 
     testWidgets('倒序显示 turns the list over and shows a check after', (
@@ -237,6 +250,63 @@ void main() {
         tester.getTopLeft(find.text('P1 第1集')).dy,
         greaterThanOrEqualTo(_barBottom(tester)),
       );
+    });
+
+    testWidgets('reversed, 跳到顶部 and 跳到当前播放 leave their row below the '
+        'bar', (tester) async {
+      await _pump(tester, _panel(current: 19));
+      await _pick(tester, '倒序显示');
+
+      // The last part stands at the top of a list turned over.
+      await _pick(tester, '跳到顶部');
+      expect(
+        tester.getTopLeft(find.text('P30 第30集')).dy,
+        greaterThanOrEqualTo(_barBottom(tester)),
+      );
+
+      await _pick(tester, '跳到当前播放');
+      expect(
+        tester.getTopLeft(find.text('P20 第20集')).dy,
+        greaterThanOrEqualTo(_barBottom(tester)),
+      );
+    });
+
+    group('over a bottom safe area', () {
+      // As a phone's gesture bar: the list keeps clear of it at its end.
+      void inset(WidgetTester tester) =>
+          tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+
+      testWidgets('reversed, 跳到顶部 leaves the last row below the bar', (
+        tester,
+      ) async {
+        inset(tester);
+        await _pump(tester, _panel());
+        await _pick(tester, '倒序显示');
+        await _pick(tester, '跳到顶部');
+
+        expect(
+          tester.getTopLeft(find.text('P30 第30集')).dy,
+          greaterThanOrEqualTo(_barBottom(tester)),
+        );
+      });
+
+      testWidgets('跳到底部 goes all the way to the end', (tester) async {
+        inset(tester);
+        await _pump(tester, _panel());
+        await _pick(tester, '跳到底部');
+
+        final position = tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(CustomScrollView),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position;
+        expect(position.pixels, position.maxScrollExtent);
+      });
     });
 
     testWidgets('on the video\'s glass, as full screen, the bar stays plain', (

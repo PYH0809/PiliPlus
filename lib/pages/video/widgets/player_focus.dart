@@ -159,6 +159,14 @@ class PlayerFocus extends StatelessWidget {
       if (!plPlayerController.isLive) {
         if (event is KeyDownEvent) {
           if (hasPlayer) {
+            // The key takes the seek over from a hover on the progress bar:
+            // its time is where the key seeks to, and the bar and the seek
+            // note show it rather than the hover's.
+            if (plPlayerController.hoverDx != null) {
+              plPlayerController
+                ..hoverDx = null
+                ..showPreview.value = false;
+            }
             plPlayerController
               ..backKeyHeld = true
               ..longPressTimer?.cancel()
