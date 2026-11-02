@@ -238,6 +238,9 @@ class AnonymousAccount extends Account {
       }
     } catch (_) {
       cookieJar.setBuvid3();
+      // A made-up buvid is activated, as it was before the server gave one.
+      activated = false;
+      activateBuvid(this);
     }
     // The web cookies were set from the jar at the start, before this filled
     // it; not over those of an account logged in meanwhile.
@@ -249,6 +252,10 @@ class AnonymousAccount extends Account {
       }
     }
   }
+
+  @visibleForTesting
+  static Future<void> Function(Account account) activateBuvid =
+      Request.buvidActive;
 
   @visibleForTesting
   static FutureOr<void> Function(Account account) syncWebCookie =

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
@@ -20,6 +21,12 @@ class _SpiAdapter implements HttpClientAdapter {
   /// Holds the answers back until it completes.
   Completer<void>? hold;
 
+  /// Answers the SPI with an error.
+  bool fail = false;
+
+  /// The paths of the other requests.
+  final others = <String>[];
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -27,11 +34,21 @@ class _SpiAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     if (options.path != '/x/frontend/finger/spi') {
-      return ResponseBody.fromString('', 404);
+      others.add(options.path);
+      return ResponseBody.fromString('{}', 200);
     }
     requests++;
     final n = requests;
     await hold?.future;
+    if (fail) {
+      return ResponseBody.fromString(
+        jsonEncode({'code': -412, 'message': '请求被拦截'}),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
     return ResponseBody.fromString(
       jsonEncode({
         'code': 0,
@@ -65,6 +82,8 @@ void main() {
     GStorage.localCache = await Hive.openBox('localCache');
     Request();
     Request.dio.httpClientAdapter = adapter;
+    // Off for the other tests (flutter_test_config.dart), on here.
+    AnonymousAccount.activateBuvid = Request.buvidActive;
     AnonymousAccount.syncWebCookie = (account) => synced.add((
       account,
       _cookie(account.cookieJar, 'buvid3'),
@@ -73,7 +92,10 @@ void main() {
 
   setUp(() {
     synced.clear();
-    adapter.hold = null;
+    adapter
+      ..hold = null
+      ..fail = false
+      ..others.clear();
   });
 
   void logIn() {
@@ -143,4 +165,16 @@ void main() {
       expect(_cookie(account.cookieJar, 'buvid3'), 'b3-${requests + 1}');
     },
   );
+
+  test('without the server, the buvid made up is activated', () async {
+    final account = AnonymousAccount();
+    await pumpEventQueue();
+    adapter.fail = true;
+    await account.delete();
+    await pumpEventQueue();
+
+    expect(_cookie(account.cookieJar, 'buvid3'), isNotNull);
+    expect(adapter.others, contains(Api.activateBuvidApi));
+    expect(account.activated, isTrue);
+  });
 }
