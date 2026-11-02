@@ -147,6 +147,18 @@ void main() {
     expect(player.hoverDx, closeTo(x - plainBarLeft, 0.01));
   });
 
+  testWidgets('hovering while the back key is held leaves the time it steps '
+      'back to', (tester) async {
+    await pump(tester);
+    // As multiBackwardStart has it, a step back from 30 s.
+    player
+      ..isSeeking.value = true
+      ..seekPosition.value = 20;
+    await hover(tester, await mouse(tester), 0.8);
+    expect(player.seekPosition.value, 20);
+    expect(player.hoverDx, isNull);
+  });
+
   group('on glass', () {
     // Installing only ever turns glass on, so these come after the plain one.
     setUpAll(GlassSurfaces.install);
