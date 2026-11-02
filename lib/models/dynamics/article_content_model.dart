@@ -181,7 +181,8 @@ class Style {
   bool? strikethrough;
   String? fontLevel;
 
-  double get fontSize => _fontLevel2Size(fontLevel);
+  // Only a level the style sets: without one the word's own size stands.
+  double? get fontSize => fontLevel == null ? null : _fontLevel2Size(fontLevel);
 
   Style.fromJson(Map<String, dynamic> json) {
     bold = json['bold'];
