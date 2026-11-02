@@ -304,12 +304,14 @@ class _EpisodePanelState extends State<EpisodePanel>
       tabIndex = 0;
       episodes = _episodes;
     }
-    // As the side panel of a season with sections and no episodes.
-    if (episodes.isEmpty) return;
     final position = _positions[tabIndex];
     if (position == null || !position.hasContentDimensions) return;
     final isReversed = _isReversed[tabIndex];
     final itemIndex = index ?? (top! ^ isReversed ? 0 : episodes.length - 1);
+    // Nothing to jump to: what plays is not in the list, as a pv over the
+    // episodes, or the list is empty, as the side panel of a season with
+    // sections and no episodes.
+    if (itemIndex < 0 || itemIndex >= episodes.length) return;
 
     final (double height, double offset, double remain) = calcItemOffset(
       index: itemIndex,

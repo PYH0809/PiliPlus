@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/models/common/episode_panel_type.dart';
 import 'package:PiliPlus/models/common/pgc_episode_type.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart';
@@ -37,6 +38,10 @@ void main() {
     GStorage.setting = await Hive.openBox('setting');
     GStorage.userInfo = await Hive.openBox('userInfo');
   });
+
+  // The sheet's bar, plain.
+  setUp(() => GlassAppBar.debugEnabled = false);
+  tearDown(() => GlassAppBar.debugEnabled = null);
 
   tearDownAll(() async {
     await Hive.close();
@@ -86,5 +91,50 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: row);
     }
+  });
+
+  testWidgets('playing a pv, the episodes\' sheet has no current one to jump '
+      'to, and leaves 跳到当前播放 be', (tester) async {
+    final pgc =
+        _Pgc(
+            PgcInfoModel(
+              seasonId: 1,
+              episodes: [
+                for (var i = 1; i <= 3; i++)
+                  EpisodeItem(cid: 100 + i, title: '$i'),
+              ],
+              sections: [
+                Section(
+                  title: '预告',
+                  episodes: [EpisodeItem(cid: 11, title: 'PV')],
+                ),
+              ],
+            ),
+          )
+          // As the controller has it while a section's episode plays.
+          ..episodeIndex = -1
+          ..pvIndex = 0;
+
+    await tester.pumpWidget(
+      GetMaterialApp(
+        home: Scaffold(
+          body: EpisodePanel(
+            type: EpisodeType.pgc,
+            // The sheet the intro's 选集 opens, of the episodes.
+            episodeType: PgcEpisodeType.episode,
+            isSidePanel: false,
+            enableSlide: false,
+            introController: pgc,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('跳到当前播放'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 }
