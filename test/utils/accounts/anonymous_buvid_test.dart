@@ -21,6 +21,9 @@ class _SpiAdapter implements HttpClientAdapter {
   /// Holds the answers back until it completes.
   Completer<void>? hold;
 
+  /// Holds each answer back until its own completer, by request, completes.
+  Map<int, Completer<void>>? holdEach;
+
   /// Answers the SPI with an error.
   bool fail = false;
 
@@ -40,6 +43,7 @@ class _SpiAdapter implements HttpClientAdapter {
     requests++;
     final n = requests;
     await hold?.future;
+    if (holdEach != null) await (holdEach![n] = Completer()).future;
     if (fail) {
       return ResponseBody.fromString(
         jsonEncode({'code': -412, 'message': '请求被拦截'}),
@@ -94,6 +98,7 @@ void main() {
     synced.clear();
     adapter
       ..hold = null
+      ..holdEach = null
       ..fail = false
       ..others.clear();
   });
@@ -177,4 +182,26 @@ void main() {
     expect(adapter.others, contains(Api.activateBuvidApi));
     expect(account.activated, isTrue);
   });
+
+  test(
+    'an earlier fetch answering last leaves the later one\'s cookies be',
+    () async {
+      final account = AnonymousAccount();
+      await pumpEventQueue();
+      final held = adapter.holdEach = {};
+      final first = adapter.requests + 1;
+      await account.delete();
+      await pumpEventQueue();
+      await account.delete();
+      await pumpEventQueue();
+      expect(held.keys, [first, first + 1]);
+
+      held[first + 1]!.complete();
+      await pumpEventQueue();
+      held[first]!.complete();
+      await pumpEventQueue();
+
+      expect(_cookie(account.cookieJar, 'buvid3'), 'b3-${first + 1}');
+    },
+  );
 }

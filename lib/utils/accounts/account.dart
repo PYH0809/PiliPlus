@@ -209,12 +209,19 @@ class AnonymousAccount extends Account {
     _getBuvid();
   }
 
+  // Counts the fetches: only the latest one's answer is taken.
+  int _fetch = 0;
+
   Future<void> _getBuvid() async {
+    final fetch = ++_fetch;
     try {
       final res = await Request().get(
         '/x/frontend/finger/spi',
         options: Options(extra: {'account': const NoAccount()}),
       );
+      // A later one, as after a login, has it: an answer coming after that
+      // one's would swap the cookies back.
+      if (fetch != _fetch) return;
       final resData = res.data;
       if (resData['code'] == 0) {
         final data = resData['data'];
@@ -237,6 +244,7 @@ class AnonymousAccount extends Account {
         throw resData;
       }
     } catch (_) {
+      if (fetch != _fetch) return;
       cookieJar.setBuvid3();
       // A made-up buvid is activated, as it was before the server gave one.
       activated = false;
