@@ -84,6 +84,8 @@ class _PagePanelState extends State<PagePanel> {
   }
 
   void _jumpToCurrent([_, bool anim = false]) {
+    // Without its list, as on the side panel, it has nothing to scroll.
+    if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
     final scrollOffset = calcPageItemOffset(
       index: _index,
@@ -126,8 +128,6 @@ class _PagePanelState extends State<PagePanel> {
     if (dispose) return;
     if (!mounted) return;
     setState(() {});
-    // Without its list, as on the side panel, it has nothing to scroll.
-    if (!_scrollController.hasClients) return;
     if (bvidChanged) {
       _jumpToCurrent();
     } else {
