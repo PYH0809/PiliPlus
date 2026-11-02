@@ -226,9 +226,9 @@ class AnonymousAccount extends Account {
     if (fetch != _fetch) return;
     if (res case Success(response: (:final b3, :final b4))) {
       final bnut = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
-      (cookieJar.domainCookies['bilibili.com'] ??= {
-          '/': {},
-        })['/']!
+      // The domain can be there without its root path, as with a cookie of
+      // Path=/x come first.
+      ((cookieJar.domainCookies['bilibili.com'] ??= {})['/'] ??= {})
         ..['buvid3'] = SerializableCookie(
           Cookie('buvid3', b3)..setBiliDomain(),
         )
@@ -295,9 +295,8 @@ extension BiliCookieJar on DefaultCookieJar {
       [];
 
   void setBuvid3() {
-    (domainCookies['bilibili.com'] ??= {
-      '/': {},
-    })['/']!['buvid3'] ??= SerializableCookie(
+    ((domainCookies['bilibili.com'] ??= {})['/'] ??=
+        {})['buvid3'] ??= SerializableCookie(
       Cookie('buvid3', IdUtils.genBuvid3())..setBiliDomain(),
     );
   }

@@ -212,4 +212,25 @@ void main() {
       expect(_cookie(account.cookieJar, 'buvid3'), 'b3-${first + 1}');
     },
   );
+
+  for (final fail in [false, true]) {
+    test('with only a cookie of another path come first, the buvid is still '
+        '${fail ? 'made up' : 'taken from the server'}', () async {
+      final account = AnonymousAccount();
+      await pumpEventQueue();
+      final held = adapter.holdEach = {};
+      adapter.fail = fail;
+      await account.delete();
+      await pumpEventQueue();
+      // As a response's cookie of Path=/x lands before the SPI answers.
+      account.cookieJar.domainCookies['bilibili.com'] = {'/x': {}};
+
+      held.values.single.complete();
+      await pumpEventQueue();
+
+      final buvid3 = _cookie(account.cookieJar, 'buvid3');
+      expect(buvid3, isNotNull);
+      if (!fail) expect(buvid3, 'b3-${held.keys.single}');
+    });
+  }
 }
