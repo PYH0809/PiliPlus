@@ -252,16 +252,67 @@ void main() {
     expect(find.byType(EpisodePanel), findsNothing);
     expect(find.text('video'), findsOneWidget);
   });
+
+  testWidgets('跳到当前播放 from another section goes to what plays once the '
+      'tab is there, though the next one played meanwhile', (tester) async {
+    final ugc = _Ugc()
+      ..videoDetail.value = VideoDetailData(
+        aid: 7,
+        bvid: 'BV7',
+        cid: 700,
+        ugcSeason: UgcSeason(
+          id: 7,
+          sections: [
+            for (var s = 0; s < 2; s++)
+              SectionItem(
+                title: '第${s + 1}部',
+                episodes: [
+                  for (var i = 0; i < 15; i++) _episode(700 + s * 100 + i),
+                ],
+              ),
+          ],
+        ),
+      )
+      ..section = 1;
+    await pump(
+      tester,
+      EpisodePanel(
+        type: EpisodeType.season,
+        isSidePanel: false,
+        enableSlide: false,
+        introController: ugc,
+      ),
+    );
+    // Looking at the first section while the second plays.
+    await tester.tap(find.text('第1部'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('更多'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('跳到当前播放'));
+    // As the tab moves over, the next one plays, far down the list.
+    await tester.pump(const Duration(milliseconds: 100));
+    ugc.playing = 12;
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    ugc.indexNotifier.notifyListeners();
+    await tester.pumpAndSettle();
+
+    expect(find.text('EP812').hitTestable(), findsOneWidget);
+  });
 }
 
 /// Notes what is picked, in place of loading it, and plays the episode
-/// [playing] of its season.
+/// [playing] of its section [section].
 class _Ugc extends UgcIntroController {
   final picked = <int?>[];
   int playing = 0;
+  int section = 0;
 
   @override
   int get seasonIndex => playing;
+
+  @override
+  int get sectionIndex => section;
 
   @override
   Future<bool> onChangeEpisode(

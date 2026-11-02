@@ -300,6 +300,11 @@ class _EpisodePanelState extends State<EpisodePanel>
         _tabController!.animateTo(tabIndex);
         await Future.pause(const Duration(milliseconds: 225));
         if (!mounted || _seasonGone) return;
+        // Another may have begun playing as the tab moved over: what plays
+        // now, and in another section, the jump that began with it goes there.
+        if (_tabController!.index != _tabIndex()) return;
+        _jumpToIndex(index: _itemIndex());
+        return;
       }
     }
 

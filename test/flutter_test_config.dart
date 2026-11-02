@@ -7,5 +7,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   // buvid of its own and activates it, a request whose failure shows a toast
   // with no SmartDialog to show it. Tests of the account turn it back on.
   AnonymousAccount.activateBuvid = (_) async {};
+  // No web views either.
+  AnonymousAccount.syncWebCookie = (_) {};
   await testMain();
 }
