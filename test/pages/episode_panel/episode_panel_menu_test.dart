@@ -19,17 +19,28 @@ List<Part> _parts(int count) => [
     Part(cid: i, page: i, part: 'P$i 第$i集', duration: 60),
 ];
 
+/// A video playing its part at [current], counted from 0.
+class _Ugc extends UgcIntroController {
+  _Ugc(this.current);
+
+  final int current;
+
+  @override
+  int get partIndex => current;
+}
+
 /// The 分P panel as the video page opens it in its sheet: titled, with a way
 /// to close and to reverse the order it plays in.
 EpisodePanel _panel({
   bool isReversed = false,
   VoidCallback? onReverse,
   int count = 30,
+  int current = 0,
 }) => EpisodePanel(
   enableSlide: false,
   type: EpisodeType.part,
   isSidePanel: false,
-  introController: UgcIntroController()
+  introController: _Ugc(current)
     ..videoDetail.value = (VideoDetailData(
       aid: 1,
       bvid: 'BV1xx411c7mD',
@@ -237,6 +248,25 @@ void main() {
 
       expect(
         tester.getTopLeft(find.text('P1 第1集')).dy,
+        greaterThanOrEqualTo(_barBottom(tester)),
+      );
+    });
+
+    testWidgets('reversed, 跳到顶部 and 跳到当前播放 leave their row below the '
+        'bar', (tester) async {
+      await _pump(tester, _panel(current: 19));
+      await _pick(tester, '倒序显示');
+
+      // The last part stands at the top of a list turned over.
+      await _pick(tester, '跳到顶部');
+      expect(
+        tester.getTopLeft(find.text('P30 第30集')).dy,
+        greaterThanOrEqualTo(_barBottom(tester)),
+      );
+
+      await _pick(tester, '跳到当前播放');
+      expect(
+        tester.getTopLeft(find.text('P20 第20集')).dy,
         greaterThanOrEqualTo(_barBottom(tester)),
       );
     });

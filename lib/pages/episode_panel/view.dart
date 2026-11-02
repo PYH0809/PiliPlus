@@ -319,7 +319,9 @@ class _EpisodePanelState extends State<EpisodePanel>
       extent: height,
       offset: offset,
       remain: remain,
-      viewportDimension: position.viewportDimension,
+      // On glass the bar lies over the top of the list: a row brought to the
+      // top stands below it.
+      viewportDimension: position.viewportDimension - _barInset,
       isReversed: isReversed,
     );
     position.jumpTo(adjustOffset);
