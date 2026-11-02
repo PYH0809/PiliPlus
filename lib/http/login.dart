@@ -7,6 +7,7 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models_new/login_devices/data.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/accounts/account_manager/account_mgr.dart';
 import 'package:PiliPlus/utils/app_sign.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
@@ -28,6 +29,27 @@ abstract final class LoginHttp {
     'bili-http-engine': 'cronet',
     'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
   };
+
+  /// The anonymous device's buvid3 and buvid4.
+  static Future<LoadingState<({String b3, String b4})>> fingerSpi() async {
+    final res = await Request().get(
+      Api.fingerSpi,
+      // Without a toast on failure: the caller makes one up then.
+      options: Options(
+        extra: const {
+          'account': NoAccount(),
+          AccountManager.silent: true,
+        },
+      ),
+    );
+    if (res.data case {
+      'code': 0,
+      'data': {'b_3': final String b3, 'b_4': final String b4},
+    }) {
+      return Success((b3: b3, b4: b4));
+    }
+    return Error(res.data is Map ? res.data['message'] : null);
+  }
 
   @pragma('vm:notify-debugger-on-exception')
   static Future<LoadingState<({String authCode, String url})>>
