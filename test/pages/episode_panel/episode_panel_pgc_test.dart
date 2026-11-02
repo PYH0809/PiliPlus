@@ -77,5 +77,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.byTooltip('更多'), findsOneWidget);
+
+    // Its menu has nothing to jump to.
+    for (final row in ['跳到底部', '跳到顶部', '跳到当前播放']) {
+      await tester.tap(find.byTooltip('更多'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(row));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: row);
+    }
   });
 }

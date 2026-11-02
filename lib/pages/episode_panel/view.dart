@@ -304,6 +304,8 @@ class _EpisodePanelState extends State<EpisodePanel>
       tabIndex = 0;
       episodes = _episodes;
     }
+    // As the side panel of a season with sections and no episodes.
+    if (episodes.isEmpty) return;
     final position = _positions[tabIndex];
     if (position == null || !position.hasContentDimensions) return;
     final isReversed = _isReversed[tabIndex];
