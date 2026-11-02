@@ -271,6 +271,44 @@ void main() {
       );
     });
 
+    group('over a bottom safe area', () {
+      // As a phone's gesture bar: the list keeps clear of it at its end.
+      void inset(WidgetTester tester) =>
+          tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+
+      testWidgets('reversed, 跳到顶部 leaves the last row below the bar', (
+        tester,
+      ) async {
+        inset(tester);
+        await _pump(tester, _panel());
+        await _pick(tester, '倒序显示');
+        await _pick(tester, '跳到顶部');
+
+        expect(
+          tester.getTopLeft(find.text('P30 第30集')).dy,
+          greaterThanOrEqualTo(_barBottom(tester)),
+        );
+      });
+
+      testWidgets('跳到底部 goes all the way to the end', (tester) async {
+        inset(tester);
+        await _pump(tester, _panel());
+        await _pick(tester, '跳到底部');
+
+        final position = tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(CustomScrollView),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position;
+        expect(position.pixels, position.maxScrollExtent);
+      });
+    });
+
     testWidgets('on the video\'s glass, as full screen, the bar stays plain', (
       tester,
     ) async {

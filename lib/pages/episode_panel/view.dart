@@ -320,6 +320,7 @@ class _EpisodePanelState extends State<EpisodePanel>
       index: itemIndex,
       episodes: episodes,
       isReversed: isReversed,
+      bottomPadding: _bottomPadding,
     );
 
     final adjustOffset = adjustScrollOffset(
@@ -378,6 +379,9 @@ class _EpisodePanelState extends State<EpisodePanel>
   /// How far the floating bar covers the top of the list.
   double get _barInset =>
       _floatingBar ? _buildGlassBar().preferredSize.height : 0;
+
+  /// The room at the end of the list, clear of the bottom safe area.
+  double get _bottomPadding => MediaQuery.viewPaddingOf(context).bottom + 100;
 
   @override
   Widget buildPage() {
@@ -481,7 +485,7 @@ class _EpisodePanelState extends State<EpisodePanel>
         SliverPadding(
           padding: EdgeInsets.only(
             top: 7 + _barInset,
-            bottom: MediaQuery.viewPaddingOf(context).bottom + 100,
+            bottom: _bottomPadding,
           ),
           sliver: Builder(
             builder: (context) {
