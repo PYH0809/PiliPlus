@@ -184,7 +184,8 @@ class OpusContent extends StatelessWidget {
                 ?icon,
                 if (isRich) const TextSpan(text: ' '),
                 TextSpan(
-                  text: '${rich.text}',
+                  // A vote or a lottery can come with its orig_text only.
+                  text: rich.text ?? rich.origText ?? '',
                   recognizer: NoDeadlineTapGestureRecognizer()
                     ..onTap = () {
                       switch (rich.type) {
