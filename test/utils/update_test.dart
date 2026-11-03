@@ -1,5 +1,6 @@
 import 'package:PiliPlus/utils/update.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   group('Update.hasUpdate', () {
@@ -67,6 +68,44 @@ void main() {
       expect(Update.hasPackage(data, 'linux', ext: 'deb'), isTrue);
       expect(Update.hasPackage(data, 'linux', ext: 'rpm'), isFalse);
       expect(Update.hasPackage(data, 'linux', ext: 'tar.gz'), isFalse);
+    });
+  });
+
+  group('Update.formatButtons', () {
+    List<String> labels(Map data, String os) => [
+      for (final w in Update.formatButtons(
+        data,
+        (text, {ext}) => Text(text),
+        os: os,
+      ))
+        (w as Text).data!,
+    ];
+    Map withFiles(List<String> names) => {
+      'assets': [
+        for (final n in names) {'name': n},
+      ],
+    };
+
+    test('offers only the formats that are uploaded', () {
+      expect(
+        labels(
+          withFiles(['PiliPlus_windows_2.2.0+6040_x64_portable.zip']),
+          'windows',
+        ),
+        ['zip'],
+      );
+      expect(
+        labels(
+          withFiles(['PiliPlus_linux_2.2.0+6040_amd64.AppImage']),
+          'linux',
+        ),
+        ['AppImage'],
+      );
+    });
+
+    test('offers the release page when no format matches', () {
+      expect(labels(withFiles([]), 'linux'), ['Github']);
+      expect(labels(withFiles([]), 'macos'), ['Github']);
     });
   });
 }

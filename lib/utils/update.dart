@@ -46,6 +46,31 @@ abstract final class Update {
         });
   }
 
+  // 桌面端按格式给下载按钮，只给已经传上来的格式；一个都没有时给 Github，
+  // 打开 Release 页面
+  static List<Widget> formatButtons(
+    Map data,
+    Widget Function(String text, {String? ext}) downloadBtn, {
+    String os = '',
+  }) {
+    os = os.isEmpty ? Platform.operatingSystem : os;
+    final formats = switch (os) {
+      'windows' => const [('zip', 'zip'), ('exe', 'exe')],
+      'linux' => const [
+        ('rpm', 'rpm'),
+        ('deb', 'deb'),
+        ('targz', 'tar.gz'),
+        ('AppImage', 'AppImage'),
+      ],
+      _ => const <(String, String)>[],
+    };
+    final buttons = [
+      for (final (text, ext) in formats)
+        if (hasPackage(data, os, ext: ext)) downloadBtn(text, ext: ext),
+    ];
+    return buttons.isEmpty ? [downloadBtn('Github')] : buttons;
+  }
+
   // 检查更新
   static Future<void> checkUpdate([bool isAuto = true]) async {
     if (kDebugMode) return;
@@ -133,21 +158,7 @@ abstract final class Update {
                     style: TextStyle(color: colorScheme.outline),
                   ),
                 ),
-                // 只给已经传上来的格式
-                if (Platform.isWindows) ...[
-                  if (hasPackage(data, 'windows', ext: 'zip'))
-                    downloadBtn('zip', ext: 'zip'),
-                  if (hasPackage(data, 'windows', ext: 'exe'))
-                    downloadBtn('exe', ext: 'exe'),
-                ] else if (Platform.isLinux) ...[
-                  if (hasPackage(data, 'linux', ext: 'rpm'))
-                    downloadBtn('rpm', ext: 'rpm'),
-                  if (hasPackage(data, 'linux', ext: 'deb'))
-                    downloadBtn('deb', ext: 'deb'),
-                  if (hasPackage(data, 'linux', ext: 'tar.gz'))
-                    downloadBtn('targz', ext: 'tar.gz'),
-                ] else
-                  downloadBtn('Github'),
+                ...formatButtons(data, downloadBtn),
               ],
             );
           },
