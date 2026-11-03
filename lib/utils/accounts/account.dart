@@ -1,12 +1,20 @@
+import 'dart:async' show FutureOr;
+
 import 'package:PiliPlus/common/constants.dart';
+import 'package:PiliPlus/http/init.dart';
+import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/http/login.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/grpc_headers.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
+import 'package:PiliPlus/utils/login_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:cookie_jar/cookie_jar.dart';
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:hive_ce/hive.dart';
 
 sealed class Account {
@@ -154,7 +162,7 @@ class AnonymousAccount extends Account {
   @override
   final bool isLogin = false;
   @override
-  final DefaultCookieJar cookieJar = DefaultCookieJar()..setBuvid3();
+  final DefaultCookieJar cookieJar = DefaultCookieJar();
   @override
   final String? accessKey = null;
   @override
@@ -172,7 +180,7 @@ class AnonymousAccount extends Account {
   late final Map<String, String> grpcHeaders = GrpcHeaders.newHeaders(this);
 
   @override
-  bool activated = false;
+  bool activated = true;
 
   late String _buvid = Pref.buvid;
   @override
@@ -188,12 +196,72 @@ class AnonymousAccount extends Account {
   @override
   Future<void> delete() {
     grpcHeaders['x-bili-fawkes-req-bin'] = GrpcHeaders.fawkes;
-    return cookieJar.deleteAll().whenComplete(cookieJar.setBuvid3);
+    // One made up at once, so that a login waiting on this goes on; the
+    // server's comes after it, as at the start.
+    return cookieJar.deleteAll().whenComplete(() {
+      cookieJar.setBuvid3();
+      _getBuvid();
+    });
   }
 
   static final _instance = AnonymousAccount._();
 
-  AnonymousAccount._();
+  AnonymousAccount._() {
+    _getBuvid();
+  }
+
+  // Counts the fetches: only the latest one's answer is taken.
+  int _fetch = 0;
+
+  Future<void> _getBuvid() async {
+    final fetch = ++_fetch;
+    LoadingState<({String b3, String b4})> res;
+    try {
+      res = await LoginHttp.fingerSpi();
+    } catch (e) {
+      res = Error(e.toString());
+    }
+    // A later one, as after a login, has it: an answer coming after that
+    // one's would swap the cookies back.
+    if (fetch != _fetch) return;
+    if (res case Success(response: (:final b3, :final b4))) {
+      final bnut = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
+      // The domain can be there without its root path, as with a cookie of
+      // Path=/x come first.
+      ((cookieJar.domainCookies['bilibili.com'] ??= {})['/'] ??= {})
+        ..['buvid3'] = SerializableCookie(
+          Cookie('buvid3', b3)..setBiliDomain(),
+        )
+        ..['b_nut'] = SerializableCookie(
+          Cookie('b_nut', bnut)..setBiliDomain(),
+        )
+        ..['buvid4'] = SerializableCookie(
+          Cookie('buvid4', b4)..setBiliDomain(),
+        );
+    } else {
+      cookieJar.setBuvid3();
+      // A made-up buvid is activated, as it was before the server gave one.
+      activated = false;
+      activateBuvid(this);
+    }
+    // The web cookies were set from the jar at the start, before this filled
+    // it; not over those of an account logged in meanwhile.
+    if (Accounts.main == this) {
+      try {
+        await syncWebCookie(this);
+      } catch (e) {
+        if (kDebugMode) debugPrint('failed to sync web cookies: $e');
+      }
+    }
+  }
+
+  @visibleForTesting
+  static Future<void> Function(Account account) activateBuvid =
+      Request.buvidActive;
+
+  @visibleForTesting
+  static FutureOr<void> Function(Account account) syncWebCookie =
+      LoginUtils.setWebCookie;
 
   factory AnonymousAccount() => _instance;
 
@@ -227,9 +295,8 @@ extension BiliCookieJar on DefaultCookieJar {
       [];
 
   void setBuvid3() {
-    (domainCookies['bilibili.com'] ??= {
-      '/': {},
-    })['/']!['buvid3'] ??= SerializableCookie(
+    ((domainCookies['bilibili.com'] ??= {})['/'] ??=
+        {})['buvid3'] ??= SerializableCookie(
       Cookie('buvid3', IdUtils.genBuvid3())..setBiliDomain(),
     );
   }

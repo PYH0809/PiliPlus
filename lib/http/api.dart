@@ -663,6 +663,9 @@ abstract final class Api {
   /// 激活buvid3
   static const activateBuvidApi = '/x/internal/gaia-gateway/ExClimbWuzhi';
 
+  /// 获取buvid3、buvid4
+  static const fingerSpi = '/x/frontend/finger/spi';
+
   /// 我的订阅
   static const userSubFolder = '/x/v3/fav/folder/collected/list';
 
