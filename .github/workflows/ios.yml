@@ -8,6 +8,11 @@ on:
         required: false
         default: ""
         type: string
+      # PiliPlus: a push build's draft release to upload into
+      draft_tag:
+        required: false
+        default: ""
+        type: string
   workflow_dispatch:
 
 jobs:
@@ -50,6 +55,15 @@ jobs:
           name: ${{ github.event.inputs.tag }}
           files: |
             PiliPlus_ios_*.ipa
+
+      # PiliPlus: a push build adds its files to the draft release
+      - name: Upload to the draft release
+        if: ${{ inputs.draft_tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "${{ inputs.draft_tag }}" PiliPlus_ios_*.ipa --clobber
 
       - name: Upload ios release
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

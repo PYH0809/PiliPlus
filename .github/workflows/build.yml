@@ -9,8 +9,9 @@ on:
     #         - ready_for_review
     #     paths-ignore:
     #         - "**.md"
-    # Every merge into main builds every platform, so a test build is waiting
-    # without a manual run. Android goes first: the other jobs wait for it.
+    # Every merge into main builds every platform and publishes them as a
+    # release, which the app's update check reads. Android goes first: the
+    # other jobs wait for it.
     push:
         branches:
             - main
@@ -66,8 +67,52 @@ concurrency:
     cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
+    # A push build's release starts as a draft, which the app can't see, and
+    # is published once the Android APKs are in it. If this job fails, the
+    # builds still run; there is just no release.
+    prepare:
+        if: ${{ github.event_name == 'push' }}
+        name: Draft release
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            # release_note.py finds each commit's PR
+            pull-requests: read
+        outputs:
+            tag: ${{ steps.draft.outputs.tag }}
+        steps:
+            - name: 代码迁出
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+
+            - name: Write the release note
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+                  RELEASE_NOTE_MODEL: ${{ vars.RELEASE_NOTE_MODEL }}
+              run: python3 -I lib/scripts/release_note.py "$RUNNER_TEMP/note.md"
+
+            # The tag is the version name and the build number the APKs get.
+            - name: Draft the release
+              id: draft
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: |
+                  version=$(grep -oP '^version:\s*\K[\d.]+' pubspec.yaml)
+                  tag="$version+$(git rev-list --count HEAD)"
+                  # Drafts that cancelled or failed push builds left: drafts made by
+                  # this workflow's token only, so a draft prepared by hand stays.
+                  gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[]|select(.draft and .author.login == "github-actions[bot]").id' |
+                    while read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"; done
+                  gh release create "$tag" --draft --target "$GITHUB_SHA" --title "$tag" --notes-file "$RUNNER_TEMP/note.md"
+                  echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
     android:
-        if: ${{ (github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_android == 'true' }}
+        needs: prepare
+        if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_android == 'true') }}
         name: Release Android
         runs-on: ubuntu-latest
         permissions: write-all
@@ -165,6 +210,13 @@ jobs:
                   name: ${{ github.event.inputs.tag }}
                   files: PiliPlus_android_*.apk
 
+            - name: Upload to the draft release
+              if: ${{ needs.prepare.outputs.tag != '' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: gh release upload "${{ needs.prepare.outputs.tag }}" PiliPlus_android_*.apk --clobber
+
             - name: 上传
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
@@ -187,33 +239,54 @@ jobs:
                   path: PiliPlus_android_*_x86_64.apk
 
     ios:
-        needs: android
+        needs: [prepare, android]
         if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_ios == 'true') }}
         uses: ./.github/workflows/ios.yml
         permissions: write-all
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
+            draft_tag: ${{ needs.prepare.outputs.tag }}
 
     mac:
-        needs: android
+        needs: [prepare, android]
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.inputs.build_mac == 'true') }}
         uses: ./.github/workflows/mac.yml
         permissions: write-all
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
+            draft_tag: ${{ needs.prepare.outputs.tag }}
 
     win_x64:
-        needs: android
+        needs: [prepare, android]
         if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_win_x64 == 'true') }}
         uses: ./.github/workflows/win_x64.yml
         permissions: write-all
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
+            draft_tag: ${{ needs.prepare.outputs.tag }}
 
     linux_x64:
-        needs: android
+        needs: [prepare, android]
         if: ${{ !cancelled() && (github.event_name == 'push' || github.event.inputs.build_linux_x64 == 'true') }}
         uses: ./.github/workflows/linux_x64.yml
         permissions: write-all
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
+            draft_tag: ${{ needs.prepare.outputs.tag }}
+
+    # Publishes the draft as soon as Android is in it; the other platforms
+    # add their files to the published release as they finish, and one that
+    # fails is left out rather than holding the release back.
+    publish:
+        needs: [prepare, android]
+        if: ${{ !cancelled() && needs.prepare.outputs.tag != '' && needs.android.result == 'success' }}
+        name: Publish release
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Publish
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: gh release edit "${{ needs.prepare.outputs.tag }}" --draft=false --latest

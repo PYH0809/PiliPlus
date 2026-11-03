@@ -16,6 +16,61 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 abstract final class Update {
+  // 本仓库的 tag 是 <版本号>+<build 号>，比 build 号；Release 的 created_at
+  // 是目标提交的时间，不是发版时间。其他 tag 照旧比时间
+  static bool hasUpdate(
+    Map data, {
+    int versionCode = BuildConfig.versionCode,
+    int buildTime = BuildConfig.buildTime,
+  }) {
+    final match = RegExp(
+      r'^[\d.]+\+(\d+)$',
+    ).firstMatch(data['tag_name'] as String? ?? '');
+    if (match != null) {
+      return int.parse(match[1]!) > versionCode;
+    }
+    final int latest =
+        DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000;
+    return buildTime < latest;
+  }
+
+  // 安装包名形如 PiliPlus_<平台>_<版本>...，os 取 Platform.operatingSystem；
+  // 给了 ext 时只认这种格式
+  static bool hasPackage(Map data, String os, {String? ext}) {
+    final assets = data['assets'];
+    return assets is List &&
+        assets.any((i) {
+          final name = i['name'] as String? ?? '';
+          return name.contains('_${os}_') &&
+              (ext == null || name.endsWith(ext));
+        });
+  }
+
+  // 桌面端按格式给下载按钮，只给已经传上来的格式；一个都没有时给 Github，
+  // 打开 Release 页面
+  static List<Widget> formatButtons(
+    Map data,
+    Widget Function(String text, {String? ext}) downloadBtn, {
+    String os = '',
+  }) {
+    os = os.isEmpty ? Platform.operatingSystem : os;
+    final formats = switch (os) {
+      'windows' => const [('zip', 'zip'), ('exe', 'exe')],
+      'linux' => const [
+        ('rpm', 'rpm'),
+        ('deb', 'deb'),
+        ('targz', 'tar.gz'),
+        ('AppImage', 'AppImage'),
+      ],
+      _ => const <(String, String)>[],
+    };
+    final buttons = [
+      for (final (text, ext) in formats)
+        if (hasPackage(data, os, ext: ext)) downloadBtn(text, ext: ext),
+    ];
+    return buttons.isEmpty ? [downloadBtn('Github')] : buttons;
+  }
+
   // 检查更新
   static Future<void> checkUpdate([bool isAuto = true]) async {
     if (kDebugMode) return;
@@ -28,18 +83,25 @@ abstract final class Update {
           extra: {'account': const NoAccount()},
         ),
       );
-      if (res.data is Map || res.data.isEmpty) {
+      // 读 /releases/latest，也就是发版时标成 Latest 的那个
+      final data = res.data;
+      if (data is! Map || data['tag_name'] == null) {
         if (!isAuto) {
-          SmartDialog.showToast('检查更新失败，GitHub接口未返回数据，请检查网络');
+          // 还没有发布的版本时是 404
+          SmartDialog.showToast(
+            res.statusCode == 404 ? '暂时没有可用的版本' : '检查更新失败，GitHub接口未返回数据，请检查网络',
+          );
         }
         return;
       }
-      final data = res.data[0];
-      final int latest =
-          DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000;
-      if (BuildConfig.buildTime >= latest) {
+      if (!hasUpdate(data)) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
+        }
+      } else if (!hasPackage(data, Platform.operatingSystem)) {
+        // 安卓的包传完就发布，其他平台的包随后才补上，下次检查再提示
+        if (!isAuto) {
+          SmartDialog.showToast('新版本的安装包还在上传，请稍后再试');
         }
       } else {
         SmartDialog.show(
@@ -96,15 +158,7 @@ abstract final class Update {
                     style: TextStyle(color: colorScheme.outline),
                   ),
                 ),
-                if (Platform.isWindows) ...[
-                  downloadBtn('zip', ext: 'zip'),
-                  downloadBtn('exe', ext: 'exe'),
-                ] else if (Platform.isLinux) ...[
-                  downloadBtn('rpm', ext: 'rpm'),
-                  downloadBtn('deb', ext: 'deb'),
-                  downloadBtn('targz', ext: 'tar.gz'),
-                ] else
-                  downloadBtn('Github'),
+                ...formatButtons(data, downloadBtn),
               ],
             );
           },
