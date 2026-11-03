@@ -267,45 +267,51 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
     );
   }
 
-  List<Widget> _infos(VideoDetailData videoDetail) => [
-    const SizedBox(height: 8, width: .infinity),
-    Row(
-      spacing: 12,
-      mainAxisSize: .min,
-      children: [
-        GestureDetector(
-          onTap: () => Utils.copyText(introController.bvid),
-          child: Text(
-            introController.bvid,
-            style: TextStyle(fontSize: 14, color: colorScheme.secondary),
+  List<Widget> _infos(VideoDetailData videoDetail) {
+    // The ids of the details shown: switching videos updates the controller
+    // first, and the panel only once the new details arrive.
+    final bvid = videoDetail.bvid ?? introController.bvid;
+    final av = 'av${videoDetail.aid ?? introController.aid}';
+    return [
+      const SizedBox(height: 8, width: .infinity),
+      Row(
+        spacing: 12,
+        mainAxisSize: .min,
+        children: [
+          GestureDetector(
+            onTap: () => Utils.copyText(bvid),
+            child: Text(
+              bvid,
+              style: TextStyle(fontSize: 14, color: colorScheme.secondary),
+            ),
           ),
-        ),
-        GestureDetector(
-          onTap: () => Utils.copyText('av${introController.aid}'),
-          child: Text(
-            'av${introController.aid}',
-            style: TextStyle(fontSize: 14, color: colorScheme.secondary),
+          GestureDetector(
+            onTap: () => Utils.copyText(av),
+            child: Text(
+              av,
+              style: TextStyle(fontSize: 14, color: colorScheme.secondary),
+            ),
           ),
+        ],
+      ),
+      if (videoDetail.descV2 case final descV2? when descV2.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        SelectionText.rich(
+          buildDesc(descV2),
+          style: const TextStyle(height: 1.4),
         ),
       ],
-    ),
-    if (videoDetail.descV2 case final descV2? when descV2.isNotEmpty) ...[
-      const SizedBox(height: 8),
-      SelectionText.rich(
-        buildDesc(descV2),
-        style: const TextStyle(height: 1.4),
+      NoTranslucentArea(
+        child: Obx(() {
+          final videoTags = introController.videoTags.value;
+          if (videoTags == null || videoTags.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          return _buildTags(videoTags);
+        }),
       ),
-    ],
-    NoTranslucentArea(
-      child: Obx(() {
-        final videoTags = introController.videoTags.value;
-        if (videoTags == null || videoTags.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return _buildTags(videoTags);
-      }),
-    ),
-  ];
+    ];
+  }
 
   WidgetSpan _labelWidget(String text, Color bgColor, Color textColor) {
     return WidgetSpan(
