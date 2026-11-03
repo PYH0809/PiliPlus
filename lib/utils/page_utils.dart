@@ -122,6 +122,7 @@ abstract final class PageUtils {
     Object? type,
     int? rootRpId,
     int? secondRpId,
+    VideoExpandSourceState? expandFrom,
   }) async {
     assert(id != null || rid != null);
     SmartDialog.showLoading();
@@ -146,15 +147,24 @@ abstract final class PageUtils {
           off: off,
         );
       } else {
-        toDupNamed(
-          '/dynamicDetail',
-          arguments: {
-            'item': response,
-            rootRpIdKey: ?rootRpId,
-            secondRpIdKey: ?secondRpId,
-          },
-          off: off,
-        );
+        final arguments = {
+          'item': response,
+          rootRpIdKey: ?rootRpId,
+          secondRpIdKey: ?secondRpId,
+        };
+        // Out of the card it was tapped on, if that still stands: a card
+        // gone meanwhile opens it as before.
+        if (!off) {
+          if (expandFrom?.expand<void>(
+                '/dynamicDetail',
+                arguments: arguments,
+                moveContent: true,
+              )
+              case _?) {
+            return;
+          }
+        }
+        toDupNamed('/dynamicDetail', arguments: arguments, off: off);
       }
     } else {
       SmartDialog.showToast('${type != null ? 'type: $type ' : ''}$res');
@@ -241,31 +251,48 @@ abstract final class PageUtils {
     bool isPush = false,
     bool viewComment = false,
     VideoExpandSourceState? expandFrom,
+    bool expandIntoDetail = true,
   }) async {
     feedBack();
 
+    // The card grows into its detail, its content moving onto the detail's,
+    // or into an opus, laid out apart, fading through; not a card holding
+    // another's dynamic, as a forwarded one, whose content is not the card's.
+    final detailFrom = expandIntoDetail ? expandFrom : null;
+    void pushOpus() {
+      final parameters = <String, String>{
+        'id': '${item.idStr}',
+        'type': 'opus',
+        if (viewComment) 'viewComment': '',
+      };
+      if (detailFrom?.expand<void>('/articlePage', parameters: parameters)
+          case _?) {
+        return;
+      }
+      toDupNamed('/articlePage', parameters: parameters);
+    }
+
     void push() {
       if (item.basic?.commentType == 12) {
-        toDupNamed(
-          '/articlePage',
-          parameters: {
-            'id': item.idStr,
-            'type': 'opus',
-            if (viewComment) 'viewComment': '',
-          },
-        );
+        pushOpus();
       } else {
         if (item.linkFolded) {
-          pushDynFromId(id: item.idStr);
+          pushDynFromId(id: item.idStr, expandFrom: detailFrom);
           return;
         }
-        toDupNamed(
-          '/dynamicDetail',
-          arguments: {
-            'item': item,
-            if (viewComment) 'viewComment': true,
-          },
-        );
+        final arguments = {
+          'item': item,
+          if (viewComment) 'viewComment': true,
+        };
+        if (detailFrom?.expand<void>(
+              '/dynamicDetail',
+              arguments: arguments,
+              moveContent: true,
+            )
+            case _?) {
+          return;
+        }
+        toDupNamed('/dynamicDetail', arguments: arguments);
       }
     }
 
@@ -326,14 +353,7 @@ abstract final class PageUtils {
 
       /// 专栏文章查看
       case 'DYNAMIC_TYPE_ARTICLE':
-        toDupNamed(
-          '/articlePage',
-          parameters: {
-            'id': item.idStr,
-            'type': 'opus',
-            if (viewComment) 'viewComment': '',
-          },
-        );
+        pushOpus();
         break;
 
       case 'DYNAMIC_TYPE_PGC':

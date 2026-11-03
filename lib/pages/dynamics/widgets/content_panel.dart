@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_grid/image_grid_view.dart';
 import 'package:PiliPlus/common/widgets/selection_text.dart';
 import 'package:PiliPlus/common/widgets/text_more/text_more.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/rich_node_panel.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
@@ -93,14 +94,25 @@ Widget content(
                           item.modules.moduleDynamic,
                         ),
                 )
-              : TextMore.rich(
-                  style: floor == 1
-                      ? const TextStyle(fontSize: 15)
-                      : const TextStyle(fontSize: 14),
-                  richNodes,
-                  maxLines: isSave ? null : 6,
-                  onShowMore: () => PageUtils.pushDynDetail(item, isPush: true),
-                  primary: theme.colorScheme.primary,
+              // Found from within the card: the dynamic's own text opens its
+              // detail out of the card, not a forwarded one's, whose card is
+              // the forwarder's.
+              : Builder(
+                  builder: (context) => TextMore.rich(
+                    style: floor == 1
+                        ? const TextStyle(fontSize: 15)
+                        : const TextStyle(fontSize: 14),
+                    richNodes,
+                    maxLines: isSave ? null : 6,
+                    onShowMore: () => PageUtils.pushDynDetail(
+                      item,
+                      isPush: true,
+                      expandFrom: floor == 1
+                          ? VideoExpandSource.maybeOf(context)
+                          : null,
+                    ),
+                    primary: theme.colorScheme.primary,
+                  ),
                 ),
         if (pics != null && pics.isNotEmpty)
           ImageGridView(

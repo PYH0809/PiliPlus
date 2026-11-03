@@ -5,6 +5,7 @@
 // closes, as YouTube's do.
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui show Image, lerpDouble;
 
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -23,6 +24,13 @@ const videoExpandDuration = Duration(milliseconds: 300);
 // backwards in time: the page fades out over the first fifth of the
 // return, and the card in over the rest.
 const _fadeShare = 0.2;
+
+// A card whose content moves into its page, as a dynamic into its detail:
+// the page fades in over the last of the route's linear time, and the
+// content, drawn from the card, fades out over the last quarter, so the two
+// cross as the content lands; the same, backwards, as it returns.
+const _contentPageFrom = 0.7;
+const _contentFadeFrom = 0.75;
 
 // The scrim OpenContainer lays over the page below, at most.
 const _scrimColor = Colors.black54;
@@ -45,6 +53,8 @@ class VideoExpandFrame {
     required this.scrim,
     required this.cover,
     required this.coverOpacity,
+    this.content,
+    this.contentOpacity = 0,
   });
 
   /// The frame [t] into the opening, or into the return when [returning].
@@ -54,7 +64,10 @@ class VideoExpandFrame {
   /// OpenContainer's CurvedAnimation does with no reverse curve. [card] is the card's rect,
   /// [screen] the page's, [coverFrom] the card's cover and [coverTo] the
   /// player; [videoShown] says the video has shown over the cover, which
-  /// fades back in over it as the page fades out.
+  /// fades back in over it as the page fades out. With [contentTo], where
+  /// the page lays the card's content out, the card's picture moves there
+  /// instead of fading out, its top left corner onto that one's at its own
+  /// size, shrunk only to fit, as the content may run longer on the page.
   factory VideoExpandFrame.at(
     double t, {
     required bool returning,
@@ -65,10 +78,34 @@ class VideoExpandFrame {
     Rect? coverFrom,
     Rect? coverTo,
     bool videoShown = false,
+    Rect? contentTo,
   }) {
     final shape = returning && !interrupted
         ? Curves.fastOutSlowIn.flipped.transform(t)
         : Curves.fastOutSlowIn.transform(t);
+    if (contentTo != null) {
+      // At its own size, so its text stands as large as the page's, but no
+      // wider than the page lays it out.
+      final scale = math.min(1.0, contentTo.width / card.width);
+      final landed = Rect.fromLTWH(
+        contentTo.left,
+        contentTo.top,
+        card.width * scale,
+        card.height * scale,
+      );
+      return VideoExpandFrame(
+        progress: shape,
+        rect: Rect.lerp(card, screen, shape)!,
+        radius: ui.lerpDouble(radius, 0, shape)!,
+        cardOpacity: 0,
+        pageOpacity: _within(t, _contentPageFrom, 1),
+        scrim: !returning || interrupted ? _within(t, 0, _fadeShare) : shape,
+        cover: null,
+        coverOpacity: 0,
+        content: Rect.lerp(card, landed, shape),
+        contentOpacity: 1 - _within(t, _contentFadeFrom, 1),
+      );
+    }
     final double cardOpacity;
     final double pageOpacity;
     final double scrim;
@@ -116,6 +153,11 @@ class VideoExpandFrame {
   /// known, and how far it shows.
   final Rect? cover;
   final double coverOpacity;
+
+  /// The card's picture, moving onto the content the page lays out, and how
+  /// far it shows.
+  final Rect? content;
+  final double contentOpacity;
 
   static double _within(double t, double begin, double end) =>
       ((t - begin) / (end - begin)).clamp(0.0, 1.0);
@@ -273,8 +315,16 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
   /// and returns what it pops with. Null when it can't: animations are off,
   /// the card is off screen, or no route goes by that name; the caller then
   /// opens the page as it would have. Tapped again while its page opens, it
-  /// opens nothing more.
-  Future<T?>? expand<T>(String page, {dynamic arguments}) {
+  /// opens nothing more. [parameters] go into the page's name, as
+  /// Get.toNamed puts them. With [moveContent] the card's content moves onto
+  /// where the page marks it with a [VideoExpandContent], as a dynamic into
+  /// its detail, rather than fading out as the page grows.
+  Future<T?>? expand<T>(
+    String page, {
+    dynamic arguments,
+    Map<String, String>? parameters,
+    bool moveContent = false,
+  }) {
     if (_route case final route?) {
       return route.popped.then((value) => value as T?);
     }
@@ -291,7 +341,12 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     }
     // As Get.toNamed's pushNamed resolves it.
     final redirect = PageRedirect(
-      settings: RouteSettings(name: page, arguments: arguments),
+      settings: RouteSettings(
+        name: parameters == null
+            ? page
+            : Uri(path: page, queryParameters: parameters).toString(),
+        arguments: arguments,
+      ),
     );
     while (redirect.needRecheck()) {}
     final target = redirect.route;
@@ -299,7 +354,8 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       return null;
     }
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final cover = _coverImage();
+    // Moving, the card's content is its picture: no cover of its own.
+    final cover = moveContent ? null : _coverImage();
     // The page below is taken now, while the frame costs little: from the
     // next frame on the page grows over the card's rect, opaque, so the card
     // need not hide first.
@@ -314,6 +370,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       cardImage: _cardImage(pixelRatio),
       cover: cover?.$1,
       coverFilter: cover?.$2,
+      moveContent: moveContent,
       page: target.page,
       parameter: target.parameters,
       settings: redirect.settings,
@@ -387,6 +444,7 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
     required this.cardImage,
     required this.cover,
     this.coverFilter,
+    this.moveContent = false,
     super.settings,
     super.page,
     super.parameter,
@@ -404,6 +462,13 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
 
   /// The color the card blends into its cover, which the cover keeps.
   final ColorFilter? coverFilter;
+
+  /// Whether the card's content moves onto the page's, which it marks with
+  /// a [VideoExpandContent].
+  final bool moveContent;
+
+  // Where the page lays the card's content out.
+  VideoExpandContentState? _content;
 
   /// The route right under this one, the card's, when it covers the ones
   /// under it: only then does a picture of it stand in for all of them.
@@ -746,6 +811,11 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
           card: source._cardRect,
           coverFrom: source._coverRect,
           player: route._target?._box,
+          content: route.moveContent
+              ? route._content?.context.findRenderObject() as RenderBox?
+              : null,
+          contentShown: route._content?._showsTop ?? true,
+          moveContent: route.moveContent,
           videoShown: route._coverGone,
           radius: source.widget.radius,
           coverRadius: source.widget.coverRadius,
@@ -775,6 +845,9 @@ class _Expand extends SingleChildRenderObjectWidget {
     required this.card,
     required this.coverFrom,
     required this.player,
+    required this.content,
+    required this.contentShown,
+    required this.moveContent,
     required this.videoShown,
     required this.radius,
     required this.coverRadius,
@@ -796,6 +869,15 @@ class _Expand extends SingleChildRenderObjectWidget {
   final Rect? card;
   final Rect? coverFrom;
   final RenderBox? player;
+
+  /// Where the page lays the card's content out, which the card's picture
+  /// moves onto when it does.
+  final RenderBox? content;
+
+  /// Whether the top of the page's content stands within what its scroll
+  /// view shows.
+  final bool contentShown;
+  final bool moveContent;
   final bool videoShown;
   final double radius;
   final BorderRadius coverRadius;
@@ -889,13 +971,27 @@ class _RenderExpand extends RenderProxyBox {
       _paintPlain(context, offset, page);
       return;
     }
-    Rect? player;
-    if (config.player case final box? when box.attached && box.hasSize) {
-      player = MatrixUtils.transformRect(
-        box.getTransformTo(this),
-        Offset.zero & box.size,
-      );
-    }
+    Rect? rectOf(RenderBox? box) => box != null && box.attached && box.hasSize
+        ? MatrixUtils.transformRect(
+            box.getTransformTo(this),
+            Offset.zero & box.size,
+          )
+        : null;
+    final player = rectOf(config.player);
+    final Rect? contentTo = switch (rectOf(config.content)) {
+      _ when !config.moveContent => null,
+      // Until the page has laid it out, under the page's bar.
+      null => Rect.fromLTWH(
+        card.left,
+        config.topPadding + kToolbarHeight,
+        card.width,
+        card.height,
+      ),
+      // Scrolled off the page, as to its comments: it returns fading
+      // through instead, its content not flying in from out of sight.
+      final _ when !config.contentShown => null,
+      final rect => rect,
+    };
     final frame = VideoExpandFrame.at(
       config.t,
       returning: config.returning,
@@ -909,6 +1005,7 @@ class _RenderExpand extends RenderProxyBox {
           player ??
           Rect.fromLTWH(0, config.topPadding, size.width, size.width * 9 / 16),
       videoShown: config.videoShown,
+      contentTo: contentTo,
     );
     if (frame.scrim > 0) {
       canvas.drawRect(
@@ -1002,6 +1099,23 @@ class _RenderExpand extends RenderProxyBox {
         frame.coverOpacity,
         config.coverFilter,
       );
+    }
+    // The card's content over the page, crossing into the page's own as it
+    // lands, within the container.
+    if ((config.cardImage, frame.content) case (final image?, final at?)
+        when frame.contentOpacity > 0) {
+      context.canvas
+        ..save()
+        ..clipRRect(rrect.shift(offset))
+        ..drawImageRect(
+          image,
+          Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+          at.shift(offset),
+          Paint()
+            ..filterQuality = FilterQuality.low
+            ..color = Color.fromRGBO(0, 0, 0, frame.contentOpacity),
+        )
+        ..restore();
     }
   }
 
@@ -1258,4 +1372,70 @@ class _CoverPainter extends CustomPainter {
       !identical(oldDelegate.image, image) ||
       oldDelegate.filter != filter ||
       oldDelegate.opacity != opacity;
+}
+
+/// Where a page opened out of a card with its content moving lays that
+/// content out, as a dynamic's detail its dynamic: the card's picture moves
+/// onto it, its top edge onto this one's, and crosses into it as it lands.
+class VideoExpandContent extends StatefulWidget {
+  const VideoExpandContent({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<VideoExpandContent> createState() => VideoExpandContentState();
+}
+
+class VideoExpandContentState extends State<VideoExpandContent> {
+  VideoExpandRoute<dynamic>? _route;
+  ScrollableState? _scrollable;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scrollable = Scrollable.maybeOf(context);
+    final route = VideoExpandRoute.of(context);
+    if (identical(route, _route)) {
+      return;
+    }
+    _leave();
+    _route = route?.._content = this;
+  }
+
+  @visibleForTesting
+  bool get debugShowsTop => _showsTop;
+
+  // Whether its top edge stands within what its scroll view shows: scrolled
+  // under the page's bar, it is laid out still, but out of sight.
+  bool get _showsTop {
+    final box = context.findRenderObject();
+    final view = _scrollable?.context.findRenderObject();
+    if (box is! RenderBox ||
+        !box.attached ||
+        !box.hasSize ||
+        view is! RenderBox ||
+        !view.attached ||
+        !view.hasSize) {
+      return true;
+    }
+    final top = box.localToGlobal(Offset.zero).dy;
+    final viewTop = view.localToGlobal(Offset.zero).dy;
+    return top >= viewTop - 1 && top < viewTop + view.size.height;
+  }
+
+  void _leave() {
+    if (identical(_route?._content, this)) {
+      _route!._content = null;
+    }
+    _route = null;
+  }
+
+  @override
+  void dispose() {
+    _leave();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
