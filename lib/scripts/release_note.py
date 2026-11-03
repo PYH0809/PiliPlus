@@ -126,11 +126,13 @@ def ask_model(prs, upstream, examples):
     for attempt in range(2):
         try:
             res = json.load(urllib.request.urlopen(req, timeout=180))
-            text = res['choices'][0]['message']['content'].strip()
-            text = re.sub(r'^```\w*\n|\n```$', '', text).strip()
-            if text:
-                return text
-        except (urllib.error.URLError, TimeoutError, KeyError, IndexError, ValueError) as e:
+            text = res['choices'][0]['message'].get('content')
+            if isinstance(text, str):
+                text = re.sub(r'^```\w*\n|\n```$', '', text.strip()).strip()
+                if text:
+                    return text
+            print(f'::warning::release note model returned no text (try {attempt + 1})')
+        except (urllib.error.URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError) as e:
             print(f'::warning::release note model failed (try {attempt + 1}): {e}')
     return None
 

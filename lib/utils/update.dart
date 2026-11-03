@@ -46,13 +46,14 @@ abstract final class Update {
           extra: {'account': const NoAccount()},
         ),
       );
-      if (res.data is Map || res.data.isEmpty) {
+      // 读 /releases/latest，也就是发版时标成 Latest 的那个
+      final data = res.data;
+      if (data is! Map || data['tag_name'] == null) {
         if (!isAuto) {
           SmartDialog.showToast('检查更新失败，GitHub接口未返回数据，请检查网络');
         }
         return;
       }
-      final data = res.data[0];
       if (!hasUpdate(data)) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
