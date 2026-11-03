@@ -120,6 +120,13 @@ List<SettingsModel> get styleSettings => [
     onTap: _showTransitionDialog,
   ),
   const SwitchModel(
+    title: '视频展开动画',
+    subtitle: '点开视频时封面展开成播放器，返回时收回卡片',
+    leading: Icon(Icons.open_in_full),
+    setKey: SettingBoxKey.videoExpand,
+    defaultVal: true,
+  ),
+  const SwitchModel(
     title: '优化平板导航栏',
     leading: Icon(Icons.auto_fix_high),
     setKey: SettingBoxKey.optTabletNav,

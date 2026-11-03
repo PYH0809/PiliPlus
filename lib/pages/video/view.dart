@@ -21,6 +21,7 @@ import 'package:PiliPlus/common/widgets/scroll_physics.dart'
 import 'package:PiliPlus/common/widgets/simple_app_bar.dart';
 import 'package:PiliPlus/common/widgets/sliver/video_header.dart';
 import 'package:PiliPlus/common/widgets/svg/play_icon.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/models/common/episode_panel_type.dart';
 import 'package:PiliPlus/models/common/pgc_episode_type.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
@@ -49,6 +50,7 @@ import 'package:PiliPlus/pages/video/reply/controller.dart';
 import 'package:PiliPlus/pages/video/reply/view.dart';
 import 'package:PiliPlus/pages/video/view_point/view.dart';
 import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
+import 'package:PiliPlus/pages/video/widgets/first_frame.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/pages/video/widgets/intro_layout.dart';
 import 'package:PiliPlus/pages/video/widgets/player_focus.dart';
@@ -1252,6 +1254,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     ),
               showEpisodes: showEpisodes,
               showViewPoints: showViewPoints,
+              overVideo: const VideoExpandCover(),
             ),
     ),
   );
@@ -1510,6 +1513,20 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     );
   }
 
+  /// Calls [shown] once this page's video shows its first frame, or at once
+  /// if it won't play by itself, and returns what stops watching.
+  VoidCallback _watchFirstFrame(VoidCallback shown) {
+    if (!videoDetailController.autoPlay) {
+      shown();
+      return () {};
+    }
+    return watchFirstFrame(
+      videoDetailController.plPlayerController,
+      cid: () => videoDetailController.cid.value,
+      shown: shown,
+    );
+  }
+
   Widget videoPlayer({required double width, required double height}) {
     final isFullScreen = this.isFullScreen;
     return Stack(
@@ -1520,6 +1537,13 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
             color: Colors.black,
             isAntiAlias: false,
           ),
+        ),
+
+        // The player, and the cover of the card this page grew out of until
+        // the video shows: under the player, which draws it again over its
+        // video and under its controls once it is built.
+        Positioned.fill(
+          child: VideoExpandTarget(watchVideo: _watchFirstFrame),
         ),
 
         plPlayer(width: width, height: height),
