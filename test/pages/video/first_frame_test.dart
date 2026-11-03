@@ -47,7 +47,7 @@ void main() {
     var shown = 0;
     // Another listener after it, which the player must still reach.
     var reached = 0;
-    watchFirstFrame(player, cid: 2, shown: () => shown++);
+    watchFirstFrame(player, cid: () => 2, shown: () => shown++);
 
     // The page below's video still loaded and playing.
     player
@@ -79,7 +79,7 @@ void main() {
   test('a page opened over it, taking the player, does not count', () async {
     final player = _Player()..cid = 2;
     var shown = 0;
-    watchFirstFrame(player, cid: 2, shown: () => shown++);
+    watchFirstFrame(player, cid: () => 2, shown: () => shown++);
     player.dataStatus.value = DataStatus.loaded;
     await Future<void>.delayed(Duration.zero);
 
@@ -94,10 +94,29 @@ void main() {
     expect(shown, 0);
   });
 
+  test('a part picked before the first frame is watched instead', () async {
+    final player = _Player()..cid = 2;
+    var cid = 2;
+    var shown = 0;
+    watchFirstFrame(player, cid: () => cid, shown: () => shown++);
+    player.dataStatus.value = DataStatus.loaded;
+    await Future<void>.delayed(Duration.zero);
+
+    cid = 4;
+    player
+      ..cid = 4
+      ..dataStatus.value = DataStatus.loading
+      ..dataStatus.value = DataStatus.loaded
+      ..playerStatus = PlayerStatus.playing
+      ..playTo(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(shown, 1);
+  });
+
   test('shows once the video fails to load', () async {
     final player = _Player()..cid = 2;
     var shown = 0;
-    watchFirstFrame(player, cid: 2, shown: () => shown++);
+    watchFirstFrame(player, cid: () => 2, shown: () => shown++);
     player.dataStatus.value = DataStatus.error;
     await Future<void>.delayed(Duration.zero);
     expect(shown, 1);
@@ -106,7 +125,7 @@ void main() {
   test('stops watching when told', () async {
     final player = _Player()..cid = 2;
     var shown = 0;
-    final stop = watchFirstFrame(player, cid: 2, shown: () => shown++);
+    final stop = watchFirstFrame(player, cid: () => 2, shown: () => shown++);
     player.dataStatus.value = DataStatus.loaded;
     await Future<void>.delayed(Duration.zero);
     stop();

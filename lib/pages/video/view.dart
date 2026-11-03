@@ -1522,7 +1522,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     }
     return watchFirstFrame(
       videoDetailController.plPlayerController,
-      cid: videoDetailController.cid.value,
+      cid: () => videoDetailController.cid.value,
       shown: shown,
     );
   }

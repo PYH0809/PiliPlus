@@ -1019,18 +1019,15 @@ class _RenderExpand extends RenderProxyBox {
     }
   }
 
+  // While it moves, the page is drawn only where it has grown to, or faded,
+  // and the page below from a picture: a tap reaches neither, rather than
+  // the page's controls where they are not yet seen.
   @override
-  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
-    if (_transform.layer?.transform case final matrix?) {
-      return result.addWithPaintTransform(
-        transform: matrix,
-        position: position,
-        hitTest: (result, position) =>
-            child!.hitTest(result, position: position),
-      );
-    }
-    return super.hitTestChildren(result, position: position);
-  }
+  bool hitTestSelf(Offset position) => _config!.animating;
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      !_config!.animating && super.hitTestChildren(result, position: position);
 }
 
 /// The cover [image] fitted to cover [rect], cropped to it with [radius],

@@ -81,7 +81,10 @@ class _Page extends StatelessWidget {
                     ),
             ),
           ),
-          Text('视频页 ${arguments['cid']}'),
+          GestureDetector(
+            onTap: () => _pageTaps++,
+            child: Text('视频页 ${arguments['cid']}'),
+          ),
         ],
       ),
     );
@@ -90,6 +93,7 @@ class _Page extends StatelessWidget {
 
 late ui.Image _coverImage;
 const _playerKey = Key('player');
+var _pageTaps = 0;
 final _playerBuilds = ValueNotifier(0);
 
 Widget _card0({
@@ -430,6 +434,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
     expect(await repaintsBelow(), isTrue);
+  });
+
+  testWidgets('the page takes no taps while it moves', (tester) async {
+    _pageTaps = 0;
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.tap(find.text('视频页 3'), warnIfMissed: false);
+    expect(_pageTaps, 0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('视频页 3'));
+    expect(_pageTaps, 1);
   });
 
   testWidgets('a second tap while the page opens opens nothing more', (
