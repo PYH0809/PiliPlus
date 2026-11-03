@@ -412,7 +412,8 @@ class ChatItem extends StatelessWidget {
 
     return Center(
       child: VideoExpandSource(
-        key: ObjectKey(content),
+        // The message's, as its content is decoded anew each build.
+        key: ValueKey(item.msgKey),
         color: theme.colorScheme.onInverseSurface,
         radius: Style.imgRadius.x,
         coverRadius: const .vertical(top: Style.imgRadius),
