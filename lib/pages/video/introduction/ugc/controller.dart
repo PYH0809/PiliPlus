@@ -107,24 +107,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         }
         return;
       }
-      // The media card waits for the page to open, as the player does: its
-      // update holds Android's main thread, which hands out the vsyncs. Only
-      // the video and part still shown then are put on it.
-      final cid = this.cid.value;
-      if (videoDetailCtr.untilOpened case final opened?) {
-        final bvid = this.bvid;
-        opened.then((_) {
-          if (!isClosed && bvid == this.bvid && cid == this.cid.value) {
-            videoPlayerServiceHandler?.onVideoDetailChange(
-              response,
-              cid,
-              heroTag,
-            );
-          }
-        });
-      } else {
-        videoPlayerServiceHandler?.onVideoDetailChange(response, cid, heroTag);
-      }
+      videoPlayerServiceHandler?.onVideoDetailChange(
+        response,
+        cid.value,
+        heroTag,
+      );
       final currentDetail = videoDetail.value;
       if (currentDetail.ugcSeason?.id == response.ugcSeason?.id) {
         // keep reversed season

@@ -141,38 +141,24 @@ class VideoDetailController extends GetxController
 
   final _opened = Completer<void>();
 
-  /// Completes once the page has opened, its route's transition over. The
-  /// player and the media card wait for it: their calls to the platform run
-  /// on Android's main thread, which then hands the transition's frames their
-  /// vsyncs late.
+  /// Completes once the page has opened, its route's transition over.
   Future<void> get opened => _opened.future;
   bool get isOpened => _opened.isCompleted;
 
-  /// What the page's parts wait for before they show what they loaded, null
-  /// once open: shown while the transition runs, the intro, the related
-  /// videos and the comments would be laid out, their pictures uploaded and
-  /// their new glyphs drawn on its frames. They mostly arrive as it ends.
+  /// What the related videos and the comments wait for before they show what
+  /// they loaded, null once open: shown while the transition runs, they
+  /// would be laid out, their pictures uploaded and their new glyphs drawn on
+  /// its frames. They mostly arrive as it ends.
   Future<void>? get untilOpened => isOpened ? null : opened;
 
-  // The player's setup asked for while the page opens, the latest only. It
-  // is told whether a route covers the page by then.
-  Future<void> Function(bool covered)? _initOnceOpened;
-
-  // That setup, once the page has opened.
-  Future<void>? _initOpened;
-
-  /// The page has opened; [covered] while a route opened over it meanwhile,
-  /// as the panel to send danmaku: the player is then set up without
-  /// playing, as the panel would have paused it.
-  void onOpened({bool covered = false}) {
+  void onOpened() {
     if (_opened.isCompleted) {
       return;
     }
     _opened.complete();
+    // Subscribing holds Android's main thread for tens of milliseconds, which
+    // hands the transition's frames their vsyncs late.
     plPlayerController.listenOrientation();
-    final init = _initOnceOpened;
-    _initOnceOpened = null;
-    _initOpened = init?.call(covered);
   }
 
   String? videoUrl;
@@ -703,9 +689,6 @@ class VideoDetailController extends GetxController
     if (isPlaying) {
       await plPlayerController.pause();
     }
-    // Opened while the page opens, before the player is set up: it was to
-    // play, and is set up paused under the panel (onOpened).
-    final wasToPlay = !isPlaying && !isOpened && _autoPlay.value;
     await Get.key.currentState!.push(
       PublishRoute(
         pageBuilder: (buildContext, animation, secondaryAnimation) {
@@ -731,11 +714,6 @@ class VideoDetailController extends GetxController
     );
     if (isPlaying) {
       plPlayerController.play();
-    } else if (wasToPlay && _initOpened case final init?) {
-      await init;
-      if (!isClosed) {
-        plPlayerController.play();
-      }
     }
   }
 
@@ -828,17 +806,6 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
-    // Set up once the page has opened, without holding up what called it:
-    // the query for the links would stay open meanwhile, and a part picked
-    // in the meantime could not query its own. Only the latest is set up,
-    // the part shown then.
-    if (!isOpened) {
-      _initOnceOpened = (covered) => playerInit(
-        autoplay: covered ? false : autoplay,
-        autoFullScreenFlag: !covered && autoFullScreenFlag,
-      );
-      return;
-    }
     _keptLinks = false;
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
@@ -1516,9 +1483,6 @@ class VideoDetailController extends GetxController
     videoUrl = null;
     audioUrl = null;
     _keptLinks = false;
-    // The part left would be set up once the page opens, its links gone:
-    // the new part's query asks for its own.
-    _initOnceOpened = null;
 
     // danmaku
     savedDanmaku = null;
