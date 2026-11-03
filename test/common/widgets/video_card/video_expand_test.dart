@@ -51,45 +51,51 @@ class _Page extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final arguments = Get.arguments as Map;
-    return Scaffold(
-      body: Column(
-        children: [
-          // The player, built over the target, draws the cover over its
-          // video and under its controls.
-          const SizedBox(
-            key: _playerKey,
-            height: 225,
-            child: Stack(
-              children: [
-                ColoredBox(color: Colors.black, child: SizedBox.expand()),
-                VideoExpandCover(),
-                Text('控件'),
-              ],
+    // As the video page may be dark in a light app.
+    return Theme(
+      data: _darkPage,
+      child: Scaffold(
+        body: Column(
+          children: [
+            // The player, built over the target, draws the cover over its
+            // video and under its controls.
+            const SizedBox(
+              key: _playerKey,
+              height: 225,
+              child: Stack(
+                children: [
+                  ColoredBox(color: Colors.black, child: SizedBox.expand()),
+                  VideoExpandCover(),
+                  Text('控件'),
+                ],
+              ),
             ),
-          ),
-          SizedBox(
-            height: 225,
-            // A new key builds the player anew, as a turned screen does.
-            child: ValueListenableBuilder(
-              valueListenable: _playerBuilds,
-              // None while it is negative, as in picture in picture.
-              builder: (context, builds, _) => builds < 0
-                  ? const SizedBox.shrink()
-                  : VideoExpandTarget(
-                      key: ValueKey(builds),
-                      watchVideo: watchVideo ?? (shown) => () {},
-                    ),
+            SizedBox(
+              height: 225,
+              // A new key builds the player anew, as a turned screen does.
+              child: ValueListenableBuilder(
+                valueListenable: _playerBuilds,
+                // None while it is negative, as in picture in picture.
+                builder: (context, builds, _) => builds < 0
+                    ? const SizedBox.shrink()
+                    : VideoExpandTarget(
+                        key: ValueKey(builds),
+                        watchVideo: watchVideo ?? (shown) => () {},
+                      ),
+              ),
             ),
-          ),
-          GestureDetector(
-            onTap: () => _pageTaps++,
-            child: Text('视频页 ${arguments['cid']}'),
-          ),
-        ],
+            GestureDetector(
+              onTap: () => _pageTaps++,
+              child: Text('视频页 ${arguments['cid']}'),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+final _darkPage = ThemeData.dark();
 
 late ui.Image _coverImage;
 const _playerKey = Key('player');
@@ -447,6 +453,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('视频页 3'));
     expect(_pageTaps, 1);
+  });
+
+  testWidgets('the page fades in over its own background', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    final route = VideoExpandRoute.of(
+      tester.element(find.byType(_Page, skipOffstage: false)),
+    )!;
+    // The page's theme, dark, not the app's.
+    expect(route.debugPageColor, _darkPage.scaffoldBackgroundColor);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('a second tap while the page opens opens nothing more', (

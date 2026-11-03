@@ -424,6 +424,13 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   /// The page's player, where the cover grows into.
   VideoExpandTargetState? _target;
 
+  /// The page's own background, as its player reads it under the page's
+  /// theme: the video page may be dark in a light app.
+  Color? _pageColor;
+
+  @visibleForTesting
+  Color? get debugPageColor => _pageColor;
+
   /// Whether the cover over the player has been let go, the video shown or
   /// given up on: it then fades back in over the video as the page returns,
   /// and a player built again shows it no more.
@@ -730,7 +737,8 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
           radius: source.widget.radius,
           coverRadius: source.widget.coverRadius,
           cardColor: source.widget.color,
-          pageColor: Theme.of(context).scaffoldBackgroundColor,
+          pageColor:
+              route._pageColor ?? Theme.of(context).scaffoldBackgroundColor,
           topPadding: MediaQuery.paddingOf(context).top,
           cardImage: route.cardImage,
           cover: route.cover,
@@ -1166,8 +1174,10 @@ class VideoExpandTargetState extends State<VideoExpandTarget> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      const SizedBox.expand(child: VideoExpandCover());
+  Widget build(BuildContext context) {
+    _route?._pageColor = Theme.of(context).scaffoldBackgroundColor;
+    return const SizedBox.expand(child: VideoExpandCover());
+  }
 }
 
 /// The cover of the card the page grew out of, held over the player until
