@@ -9,6 +9,13 @@ on:
     #         - ready_for_review
     #     paths-ignore:
     #         - "**.md"
+    # Every merge into main builds the signed Android release (no other
+    # platform), so a test APK is waiting without a manual run.
+    push:
+        branches:
+            - main
+        paths-ignore:
+            - "**.md"
     workflow_dispatch:
         inputs:
             build_android:
@@ -53,9 +60,14 @@ on:
                 default: ""
                 type: string
 
+# A newer merge replaces a push build still running; manual runs never cancel.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
+    cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
     android:
-        if: ${{ (github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event.inputs.build_android == 'true' }}
+        if: ${{ (github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_android == 'true' }}
         name: Release Android
         runs-on: ubuntu-latest
         permissions: write-all
@@ -89,7 +101,7 @@ jobs:
               run: lib/scripts/patch.ps1 android
 
             - name: Write key
-              if: github.event_name == 'workflow_dispatch'
+              if: github.event_name != 'pull_request'
               run: |
                   if [ ! -z "${{ secrets.SIGN_KEYSTORE_BASE64 }}" ]; then
                     echo "${{ secrets.SIGN_KEYSTORE_BASE64 }}" | base64 --decode > android/app/key.jks
@@ -100,14 +112,14 @@ jobs:
                   fi
 
             - name: Set and Extract version
-              if: ${{ github.event_name == 'workflow_dispatch' }}
+              if: ${{ github.event_name != 'pull_request' }}
               shell: pwsh
               env:
                   BUILD_NUMBER: ${{ github.event.inputs.build_number }}
               run: lib/scripts/build.ps1 android
 
             - name: Flutter Build Release Apk
-              if: ${{ github.event_name == 'workflow_dispatch' }}
+              if: ${{ github.event_name != 'pull_request' }}
               run: flutter build apk --release --split-per-abi --dart-define-from-file=pili_release.json --no-pub
 
             - name: Flutter Build Dev Apk
