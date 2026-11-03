@@ -67,9 +67,9 @@ concurrency:
     cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
-    # A push build's release starts as a draft made before any build, so its
-    # created_at, which the app's update check compares with each build's
-    # time, is older than every build in it; a build never offers itself.
+    # A push build's release starts as a draft, which the app can't see, and
+    # is published once the Android APKs are in it. If this job fails, the
+    # builds still run; there is just no release.
     prepare:
         if: ${{ github.event_name == 'push' }}
         name: Draft release
@@ -103,16 +103,16 @@ jobs:
               run: |
                   version=$(grep -oP '^version:\s*\K[\d.]+' pubspec.yaml)
                   tag="$version+$(git rev-list --count HEAD)"
-                  # Drafts that cancelled or failed push builds left: only tags of
-                  # this form, so a draft prepared by hand stays.
-                  gh release list --json tagName,isDraft --jq '.[]|select(.isDraft and (.tagName|test("^[0-9.]+\\+[0-9]+$"))).tagName' |
-                    while read -r old; do gh release delete "$old" --yes; done
+                  # Drafts that cancelled or failed push builds left: drafts made by
+                  # this workflow's token only, so a draft prepared by hand stays.
+                  gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[]|select(.draft and .author.login == "github-actions[bot]").id' |
+                    while read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"; done
                   gh release create "$tag" --draft --target "$GITHUB_SHA" --title "$tag" --notes-file "$RUNNER_TEMP/note.md"
                   echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
     android:
         needs: prepare
-        if: ${{ !cancelled() && needs.prepare.result != 'failure' && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_android == 'true') }}
+        if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_android == 'true') }}
         name: Release Android
         runs-on: ubuntu-latest
         permissions: write-all
@@ -240,7 +240,7 @@ jobs:
 
     ios:
         needs: [prepare, android]
-        if: ${{ !cancelled() && needs.prepare.result != 'failure' && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_ios == 'true') }}
+        if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_ios == 'true') }}
         uses: ./.github/workflows/ios.yml
         permissions: write-all
         with:
@@ -249,7 +249,7 @@ jobs:
 
     mac:
         needs: [prepare, android]
-        if: ${{ !cancelled() && needs.prepare.result != 'failure' && (github.event_name == 'push' || github.event.inputs.build_mac == 'true') }}
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.inputs.build_mac == 'true') }}
         uses: ./.github/workflows/mac.yml
         permissions: write-all
         with:
@@ -258,7 +258,7 @@ jobs:
 
     win_x64:
         needs: [prepare, android]
-        if: ${{ !cancelled() && needs.prepare.result != 'failure' && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_win_x64 == 'true') }}
+        if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.repository == 'bggRGjQaUbCoE/PiliPlus') || github.event_name == 'push' || github.event.inputs.build_win_x64 == 'true') }}
         uses: ./.github/workflows/win_x64.yml
         permissions: write-all
         with:
@@ -267,17 +267,18 @@ jobs:
 
     linux_x64:
         needs: [prepare, android]
-        if: ${{ !cancelled() && needs.prepare.result != 'failure' && (github.event_name == 'push' || github.event.inputs.build_linux_x64 == 'true') }}
+        if: ${{ !cancelled() && (github.event_name == 'push' || github.event.inputs.build_linux_x64 == 'true') }}
         uses: ./.github/workflows/linux_x64.yml
         permissions: write-all
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
             draft_tag: ${{ needs.prepare.outputs.tag }}
 
-    # Publishes the draft once Android is in it; a platform that failed is
-    # left out rather than holding the release back.
+    # Publishes the draft as soon as Android is in it; the other platforms
+    # add their files to the published release as they finish, and one that
+    # fails is left out rather than holding the release back.
     publish:
-        needs: [prepare, android, ios, mac, win_x64, linux_x64]
+        needs: [prepare, android]
         if: ${{ !cancelled() && needs.prepare.outputs.tag != '' && needs.android.result == 'success' }}
         name: Publish release
         runs-on: ubuntu-latest

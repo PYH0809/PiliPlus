@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -29,10 +30,18 @@ def run(*args, check=True):
 
 
 def gh_api(path):
-    try:
-        return json.loads(run('gh', 'api', path))
-    except subprocess.CalledProcessError:
-        return None
+    """The response, or None for a 404. Any other failure is retried, then
+    raised: a note quietly missing PRs would never get them back, since the
+    next release starts from this one."""
+    for attempt in range(3):
+        res = subprocess.run(['gh', 'api', path], capture_output=True, text=True)
+        if res.returncode == 0:
+            return json.loads(res.stdout)
+        if 'HTTP 404' in res.stderr:
+            return None
+        print(f'::warning::gh api {path} failed (try {attempt + 1}): {res.stderr.strip()}')
+        time.sleep(5 * (attempt + 1))
+    raise RuntimeError(f'gh api {path} kept failing')
 
 
 def upstream_tags_in(rev, exclude=None):
