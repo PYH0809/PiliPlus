@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   late int opened;
+  bool? lastCovered;
   late GlobalKey<NavigatorState> navigator;
 
   Future<void> pumpApp(WidgetTester tester) async {
@@ -16,7 +17,10 @@ void main() {
 
   Route<void> page() => MaterialPageRoute<void>(
     builder: (_) => RouteOpened(
-      onOpened: () => opened++,
+      onOpened: ({required covered}) {
+        opened++;
+        lastCovered = covered;
+      },
       child: const Text('视频页'),
     ),
   );
@@ -31,6 +35,7 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(opened, 1);
+    expect(lastCovered, isFalse);
 
     // Covered and shown again, it has opened already.
     navigator.currentState!.push(page());
@@ -45,12 +50,33 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: RouteOpened(
-          onOpened: () => opened++,
+          onOpened: ({required covered}) {
+            opened++;
+            lastCovered = covered;
+          },
           child: const Text('视频页'),
         ),
       ),
     );
     expect(opened, 1);
+  });
+
+  testWidgets('tells of a route opened over it meanwhile', (tester) async {
+    await pumpApp(tester);
+    navigator.currentState!.push(page());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    // As the panel to send danmaku, opened while the page opens.
+    navigator.currentState!.push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        transitionDuration: Duration.zero,
+        pageBuilder: (_, _, _) => const Text('面板'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+    expect(lastCovered, isTrue);
   });
 
   testWidgets('never calls on a route popped while it opens', (tester) async {

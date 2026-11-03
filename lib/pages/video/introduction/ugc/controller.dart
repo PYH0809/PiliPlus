@@ -97,15 +97,7 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
   @override
   Future<void> queryVideoIntro() async {
     queryVideoTags();
-    // Found now: the page's controller is gone once the page has closed.
-    final videoDetailCtr = this.videoDetailCtr;
-    final bvid = this.bvid;
     final res = await VideoHttp.videoIntro(bvid: bvid);
-    await videoDetailCtr.untilOpened;
-    // A video switched to meanwhile queries its own.
-    if (isClosed || bvid != this.bvid) {
-      return;
-    }
     if (res case Success(:final response)) {
       if (response.redirectUrl != null &&
           videoDetailCtr.epId == null &&
@@ -115,11 +107,24 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         }
         return;
       }
-      videoPlayerServiceHandler?.onVideoDetailChange(
-        response,
-        cid.value,
-        heroTag,
-      );
+      // The media card waits for the page to open, as the player does: its
+      // update holds Android's main thread, which hands out the vsyncs. Only
+      // the video and part still shown then are put on it.
+      final cid = this.cid.value;
+      if (videoDetailCtr.untilOpened case final opened?) {
+        final bvid = this.bvid;
+        opened.then((_) {
+          if (!isClosed && bvid == this.bvid && cid == this.cid.value) {
+            videoPlayerServiceHandler?.onVideoDetailChange(
+              response,
+              cid,
+              heroTag,
+            );
+          }
+        });
+      } else {
+        videoPlayerServiceHandler?.onVideoDetailChange(response, cid, heroTag);
+      }
       final currentDetail = videoDetail.value;
       if (currentDetail.ugcSeason?.id == response.ugcSeason?.id) {
         // keep reversed season

@@ -2,9 +2,10 @@ import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Calls [onOpened] once the route it sits in has opened, its transition
-/// over, or once it has first built if the route is not opening. A page holds back
-/// with it what would stall the transition, as calls to the platform: they run
-/// on Android's main thread, which then hands out the frames' vsyncs late. A
+/// over, or once it has first built if the route is not opening, telling
+/// whether a route opened over it meanwhile covers it. A page holds back with
+/// it what would stall the transition, as calls to the platform: they run on
+/// Android's main thread, which then hands out the frames' vsyncs late. A
 /// route popped while it opens never calls it.
 ///
 /// Only this widget depends on the route, so the page under it does not
@@ -12,7 +13,7 @@ import 'package:material_ui/material_ui.dart';
 class RouteOpened extends StatefulWidget {
   const RouteOpened({super.key, required this.onOpened, required this.child});
 
-  final VoidCallback onOpened;
+  final void Function({required bool covered}) onOpened;
   final Widget child;
 
   @override
@@ -21,6 +22,7 @@ class RouteOpened extends StatefulWidget {
 
 class _RouteOpenedState extends State<RouteOpened> {
   bool _looked = false;
+  ModalRoute<Object?>? _route;
   Animation<double>? _opening;
 
   @override
@@ -30,7 +32,8 @@ class _RouteOpenedState extends State<RouteOpened> {
       return;
     }
     _looked = true;
-    final animation = ModalRoute.of(context)?.animation;
+    final route = _route = ModalRoute.of(context);
+    final animation = route?.animation;
     // A route being pushed can report itself completed as it first builds,
     // before it sets off: a frame on, it is moving if it opens.
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -38,7 +41,7 @@ class _RouteOpenedState extends State<RouteOpened> {
         return;
       }
       if (animation == null || animation.status != AnimationStatus.forward) {
-        widget.onOpened();
+        _open();
       } else {
         _opening = animation..addStatusListener(_onStatus);
       }
@@ -51,9 +54,11 @@ class _RouteOpenedState extends State<RouteOpened> {
     }
     _stop();
     if (status == AnimationStatus.completed) {
-      widget.onOpened();
+      _open();
     }
   }
+
+  void _open() => widget.onOpened(covered: !(_route?.isCurrent ?? true));
 
   void _stop() {
     _opening?.removeStatusListener(_onStatus);

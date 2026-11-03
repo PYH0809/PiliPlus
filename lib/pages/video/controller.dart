@@ -154,10 +154,14 @@ class VideoDetailController extends GetxController
   /// their new glyphs drawn on its frames. They mostly arrive as it ends.
   Future<void>? get untilOpened => isOpened ? null : opened;
 
-  // The player's setup asked for while the page opens, the latest only.
-  VoidCallback? _initOnceOpened;
+  // The player's setup asked for while the page opens, the latest only. It
+  // is told whether a route covers the page by then.
+  ValueChanged<bool>? _initOnceOpened;
 
-  void onOpened() {
+  /// The page has opened; [covered] while a route opened over it meanwhile,
+  /// as the panel to send danmaku: the player is then set up without
+  /// playing, as the panel would have paused it.
+  void onOpened({bool covered = false}) {
     if (_opened.isCompleted) {
       return;
     }
@@ -165,7 +169,7 @@ class VideoDetailController extends GetxController
     plPlayerController.listenOrientation();
     final init = _initOnceOpened;
     _initOnceOpened = null;
-    init?.call();
+    init?.call(covered);
   }
 
   String? videoUrl;
@@ -818,9 +822,9 @@ class VideoDetailController extends GetxController
     // in the meantime could not query its own. Only the latest is set up,
     // the part shown then.
     if (!isOpened) {
-      _initOnceOpened = () => playerInit(
-        autoplay: autoplay,
-        autoFullScreenFlag: autoFullScreenFlag,
+      _initOnceOpened = (covered) => playerInit(
+        autoplay: covered ? false : autoplay,
+        autoFullScreenFlag: !covered && autoFullScreenFlag,
       );
       return;
     }
