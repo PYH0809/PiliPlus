@@ -42,4 +42,25 @@ void main() {
       );
     });
   });
+
+  group('Update.hasPackage', () {
+    final data = {
+      'assets': [
+        {'name': 'PiliPlus_android_2.2.0-0123456789+6040_arm64-v8a.apk'},
+        {'name': 'PiliPlus_linux_2.2.0+6040_amd64.deb'},
+      ],
+    };
+
+    test('finds the package of a platform that has uploaded', () {
+      expect(Update.hasPackage(data, 'android'), isTrue);
+      expect(Update.hasPackage(data, 'linux'), isTrue);
+    });
+
+    test('says no while a platform has not uploaded yet', () {
+      expect(Update.hasPackage(data, 'windows'), isFalse);
+      expect(Update.hasPackage(data, 'macos'), isFalse);
+      expect(Update.hasPackage(data, 'ios'), isFalse);
+      expect(Update.hasPackage({'assets': []}, 'android'), isFalse);
+    });
+  });
 }

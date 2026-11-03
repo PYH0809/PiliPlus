@@ -34,6 +34,13 @@ abstract final class Update {
     return buildTime < latest;
   }
 
+  // 安装包名形如 PiliPlus_<平台>_<版本>...，os 取 Platform.operatingSystem
+  static bool hasPackage(Map data, String os) {
+    final assets = data['assets'];
+    return assets is List &&
+        assets.any((i) => (i['name'] as String?)?.contains('_${os}_') ?? false);
+  }
+
   // 检查更新
   static Future<void> checkUpdate([bool isAuto = true]) async {
     if (kDebugMode) return;
@@ -60,6 +67,11 @@ abstract final class Update {
       if (!hasUpdate(data)) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
+        }
+      } else if (!hasPackage(data, Platform.operatingSystem)) {
+        // 安卓的包传完就发布，其他平台的包随后才补上，下次检查再提示
+        if (!isAuto) {
+          SmartDialog.showToast('新版本的安装包还在上传，请稍后再试');
         }
       } else {
         SmartDialog.show(

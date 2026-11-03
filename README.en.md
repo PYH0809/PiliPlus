@@ -28,7 +28,7 @@
 
 ## Download
 
-Download a build from [Releases](https://github.com/PYH0809/PiliPlus/releases), or clone the repository and build it locally. Every merge into main publishes one, and the app's update check reads them. An install of upstream's build, or of an older one, is signed with another key and doesn't look here: uninstall it and install this repository's build by hand once.
+Download a build from [Releases](https://github.com/PYH0809/PiliPlus/releases), or clone the repository and build it locally. Every merge into main publishes one, and the app's update check reads them. An install of upstream's build is signed with another key and can't be updated in place: export your data first (About → Import/export all data), uninstall it, install this repository's build and import the data. An older build of this repository checks upstream for updates: download this repository's build by hand once and install it over the old one, keeping your data.
 
 ## Disclaimer
 
