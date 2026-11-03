@@ -132,7 +132,9 @@ def ask_model(prs, upstream, examples):
                 if text:
                     return text
             print(f'::warning::release note model returned no text (try {attempt + 1})')
-        except (urllib.error.URLError, TimeoutError, KeyError, IndexError, TypeError, ValueError) as e:
+        # Whatever goes wrong with the model, the PR titles still make a note.
+        except Exception as e:  # noqa: BLE001
+
             print(f'::warning::release note model failed (try {attempt + 1}): {e}')
     return None
 
