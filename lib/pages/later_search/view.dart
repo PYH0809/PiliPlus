@@ -75,7 +75,7 @@ class _LaterSearchPageState
           index: index,
           videoItem: item,
           ctr: controller,
-          onViewLater: (cid) {
+          onViewLater: (cid, source) {
             PageUtils.toVideoPage(
               bvid: item.bvid,
               cid: cid,
@@ -93,6 +93,7 @@ class _LaterSearchPageState
                       'isContinuePlaying': index != 0,
                     }
                   : const {'viewLater': true},
+              expandFrom: source,
             );
           },
         );

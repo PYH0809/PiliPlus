@@ -3,6 +3,7 @@ import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/select_mask.dart';
 import 'package:PiliPlus/common/widgets/stat/stat.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/http/search.dart';
 import 'package:PiliPlus/models/common/stat_type.dart';
 import 'package:PiliPlus/models_new/later/list.dart';
@@ -24,7 +25,7 @@ class VideoCardHLater extends StatelessWidget {
   final int index;
   final BaseLaterController ctr;
   final LaterItemModel videoItem;
-  final ValueChanged<int> onViewLater;
+  final void Function(int cid, VideoExpandSourceState source) onViewLater;
 
   @override
   Widget build(BuildContext context) {
@@ -37,53 +38,63 @@ class VideoCardHLater extends StatelessWidget {
             ..enableMultiSelect.value = true
             ..onSelect(videoItem);
 
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onLongPress: onLongPress,
-        onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-        onTap: enableMultiSelect
-            ? () => ctr.onSelect(videoItem)
-            : () => onPushLater(videoItem, onViewLater: onViewLater),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Style.safeSpace,
-            vertical: 5,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              AspectRatio(
-                aspectRatio: Style.aspectRatio,
-                child: LayoutBuilder(
-                  builder: (context, boxConstraints) {
-                    final double maxWidth = boxConstraints.maxWidth;
-                    final double maxHeight = boxConstraints.maxHeight;
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        NetworkImgLayer(
-                          src: videoItem.pic,
-                          width: maxWidth,
-                          height: maxHeight,
-                          cacheWidth: videoItem.dimension?.cacheWidth,
-                        ),
-                        ?videoItem.label,
-                        ...videoItem.progressIndicator(theme.colorScheme),
-                        Positioned.fill(
-                          child: selectMask(
-                            theme.colorScheme,
-                            videoItem.checked,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+    return VideoExpandSource(
+      key: ObjectKey(videoItem),
+      color: theme.colorScheme.surface,
+      coverRadius: Style.mdRadius,
+      builder: (context, source) => Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onLongPress: onLongPress,
+          onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
+          onTap: enableMultiSelect
+              ? () => ctr.onSelect(videoItem)
+              : () => onPushLater(
+                  videoItem,
+                  onViewLater: (cid) => onViewLater(cid, source),
                 ),
-              ),
-              const SizedBox(width: 10),
-              content(context, theme),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Style.safeSpace,
+              vertical: 5,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                AspectRatio(
+                  aspectRatio: Style.aspectRatio,
+                  child: LayoutBuilder(
+                    builder: (context, boxConstraints) {
+                      final double maxWidth = boxConstraints.maxWidth;
+                      final double maxHeight = boxConstraints.maxHeight;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          source.cover(
+                            NetworkImgLayer(
+                              src: videoItem.pic,
+                              width: maxWidth,
+                              height: maxHeight,
+                              cacheWidth: videoItem.dimension?.cacheWidth,
+                            ),
+                          ),
+                          ?videoItem.label,
+                          ...videoItem.progressIndicator(theme.colorScheme),
+                          Positioned.fill(
+                            child: selectMask(
+                              theme.colorScheme,
+                              videoItem.checked,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                content(context, theme),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,5 +1,7 @@
+import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/avatars.dart';
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/action_panel.dart';
@@ -65,7 +67,7 @@ class DynamicPanel extends StatelessWidget {
       () => authorWidget.showMoreMenu(context, pressAt),
     );
 
-    final child = Material(
+    Widget card([VideoExpandSourceState? source]) => Material(
       type: MaterialType.transparency,
       child: InkWell(
         onTap:
@@ -81,7 +83,7 @@ class DynamicPanel extends StatelessWidget {
                   'DYNAMIC_TYPE_COURSES_SEASON',
                 }.contains(item.type)
             ? null
-            : () => PageUtils.pushDynDetail(item),
+            : () => PageUtils.pushDynDetail(item, expandFrom: source),
         onTapDown: (details) => pressAt = details.globalPosition,
         onLongPress: showMore,
         onSecondaryTapDown: (details) => pressAt = details.globalPosition,
@@ -128,6 +130,15 @@ class DynamicPanel extends StatelessWidget {
         ),
       ),
     );
+    // A video's cover grows into its player; a saved picture opens nothing.
+    final child = isSave
+        ? card()
+        : VideoExpandSource(
+            key: ObjectKey(item),
+            color: theme.colorScheme.surface,
+            coverRadius: Style.mdRadius,
+            builder: (context, source) => card(source),
+          );
     if (isSave || (isDetail && !isDetailPortraitW)) {
       return child;
     }

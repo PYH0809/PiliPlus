@@ -720,6 +720,47 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a video built apart from its card opens out of the card', (
+    tester,
+  ) async {
+    // As a dynamic's: its video, a forwarded one's too, is built by panels
+    // that only find the card around them.
+    final video = Builder(
+      builder: (context) => InkWell(
+        onTap: () => PageUtils.toVideoPage(
+          aid: 2,
+          bvid: 'BV1xx411c7mD',
+          cid: 3,
+          expandFrom: VideoExpandSource.maybeOf(context),
+        ),
+        child: Builder(
+          builder: (context) => VideoExpandSource.maybeOf(context)!.cover(
+            RawImage(image: _coverImage, width: 180, height: 112.5),
+          ),
+        ),
+      ),
+    );
+    await _pump(
+      tester,
+      home: VideoExpandSource(
+        color: Colors.white,
+        builder: (context, source) => SizedBox(
+          width: 180,
+          height: 200,
+          child: Column(children: [const Text('卡片'), video]),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(RawImage));
+    await tester.pump();
+    expect(_expanding(tester), isTrue);
+    final route = VideoExpandRoute.of(
+      tester.element(find.byType(_Page, skipOffstage: false)),
+    )!;
+    expect(route.cover, isNotNull);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('a list refreshed under the page returns it with no card', (
     tester,
   ) async {

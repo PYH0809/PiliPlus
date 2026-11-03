@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/http/search.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/models_new/space/space_archive/item.dart';
@@ -19,7 +20,7 @@ class VideoCardVMemberHome extends StatelessWidget {
 
   const VideoCardVMemberHome(this.videoItem, {super.key});
 
-  Future<void> onPushDetail() async {
+  Future<void> onPushDetail(VideoExpandSourceState source) async {
     String? goto = videoItem.goto;
     switch (goto) {
       case 'bangumi':
@@ -57,6 +58,7 @@ class VideoCardVMemberHome extends StatelessWidget {
             cover: videoItem.cover,
             title: videoItem.title,
             dimension: dimension,
+            expandFrom: source,
           );
         }
         break;
@@ -76,70 +78,78 @@ class VideoCardVMemberHome extends StatelessWidget {
       aid: videoItem.param,
       bvid: videoItem.bvid,
     );
-    return Card(
-      child: InkWell(
-        onTap: onPushDetail,
-        onLongPress: onLongPress,
-        onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-        borderRadius: const .all(.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: Style.aspectRatio,
-              child: LayoutBuilder(
-                builder: (context, boxConstraints) {
-                  double maxWidth = boxConstraints.maxWidth;
-                  double maxHeight = boxConstraints.maxHeight;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      NetworkImgLayer(
-                        src: videoItem.cover,
-                        width: maxWidth,
-                        height: maxHeight,
-                        borderRadius: const .vertical(top: .circular(12)),
-                      ),
-                      if (videoItem.duration > 0)
-                        PBadge(
-                          bottom: 6,
-                          right: 7,
-                          size: PBadgeSize.small,
-                          type: PBadgeType.gray,
-                          text: DurationUtils.formatDuration(
-                            videoItem.duration,
+    final theme = Theme.of(context);
+    return VideoExpandSource(
+      key: ObjectKey(videoItem),
+      color: theme.cardTheme.color ?? theme.colorScheme.surfaceContainerLow,
+      coverRadius: const .vertical(top: .circular(12)),
+      builder: (context, source) => Card(
+        child: InkWell(
+          onTap: () => onPushDetail(source),
+          onLongPress: onLongPress,
+          onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
+          borderRadius: const .all(.circular(12)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: Style.aspectRatio,
+                child: LayoutBuilder(
+                  builder: (context, boxConstraints) {
+                    double maxWidth = boxConstraints.maxWidth;
+                    double maxHeight = boxConstraints.maxHeight;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        source.cover(
+                          NetworkImgLayer(
+                            src: videoItem.cover,
+                            width: maxWidth,
+                            height: maxHeight,
+                            borderRadius: const .vertical(top: .circular(12)),
                           ),
                         ),
-                      if (videoItem.badges?.isNotEmpty == true)
-                        PBadge(
-                          text: videoItem.badges!
-                              .map((e) => e.text ?? '')
-                              .join('|'),
-                          top: 6,
-                          right: 6,
-                          type: videoItem.badges!.first.text == '充电专属'
-                              ? PBadgeType.error
-                              : PBadgeType.primary,
-                        )
-                      else if (videoItem.isCooperation == true)
-                        const PBadge(
-                          text: '合作',
-                          top: 6,
-                          right: 6,
-                        )
-                      else if (videoItem.isSteins == true)
-                        const PBadge(
-                          text: '互动',
-                          top: 6,
-                          right: 6,
-                        ),
-                    ],
-                  );
-                },
+                        if (videoItem.duration > 0)
+                          PBadge(
+                            bottom: 6,
+                            right: 7,
+                            size: PBadgeSize.small,
+                            type: PBadgeType.gray,
+                            text: DurationUtils.formatDuration(
+                              videoItem.duration,
+                            ),
+                          ),
+                        if (videoItem.badges?.isNotEmpty == true)
+                          PBadge(
+                            text: videoItem.badges!
+                                .map((e) => e.text ?? '')
+                                .join('|'),
+                            top: 6,
+                            right: 6,
+                            type: videoItem.badges!.first.text == '充电专属'
+                                ? PBadgeType.error
+                                : PBadgeType.primary,
+                          )
+                        else if (videoItem.isCooperation == true)
+                          const PBadge(
+                            text: '合作',
+                            top: 6,
+                            right: 6,
+                          )
+                        else if (videoItem.isSteins == true)
+                          const PBadge(
+                            text: '互动',
+                            top: 6,
+                            right: 6,
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-            content(context),
-          ],
+              content(context),
+            ],
+          ),
         ),
       ),
     );

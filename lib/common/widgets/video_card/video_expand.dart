@@ -167,6 +167,11 @@ class VideoExpandSource extends StatefulWidget {
   final Widget Function(BuildContext context, VideoExpandSourceState source)
   builder;
 
+  /// The source the card around [context] opens from, for the parts of a
+  /// card built apart from its [builder], such as a dynamic's video.
+  static VideoExpandSourceState? maybeOf(BuildContext context) =>
+      context.findAncestorStateOfType<VideoExpandSourceState>();
+
   @override
   State<VideoExpandSource> createState() => VideoExpandSourceState();
 }

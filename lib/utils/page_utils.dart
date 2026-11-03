@@ -240,6 +240,7 @@ abstract final class PageUtils {
     DynamicItemModel item, {
     bool isPush = false,
     bool viewComment = false,
+    VideoExpandSourceState? expandFrom,
   }) async {
     feedBack();
 
@@ -315,6 +316,7 @@ abstract final class PageUtils {
               cover: cover,
               dimension: res!.dimension,
               title: archive.title,
+              expandFrom: expandFrom,
             );
           }
         } catch (err) {
@@ -377,6 +379,7 @@ abstract final class PageUtils {
             cover: cover,
             dimension: res!.dimension,
             title: ugcSeason.title,
+            expandFrom: expandFrom,
           );
         }
         break;
