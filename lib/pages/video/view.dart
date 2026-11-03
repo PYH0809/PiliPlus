@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math';
 
@@ -51,11 +50,11 @@ import 'package:PiliPlus/pages/video/reply/controller.dart';
 import 'package:PiliPlus/pages/video/reply/view.dart';
 import 'package:PiliPlus/pages/video/view_point/view.dart';
 import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
+import 'package:PiliPlus/pages/video/widgets/first_frame.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/pages/video/widgets/intro_layout.dart';
 import 'package:PiliPlus/pages/video/widgets/player_focus.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
-import 'package:PiliPlus/plugin/pl_player/models/data_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/fullscreen_mode.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
@@ -1514,54 +1513,17 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   }
 
   /// Calls [shown] once this page's video shows its first frame, or at once
-  /// if it won't play by itself, and returns what stops watching. The player
-  /// is shared with the video pages below, which may still be playing.
+  /// if it won't play by itself, and returns what stops watching.
   VoidCallback _watchFirstFrame(VoidCallback shown) {
-    final player = videoDetailController.plPlayerController;
     if (!videoDetailController.autoPlay) {
       shown();
       return () {};
     }
-    final cid = videoDetailController.cid.value;
-    var watching = true;
-    StreamSubscription<DataStatus>? loading;
-    late final ValueChanged<Duration> onPosition;
-    void stop() {
-      watching = false;
-      loading?.cancel();
-      player.removePositionListener(onPosition);
-    }
-
-    onPosition = (_) {
-      if (watching && player.playerStatus.isPlaying) {
-        stop();
-        shown();
-      }
-    };
-
-    void check() {
-      if (!watching || player.cid != cid) {
-        return;
-      }
-      if (player.dataStatus.error) {
-        stop();
-        shown();
-      } else if (player.dataStatus.loaded) {
-        loading?.cancel();
-        // A player the pages below opened showed its first frame long
-        // since: its first position played on this video tells, then.
-        (player.videoController?.waitUntilFirstFrameRendered ?? Future.value())
-            .then((_) {
-              if (watching) {
-                player.addPositionListener(onPosition);
-              }
-            });
-      }
-    }
-
-    loading = player.dataStatus.listen((_) => check());
-    check();
-    return stop;
+    return watchFirstFrame(
+      videoDetailController.plPlayerController,
+      cid: videoDetailController.cid.value,
+      shown: shown,
+    );
   }
 
   Widget videoPlayer({required double width, required double height}) {

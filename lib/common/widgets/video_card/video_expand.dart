@@ -49,9 +49,9 @@ class VideoExpandFrame {
 
   /// The frame [t] into the opening, or into the return when [returning].
   /// The rect and its corners run on [Curves.fastOutSlowIn], and on its
-  /// flip on the return, or linearly when the return [interrupted] the
-  /// opening; a return that interrupted the opening also keeps the opening's
-  /// fades, run backwards, so nothing jumps. [card] is the card's rect,
+  /// flip on the return; a return that [interrupted] the opening runs it
+  /// backwards, its curve and fades and all, so nothing jumps, as
+  /// OpenContainer's CurvedAnimation does with no reverse curve. [card] is the card's rect,
   /// [screen] the page's, [coverFrom] the card's cover and [coverTo] the
   /// player; [videoShown] says the video has shown over the cover, which
   /// fades back in over it as the page fades out.
@@ -66,11 +66,9 @@ class VideoExpandFrame {
     Rect? coverTo,
     bool videoShown = false,
   }) {
-    final shape = !returning
-        ? Curves.fastOutSlowIn.transform(t)
-        : interrupted
-        ? t
-        : Curves.fastOutSlowIn.flipped.transform(t);
+    final shape = returning && !interrupted
+        ? Curves.fastOutSlowIn.flipped.transform(t)
+        : Curves.fastOutSlowIn.transform(t);
     final double cardOpacity;
     final double pageOpacity;
     final double scrim;
@@ -385,8 +383,10 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   /// The page's player, where the cover grows into.
   VideoExpandTargetState? _target;
 
-  /// Whether the video has shown over the cover.
-  bool _videoShown = false;
+  /// Whether the cover over the player has been let go, the video shown or
+  /// given up on: it then fades back in over the video as the page returns,
+  /// and a player built again shows it no more.
+  bool _coverGone = false;
 
   /// The route [context] is in, if a card opened it.
   static VideoExpandRoute<dynamic>? of(BuildContext context) =>
@@ -633,7 +633,7 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
           card: source._cardRect,
           coverFrom: source._coverRect,
           player: route._target?._box,
-          videoShown: route._videoShown,
+          videoShown: route._coverGone,
           radius: source.widget.radius,
           coverRadius: source.widget.coverRadius,
           cardColor: source.widget.color,
@@ -1014,9 +1014,20 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
       return;
     }
     route._target = this;
+    // Built again once the cover was let go, as the player is in another
+    // layout after the screen turns: it stays gone.
+    _gone = route._coverGone;
+    if (_gone) {
+      return;
+    }
     _routeAnimation!.addStatusListener(_handleRouteStatus);
     _opened = _routeAnimation!.isCompleted;
     _stopWatching ??= widget.watchVideo(_handleVideoShown);
+    // Built after the page had opened, it holds the cover no longer than
+    // one built as it opened would.
+    if (_opened) {
+      _fadeOnceShown();
+    }
   }
 
   void _handleRouteStatus(AnimationStatus status) {
@@ -1055,9 +1066,9 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
     if (!mounted || _gone || !_fade.isCompleted) {
       return;
     }
+    _route?._coverGone = true;
     _fade.reverse().whenComplete(() {
       if (mounted) {
-        _route?._videoShown = true;
         setState(() => _gone = true);
       }
     });

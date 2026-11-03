@@ -52,8 +52,13 @@ class _Page extends StatelessWidget {
         children: [
           SizedBox(
             height: 225,
-            child: VideoExpandTarget(
-              watchVideo: watchVideo ?? (shown) => () {},
+            // A new key builds the player anew, as a turned screen does.
+            child: ValueListenableBuilder(
+              valueListenable: _playerBuilds,
+              builder: (context, builds, _) => VideoExpandTarget(
+                key: ValueKey(builds),
+                watchVideo: watchVideo ?? (shown) => () {},
+              ),
             ),
           ),
           Text('视频页 ${arguments['cid']}'),
@@ -64,6 +69,7 @@ class _Page extends StatelessWidget {
 }
 
 late ui.Image _coverImage;
+final _playerBuilds = ValueNotifier(0);
 
 Widget _card0({ValueChanged<VideoExpandSourceState>? onSource}) =>
     VideoExpandSource(
@@ -250,12 +256,18 @@ void main() {
       expect(_at(0.9, returning: true).coverOpacity, 1);
     });
 
-    test('a return that interrupted the opening runs it back linearly', () {
-      final back = _at(0.5, returning: true, interrupted: true);
-      _expectRect(back.rect, Rect.lerp(_card, _screen, 0.5)!);
-      expect(back.pageOpacity, moreOrLessEquals(_at(0.5).pageOpacity));
-      expect(back.cardOpacity, _at(0.5).cardOpacity);
-      expect(back.scrim, _at(0.5).scrim);
+    test('a return that interrupted the opening runs it back as it was', () {
+      for (final t in [0.1, 0.5, 0.9]) {
+        final back = _at(t, returning: true, interrupted: true);
+        final open = _at(t);
+        _expectRect(back.rect, open.rect);
+        _expectRect(back.cover!, open.cover!);
+        expect(back.radius, moreOrLessEquals(open.radius));
+        expect(back.pageOpacity, moreOrLessEquals(open.pageOpacity));
+        expect(back.cardOpacity, open.cardOpacity);
+        expect(back.scrim, open.scrim);
+        expect(back.coverOpacity, 1);
+      }
     });
 
     test('runs only on phones with the switch on and animations on', () {
@@ -421,6 +433,51 @@ void main() {
 
     shown!();
     expect(stopped, isTrue);
+    await tester.pumpAndSettle();
+    expect(cover, findsNothing);
+  });
+
+  testWidgets('a player built again once the cover went shows it no more', (
+    tester,
+  ) async {
+    VoidCallback? shown;
+    await _pump(
+      tester,
+      watchVideo: (onShown) {
+        shown = onShown;
+        return () {};
+      },
+    );
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    shown!();
+    await tester.pumpAndSettle();
+    final cover = find.descendant(
+      of: find.byType(VideoExpandTarget),
+      matching: find.byType(CustomPaint),
+    );
+    expect(cover, findsNothing);
+
+    // The video paused, the screen turns.
+    _playerBuilds.value++;
+    await tester.pump();
+    expect(cover, findsNothing);
+  });
+
+  testWidgets('a player built again before the video shows lets go in time', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    _playerBuilds.value++;
+    await tester.pump();
+    final cover = find.descendant(
+      of: find.byType(VideoExpandTarget),
+      matching: find.byType(CustomPaint),
+    );
+    expect(cover, findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
     expect(cover, findsNothing);
   });
