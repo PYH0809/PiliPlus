@@ -876,6 +876,37 @@ void main() {
     expect(_cardOpacity(tester), 1);
   });
 
+  testWidgets('a detail scrolled down to its comments shows no content', (
+    tester,
+  ) async {
+    final scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    final key = GlobalKey<VideoExpandContentState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          // Under the page's bar, as the detail's scroll view.
+          appBar: AppBar(),
+          body: ListView(
+            controller: scroll,
+            children: [
+              VideoExpandContent(
+                key: key,
+                child: const SizedBox(height: 200),
+              ),
+              const SizedBox(height: 3000),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(key.currentState!.debugShowsTop, isTrue);
+    // Its bottom stays laid out against the bar, out of sight.
+    scroll.jumpTo(150);
+    await tester.pump();
+    expect(key.currentState!.debugShowsTop, isFalse);
+  });
+
   testWidgets('a list refreshed under the page returns it with no card', (
     tester,
   ) async {

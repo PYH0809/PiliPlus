@@ -249,18 +249,22 @@ abstract final class PageUtils {
     // or into an opus, laid out apart, fading through; not a card holding
     // another's dynamic, as a forwarded one, whose content is not the card's.
     final detailFrom = expandIntoDetail ? expandFrom : null;
+    void pushOpus() {
+      final parameters = <String, String>{
+        'id': '${item.idStr}',
+        'type': 'opus',
+        if (viewComment) 'viewComment': '',
+      };
+      if (detailFrom?.expand<void>('/articlePage', parameters: parameters)
+          case _?) {
+        return;
+      }
+      toDupNamed('/articlePage', parameters: parameters);
+    }
+
     void push() {
       if (item.basic?.commentType == 12) {
-        final parameters = <String, String>{
-          'id': '${item.idStr}',
-          'type': 'opus',
-          if (viewComment) 'viewComment': '',
-        };
-        if (detailFrom?.expand<void>('/articlePage', parameters: parameters)
-            case _?) {
-          return;
-        }
-        toDupNamed('/articlePage', parameters: parameters);
+        pushOpus();
       } else {
         if (item.linkFolded) {
           pushDynFromId(id: item.idStr);
@@ -339,14 +343,7 @@ abstract final class PageUtils {
 
       /// 专栏文章查看
       case 'DYNAMIC_TYPE_ARTICLE':
-        toDupNamed(
-          '/articlePage',
-          parameters: {
-            'id': item.idStr,
-            'type': 'opus',
-            if (viewComment) 'viewComment': '',
-          },
-        );
+        pushOpus();
         break;
 
       case 'DYNAMIC_TYPE_PGC':

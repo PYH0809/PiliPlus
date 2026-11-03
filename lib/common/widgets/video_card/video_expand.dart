@@ -814,6 +814,7 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
           content: route.moveContent
               ? route._content?.context.findRenderObject() as RenderBox?
               : null,
+          contentShown: route._content?._showsTop ?? true,
           moveContent: route.moveContent,
           videoShown: route._coverGone,
           radius: source.widget.radius,
@@ -845,6 +846,7 @@ class _Expand extends SingleChildRenderObjectWidget {
     required this.coverFrom,
     required this.player,
     required this.content,
+    required this.contentShown,
     required this.moveContent,
     required this.videoShown,
     required this.radius,
@@ -871,6 +873,10 @@ class _Expand extends SingleChildRenderObjectWidget {
   /// Where the page lays the card's content out, which the card's picture
   /// moves onto when it does.
   final RenderBox? content;
+
+  /// Whether the top of the page's content stands within what its scroll
+  /// view shows.
+  final bool contentShown;
   final bool moveContent;
   final bool videoShown;
   final double radius;
@@ -972,16 +978,20 @@ class _RenderExpand extends RenderProxyBox {
           )
         : null;
     final player = rectOf(config.player);
-    final Rect? contentTo = config.moveContent
-        // Until the page has laid it out, under the page's bar.
-        ? rectOf(config.content) ??
-              Rect.fromLTWH(
-                card.left,
-                config.topPadding + kToolbarHeight,
-                card.width,
-                card.height,
-              )
-        : null;
+    final Rect? contentTo = switch (rectOf(config.content)) {
+      _ when !config.moveContent => null,
+      // Until the page has laid it out, under the page's bar.
+      null => Rect.fromLTWH(
+        card.left,
+        config.topPadding + kToolbarHeight,
+        card.width,
+        card.height,
+      ),
+      // Scrolled off the page, as to its comments: it returns fading
+      // through instead, its content not flying in from out of sight.
+      final _ when !config.contentShown => null,
+      final rect => rect,
+    };
     final frame = VideoExpandFrame.at(
       config.t,
       returning: config.returning,
@@ -1378,16 +1388,39 @@ class VideoExpandContent extends StatefulWidget {
 
 class VideoExpandContentState extends State<VideoExpandContent> {
   VideoExpandRoute<dynamic>? _route;
+  ScrollableState? _scrollable;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _scrollable = Scrollable.maybeOf(context);
     final route = VideoExpandRoute.of(context);
     if (identical(route, _route)) {
       return;
     }
     _leave();
     _route = route?.._content = this;
+  }
+
+  @visibleForTesting
+  bool get debugShowsTop => _showsTop;
+
+  // Whether its top edge stands within what its scroll view shows: scrolled
+  // under the page's bar, it is laid out still, but out of sight.
+  bool get _showsTop {
+    final box = context.findRenderObject();
+    final view = _scrollable?.context.findRenderObject();
+    if (box is! RenderBox ||
+        !box.attached ||
+        !box.hasSize ||
+        view is! RenderBox ||
+        !view.attached ||
+        !view.hasSize) {
+      return true;
+    }
+    final top = box.localToGlobal(Offset.zero).dy;
+    final viewTop = view.localToGlobal(Offset.zero).dy;
+    return top >= viewTop - 1 && top < viewTop + view.size.height;
   }
 
   void _leave() {
