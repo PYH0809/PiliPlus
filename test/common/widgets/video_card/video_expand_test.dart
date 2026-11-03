@@ -55,10 +55,13 @@ class _Page extends StatelessWidget {
             // A new key builds the player anew, as a turned screen does.
             child: ValueListenableBuilder(
               valueListenable: _playerBuilds,
-              builder: (context, builds, _) => VideoExpandTarget(
-                key: ValueKey(builds),
-                watchVideo: watchVideo ?? (shown) => () {},
-              ),
+              // None while it is negative, as in picture in picture.
+              builder: (context, builds, _) => builds < 0
+                  ? const SizedBox.shrink()
+                  : VideoExpandTarget(
+                      key: ValueKey(builds),
+                      watchVideo: watchVideo ?? (shown) => () {},
+                    ),
             ),
           ),
           Text('视频页 ${arguments['cid']}'),
@@ -71,34 +74,42 @@ class _Page extends StatelessWidget {
 late ui.Image _coverImage;
 final _playerBuilds = ValueNotifier(0);
 
-Widget _card0({ValueChanged<VideoExpandSourceState>? onSource}) =>
-    VideoExpandSource(
-      color: Colors.white,
-      builder: (context, source) {
-        onSource?.call(source);
-        return SizedBox(
-          width: 180,
-          height: 200,
-          child: InkWell(
-            onTap: () => PageUtils.toVideoPage(
-              aid: 2,
-              bvid: 'BV1xx411c7mD',
-              cid: 3,
-              title: '标题',
-              expandFrom: source,
+Widget _card0({
+  ValueChanged<VideoExpandSourceState>? onSource,
+  Color? tint,
+}) => VideoExpandSource(
+  color: Colors.white,
+  builder: (context, source) {
+    onSource?.call(source);
+    return SizedBox(
+      width: 180,
+      height: 200,
+      child: InkWell(
+        onTap: () => PageUtils.toVideoPage(
+          aid: 2,
+          bvid: 'BV1xx411c7mD',
+          cid: 3,
+          title: '标题',
+          expandFrom: source,
+        ),
+        child: Column(
+          children: [
+            source.cover(
+              RawImage(
+                image: _coverImage,
+                width: 180,
+                height: 112.5,
+                color: tint,
+                colorBlendMode: tint == null ? null : BlendMode.modulate,
+              ),
             ),
-            child: Column(
-              children: [
-                source.cover(
-                  RawImage(image: _coverImage, width: 180, height: 112.5),
-                ),
-                const Text('卡片'),
-              ],
-            ),
-          ),
-        );
-      },
+            const Text('卡片'),
+          ],
+        ),
+      ),
     );
+  },
+);
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -178,6 +189,7 @@ void main() {
 
   tearDown(() async {
     VideoExpand.debugMobile = null;
+    _playerBuilds.value = 0;
     await GStorage.setting.delete(SettingBoxKey.videoExpand);
     Get.reset();
   });
@@ -499,6 +511,43 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1100));
     await tester.pumpAndSettle();
     expect(cover, findsNothing);
+  });
+
+  testWidgets('the cover lets go though no player holds it then', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    _playerBuilds.value = -1;
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    _playerBuilds.value = 1;
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byType(VideoExpandTarget),
+        matching: find.byType(CustomPaint),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('the cover keeps the color the card blends into it', (
+    tester,
+  ) async {
+    const tint = Color(0xFFBBBBBB);
+    await _pump(tester, home: _card0(tint: tint));
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    final route = VideoExpandRoute.of(
+      tester.element(find.byType(_Page, skipOffstage: false)),
+    )!;
+    expect(
+      route.coverFilter,
+      const ColorFilter.mode(tint, BlendMode.modulate),
+    );
+    await tester.pumpAndSettle();
   });
 
   testWidgets('the cover lets go after a while if the video never shows', (

@@ -199,15 +199,16 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       mounted ? _rectOf(_coverKey.currentContext?.findRenderObject()) : null;
 
   // The cover's picture as the card shows it, decoded already: a handle of
-  // its own on the image of the first RenderImage under the cover.
-  ui.Image? _coverImage() {
-    ui.Image? image;
+  // its own on the image of the first RenderImage under the cover, and the
+  // color it blends in, as the tint NetworkImgLayer gives covers in the dark.
+  (ui.Image, ColorFilter?)? _coverImage() {
+    RenderImage? found;
     void visit(RenderObject object) {
-      if (image != null) {
+      if (found != null) {
         return;
       }
       if (object is RenderImage && object.image != null) {
-        image = object.image!.clone();
+        found = object;
         return;
       }
       object.visitChildren(visit);
@@ -216,7 +217,20 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     if (_coverKey.currentContext?.findRenderObject() case final box?) {
       visit(box);
     }
-    return image;
+    final image = found;
+    if (image == null) {
+      return null;
+    }
+    return (
+      image.image!.clone(),
+      switch (image.color) {
+        final color? => ColorFilter.mode(
+          color,
+          image.colorBlendMode ?? BlendMode.srcIn,
+        ),
+        null => null,
+      },
+    );
   }
 
   // The card as it was last painted, which fades out as the page grows.
@@ -267,6 +281,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       return null;
     }
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final cover = _coverImage();
     // The page below is taken now, while the frame costs little: from the
     // next frame on the page grows over the card's rect, opaque, so the card
     // need not hide first.
@@ -279,7 +294,8 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
           ? below
           : null,
       cardImage: _cardImage(pixelRatio),
-      cover: _coverImage(),
+      cover: cover?.$1,
+      coverFilter: cover?.$2,
       page: target.page,
       parameter: target.parameters,
       settings: redirect.settings,
@@ -352,6 +368,7 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
     this.belowRoute,
     required this.cardImage,
     required this.cover,
+    this.coverFilter,
     super.settings,
     super.page,
     super.parameter,
@@ -366,6 +383,9 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   /// owns them.
   final ui.Image? cardImage;
   final ui.Image? cover;
+
+  /// The color the card blends into its cover, which the cover keeps.
+  final ColorFilter? coverFilter;
 
   /// The route right under this one, the card's, when it covers the ones
   /// under it: only then does a picture of it stand in for all of them.
@@ -647,6 +667,7 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
           topPadding: MediaQuery.paddingOf(context).top,
           cardImage: route.cardImage,
           cover: route.cover,
+          coverFilter: route.coverFilter,
           below: route._fittingBelow,
           child: child!,
         );
@@ -674,6 +695,7 @@ class _Expand extends SingleChildRenderObjectWidget {
     required this.topPadding,
     required this.cardImage,
     required this.cover,
+    required this.coverFilter,
     required this.below,
     required super.child,
   });
@@ -694,6 +716,7 @@ class _Expand extends SingleChildRenderObjectWidget {
   final double topPadding;
   final ui.Image? cardImage;
   final ui.Image? cover;
+  final ColorFilter? coverFilter;
 
   /// The page under this one, drawn in its place while it animates.
   final _Below? below;
@@ -884,6 +907,7 @@ class _RenderExpand extends RenderProxyBox {
           frame.progress,
         )!,
         frame.coverOpacity,
+        config.coverFilter,
       );
     }
   }
@@ -942,13 +966,15 @@ class _RenderExpand extends RenderProxyBox {
   }
 }
 
-/// The cover [image] fitted to cover [rect], cropped to it with [radius].
+/// The cover [image] fitted to cover [rect], cropped to it with [radius],
+/// through the card's [filter].
 void _paintCover(
   Canvas canvas,
   ui.Image image,
   Rect rect,
   BorderRadius radius,
   double opacity,
+  ColorFilter? filter,
 ) {
   final imageSize = Size(image.width.toDouble(), image.height.toDouble());
   final fitted = applyBoxFit(BoxFit.cover, imageSize, rect.size);
@@ -965,7 +991,8 @@ void _paintCover(
       rect,
       Paint()
         ..filterQuality = FilterQuality.medium
-        ..color = Color.fromRGBO(0, 0, 0, opacity),
+        ..color = Color.fromRGBO(0, 0, 0, opacity)
+        ..colorFilter = filter,
     )
     ..restore();
 }
@@ -1063,10 +1090,12 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
     } else {
       // Not past this, should the video never say it has shown.
       final route = _route!;
-      route._coverTimer ??= Timer(
-        _coverHoldAtMost,
-        () => route._target?._fadeOut(),
-      );
+      route._coverTimer ??= Timer(_coverHoldAtMost, () {
+        // Let go though no player holds it now, as in picture in picture:
+        // one built again shows it no more.
+        route._coverGone = true;
+        route._target?._fadeOut();
+      });
     }
   }
 
@@ -1103,16 +1132,20 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
     // Over the player, out of reach of taps, until the video shows.
     return IgnorePointer(
       child: SizedBox.expand(
-        child: CustomPaint(painter: _CoverPainter(cover, _fade)),
+        child: CustomPaint(
+          painter: _CoverPainter(cover, _route?.coverFilter, _fade),
+        ),
       ),
     );
   }
 }
 
 class _CoverPainter extends CustomPainter {
-  _CoverPainter(this.image, this.opacity) : super(repaint: opacity);
+  _CoverPainter(this.image, this.filter, this.opacity)
+    : super(repaint: opacity);
 
   final ui.Image image;
+  final ColorFilter? filter;
   final Animation<double> opacity;
 
   @override
@@ -1124,11 +1157,12 @@ class _CoverPainter extends CustomPainter {
         Offset.zero & size,
         BorderRadius.zero,
         opacity.value,
+        filter,
       );
     }
   }
 
   @override
   bool shouldRepaint(_CoverPainter oldDelegate) =>
-      !identical(oldDelegate.image, image);
+      !identical(oldDelegate.image, image) || oldDelegate.filter != filter;
 }
