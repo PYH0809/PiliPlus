@@ -1,4 +1,4 @@
-import 'dart:async' show StreamSubscription, Timer;
+import 'dart:async' show Completer, StreamSubscription, Timer;
 import 'dart:convert' show ascii, utf8;
 import 'dart:io' show Platform;
 import 'dart:math' show max, min;
@@ -636,8 +636,30 @@ class PlPlayerController
     _orientationListener = null;
   }
 
+  // Completes as the first orientation is heard.
+  Completer<void>? _firstOrientation;
+
+  /// The phone's orientation, listened for now if no one has yet, as a page
+  /// whose player turns to full screen before its transition has ended:
+  /// waits a little for the first, null without one.
+  Future<DeviceOrientation?> _heardOrientation() async {
+    if (_orientation == null) {
+      listenOrientation();
+      if (_orientationListener != null) {
+        await (_firstOrientation ??= Completer<void>()).future.timeout(
+          const Duration(milliseconds: 500),
+          onTimeout: () {},
+        );
+      }
+    }
+    return _orientation;
+  }
+
   void _onOrientationChanged(OrientationParams param) {
     _orientation = param.orientation;
+    if (_firstOrientation case final first? when !first.isCompleted) {
+      first.complete();
+    }
     if (Platform.isIOS && !visible) return;
     if (controlsLock.value) return;
     final orientation = param.orientation;
@@ -1615,6 +1637,19 @@ class PlPlayerController
       // https://github.com/flutter/flutter/issues/73651
       // https://github.com/flutter/flutter/issues/183708
       if (Platform.isAndroid) {
+        if (orientation == null && _orientation == null) {
+          return _heardOrientation().then((heard) async {
+            // Not once the player has gone, its page closed meanwhile: the
+            // page below would be turned.
+            if (!identical(_instance, this) || _orientationListener == null) {
+              return;
+            }
+            await changeOrientation(
+              isVertical: isVertical,
+              orientation: heard ?? .landscapeLeft,
+            );
+          });
+        }
         if ((orientation ?? _orientation) == .landscapeRight) {
           return landscapeRightMode();
         } else {
