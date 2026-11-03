@@ -241,31 +241,44 @@ abstract final class PageUtils {
     bool isPush = false,
     bool viewComment = false,
     VideoExpandSourceState? expandFrom,
+    bool expandIntoDetail = true,
   }) async {
     feedBack();
 
+    // The card grows into its detail, its content moving onto the detail's,
+    // or into an opus, laid out apart, fading through; not a card holding
+    // another's dynamic, as a forwarded one, whose content is not the card's.
+    final detailFrom = expandIntoDetail ? expandFrom : null;
     void push() {
       if (item.basic?.commentType == 12) {
-        toDupNamed(
-          '/articlePage',
-          parameters: {
-            'id': item.idStr,
-            'type': 'opus',
-            if (viewComment) 'viewComment': '',
-          },
-        );
+        final parameters = <String, String>{
+          'id': '${item.idStr}',
+          'type': 'opus',
+          if (viewComment) 'viewComment': '',
+        };
+        if (detailFrom?.expand<void>('/articlePage', parameters: parameters)
+            case _?) {
+          return;
+        }
+        toDupNamed('/articlePage', parameters: parameters);
       } else {
         if (item.linkFolded) {
           pushDynFromId(id: item.idStr);
           return;
         }
-        toDupNamed(
-          '/dynamicDetail',
-          arguments: {
-            'item': item,
-            if (viewComment) 'viewComment': true,
-          },
-        );
+        final arguments = {
+          'item': item,
+          if (viewComment) 'viewComment': true,
+        };
+        if (detailFrom?.expand<void>(
+              '/dynamicDetail',
+              arguments: arguments,
+              moveContent: true,
+            )
+            case _?) {
+          return;
+        }
+        toDupNamed('/dynamicDetail', arguments: arguments);
       }
     }
 

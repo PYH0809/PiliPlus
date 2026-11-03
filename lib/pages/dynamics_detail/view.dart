@@ -20,6 +20,7 @@ import 'package:PiliPlus/common/widgets/scroll_physics.dart'
 import 'package:PiliPlus/common/widgets/sliver/sliver_floating_header.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_to_box_adapter.dart';
 import 'package:PiliPlus/common/widgets/tap_region_surface.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -450,13 +451,16 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
       child: Builder(
         builder: (context) {
           _scrollable = Scrollable.maybeOf(context);
-          return DynamicPanel(
-            item: controller.dynItem,
-            isDetail: true,
-            isDetailPortraitW: isPortrait,
-            onSetPubSetting: controller.onSetPubSetting,
-            onEdit: _onEdit,
-            onSetReplySubject: controller.onSetReplySubject,
+          // Where a card opening this lands its content.
+          return VideoExpandContent(
+            child: DynamicPanel(
+              item: controller.dynItem,
+              isDetail: true,
+              isDetailPortraitW: isPortrait,
+              onSetPubSetting: controller.onSetPubSetting,
+              onEdit: _onEdit,
+              onSetReplySubject: controller.onSetReplySubject,
+            ),
           );
         },
       ),

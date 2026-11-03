@@ -330,6 +330,62 @@ void main() {
       }
     });
 
+    test('a card moving its content lands it on the page\'s, crossing in', () {
+      // The detail lays the dynamic out at the page's width, under its bar,
+      // and longer, its text unfolded.
+      const contentTo = Rect.fromLTWH(0, 80, 400, 600);
+      VideoExpandFrame at(double t, {bool returning = false}) =>
+          VideoExpandFrame.at(
+            t,
+            returning: returning,
+            card: _card,
+            screen: _screen,
+            contentTo: contentTo,
+          );
+      final start = at(0);
+      _expectRect(start.content!, _card);
+      expect(start.contentOpacity, 1);
+      expect(start.cardOpacity, 0);
+      expect(start.pageOpacity, 0);
+      expect(start.cover, isNull);
+
+      // Its top left corner onto the page's, at its own size.
+      const landed = Rect.fromLTWH(0, 80, 180, 200);
+      final middle = at(0.5);
+      _expectRect(
+        middle.content!,
+        Rect.lerp(_card, landed, Curves.fastOutSlowIn.transform(0.5))!,
+      );
+      expect(middle.contentOpacity, 1);
+      expect(middle.pageOpacity, 0);
+
+      // The page fades in over the last of it, the content out as it lands.
+      final late = at(0.85);
+      expect(late.pageOpacity, moreOrLessEquals(0.5));
+      expect(late.contentOpacity, moreOrLessEquals(0.6));
+      final end = at(1);
+      _expectRect(end.content!, landed);
+      expect(end.contentOpacity, 0);
+      expect(end.pageOpacity, 1);
+      _expectRect(end.rect, _screen);
+
+      // Returning, the same backwards in time.
+      final back = at(0.85, returning: true);
+      expect(back.pageOpacity, moreOrLessEquals(0.5));
+      expect(back.contentOpacity, moreOrLessEquals(0.6));
+      _expectRect(at(0, returning: true).content!, _card);
+
+      // Wider than the page lays it out, it shrinks to fit.
+      final narrow = VideoExpandFrame.at(
+        1,
+        returning: false,
+        card: _card,
+        screen: _screen,
+        contentTo: const Rect.fromLTWH(0, 80, 90, 600),
+      );
+      _expectRect(narrow.content!, const Rect.fromLTWH(0, 80, 90, 100));
+    });
+
     test('runs only on phones with the switch on and animations on', () {
       expect(
         VideoExpand.allows(
@@ -786,6 +842,38 @@ void main() {
     )!;
     expect(route.cover, isNotNull);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('a card moving its content opens and returns', (tester) async {
+    late VideoExpandSourceState card;
+    await _pump(tester, home: _card0(onSource: (source) => card = source));
+    expect(
+      card.expand<void>(
+        '/videoV',
+        arguments: {'cid': 3},
+        parameters: {'id': '7'},
+        moveContent: true,
+      ),
+      isNotNull,
+    );
+    await tester.pump();
+    final route = VideoExpandRoute.of(
+      tester.element(find.byType(_Page, skipOffstage: false)),
+    )!;
+    expect(route.moveContent, isTrue);
+    // No cover of its own: the card's picture is what moves.
+    expect(route.cover, isNull);
+    expect(Get.parameters['id'], '7');
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+    expect(find.text('视频页 3'), findsOneWidget);
+
+    Get.back<void>();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pumpAndSettle();
+    expect(find.text('视频页 3'), findsNothing);
+    expect(_cardOpacity(tester), 1);
   });
 
   testWidgets('a list refreshed under the page returns it with no card', (

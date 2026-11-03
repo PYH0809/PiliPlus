@@ -121,7 +121,7 @@ List<SettingsModel> get styleSettings => [
   ),
   const SwitchModel(
     title: '视频展开动画',
-    subtitle: '点开视频时封面展开成播放器，返回时收回卡片',
+    subtitle: '点开视频或动态时卡片展开成页面，返回时收回卡片',
     leading: Icon(Icons.open_in_full),
     setKey: SettingBoxKey.videoExpand,
     defaultVal: true,

@@ -100,6 +100,9 @@ Widget forwardPanel(
       onTap: () => PageUtils.pushDynDetail(
         orig,
         expandFrom: VideoExpandSource.maybeOf(context),
+        // Its video grows out of the card, but not its detail: the card
+        // holds the dynamic that forwarded it.
+        expandIntoDetail: false,
       ),
       onLongPress: showMore,
       onSecondaryTap: PlatformUtils.isMobile ? null : showMore,
