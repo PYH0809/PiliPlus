@@ -138,6 +138,20 @@ bool _expanding(WidgetTester tester) =>
     ) !=
     null;
 
+/// Counts its paints, repainting whenever [repaint] changes.
+class _CountingPainter extends CustomPainter {
+  _CountingPainter(this.repaint, this.onPaint) : super(repaint: repaint);
+
+  final Listenable repaint;
+  final VoidCallback onPaint;
+
+  @override
+  void paint(Canvas canvas, Size size) => onPaint();
+
+  @override
+  bool shouldRepaint(_CountingPainter oldDelegate) => false;
+}
+
 void main() {
   late Directory tempDir;
 
@@ -305,6 +319,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
     expect(_cardOpacity(tester), 1);
+  });
+
+  testWidgets('the page under the card is drawn from a picture of it', (
+    tester,
+  ) async {
+    var paints = 0;
+    final changes = ValueNotifier(0);
+    addTearDown(changes.dispose);
+    await _pump(
+      tester,
+      home: Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
+        children: [
+          CustomPaint(
+            size: const Size.square(40),
+            painter: _CountingPainter(changes, () => paints++),
+          ),
+          _card0(),
+        ],
+      ),
+    );
+    Future<bool> repaintsBelow() async {
+      final before = paints;
+      changes.value++;
+      await tester.pump(const Duration(milliseconds: 16));
+      return paints > before;
+    }
+
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    // The page shows a frame on, and covers the page below from then.
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await repaintsBelow(), isFalse);
+
+    await tester.pumpAndSettle();
+    Get.back<void>();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(find.text('视频页 3'), findsOneWidget);
+    expect(await repaintsBelow(), isFalse);
+
+    await tester.pumpAndSettle();
+    expect(find.text('视频页 3'), findsNothing);
+    expect(await repaintsBelow(), isTrue);
   });
 
   testWidgets('a second tap while the page opens opens nothing more', (

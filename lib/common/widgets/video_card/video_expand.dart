@@ -232,7 +232,11 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     if (layer is! OffsetLayer || !layer.supportsRasterization()) {
       return null;
     }
-    return boundary.toImageSync(pixelRatio: pixelRatio);
+    // As last composited: a tap's ink may have marked it to paint again.
+    return layer.toImageSync(
+      Offset.zero & boundary.size,
+      pixelRatio: pixelRatio,
+    );
   }
 
   /// Opens the page named [page] out of this card, as [Get.toNamed] does,
@@ -265,8 +269,17 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       return null;
     }
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    // The page below is taken now, while the frame costs little: from the
+    // next frame on the page grows over the card's rect, opaque, so the card
+    // need not hide first.
+    // The page under it is the card's, if that is the top one and covers the
+    // pages under it.
+    final below = ModalRoute.of(context);
     final route = VideoExpandRoute<T>(
       source: this,
+      belowRoute: below != null && below.isCurrent && below.opaque
+          ? below
+          : null,
       cardImage: _cardImage(pixelRatio),
       cover: _coverImage(),
       page: target.page,
@@ -275,7 +288,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       binding: target.binding,
       bindings: target.bindings,
       middlewares: target.middlewares,
-    );
+    ).._takeBelow();
     final opened = navigator.push(route);
     _route = route;
     route.animation!.addStatusListener(_handleRouteStatus);
@@ -285,6 +298,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(_route, route)) {
         setState(() => _hidden = true);
+        route._coverBelow();
       }
     });
     return opened;
@@ -337,6 +351,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
 class VideoExpandRoute<T> extends GetPageRoute<T> {
   VideoExpandRoute({
     required this.source,
+    this.belowRoute,
     required this.cardImage,
     required this.cover,
     super.settings,
@@ -354,6 +369,19 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   final ui.Image? cardImage;
   final ui.Image? cover;
 
+  /// The route right under this one, the card's, when it covers the ones
+  /// under it: only then does a picture of it stand in for all of them.
+  final ModalRoute<dynamic>? belowRoute;
+
+  // The page the card stands on, as it stood when the card was tapped, drawn
+  // under the scrim in its place, as GlassMorphButton's route does: the
+  // navigator
+  // leaves the page itself unpainted, which would otherwise draw again every
+  // frame, its glass and all, there being no raster cache to keep it. It
+  // covers it from the page's first frame on screen, the second.
+  _Below? _below;
+  bool _covering = false;
+
   /// The page's player, where the cover grows into.
   VideoExpandTargetState? _target;
 
@@ -368,10 +396,119 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
       };
 
   @override
+  void install() {
+    super.install();
+    // After TransitionRoute's own, which lets the page below show as the
+    // route animates.
+    animation!.addStatusListener(_keepBelowCovered);
+  }
+
+  @override
   void dispose() {
     cardImage?.dispose();
     cover?.dispose();
+    _below?.image.dispose();
+    _below = null;
     super.dispose();
+  }
+
+  // The navigator's size: the picture of the page below holds only while it
+  // stays as it was taken, as a turned screen lays the page out anew.
+  Size? get _screen => switch (navigator?.context.findRenderObject()) {
+    final RenderBox box when box.hasSize => box.size,
+    _ => null,
+  };
+
+  /// The picture of the page below, while it still fits the screen. Once it
+  /// doesn't, it is let go a frame on, and the page itself shows again.
+  _Below? get _fittingBelow {
+    final below = _below;
+    if (below == null || _screen == below.screen) {
+      return below;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) => _dropBelow());
+    return null;
+  }
+
+  void _dropBelow() {
+    final below = _below;
+    if (below == null) {
+      return;
+    }
+    _below = null;
+    below.image.dispose();
+    if ((animation?.status.isAnimating ?? false) && overlayEntries.isNotEmpty) {
+      overlayEntries.first.opaque = false;
+    }
+  }
+
+  void _keepBelowCovered(AnimationStatus status) {
+    if (_below == null ||
+        !_covering ||
+        !status.isAnimating ||
+        overlayEntries.isEmpty) {
+      return;
+    }
+    if (_screen != _below!.screen) {
+      _dropBelow();
+    } else {
+      overlayEntries.first.opaque = true;
+    }
+  }
+
+  /// Takes the page below, if it is the page right under this one and
+  /// covers the pages under it, before the route is pushed.
+  void _takeBelow() {
+    final below = belowRoute;
+    final boundary = below?.subtreeContext?.findRenderObject();
+    if (below == null ||
+        boundary is! RenderRepaintBoundary ||
+        !boundary.attached) {
+      return;
+    }
+    // ignore: invalid_use_of_protected_member
+    final layer = boundary.layer;
+    if (layer is! OffsetLayer || !layer.supportsRasterization()) {
+      return;
+    }
+    final screen = switch (below.navigator?.context.findRenderObject()) {
+      final RenderBox box when box.hasSize => box.size,
+      _ => null,
+    };
+    final media = below.subtreeContext!
+        .getInheritedWidgetOfExactType<MediaQuery>()
+        ?.data;
+    // A page with the keyboard up is laid out again as it goes: a picture
+    // would keep the room it made for the keyboard. It draws as it is.
+    if (screen == null || media == null || media.viewInsets != .zero) {
+      return;
+    }
+    _below = (
+      // As last composited: the tap's ink marks it to paint again.
+      image: layer.toImageSync(
+        Offset.zero & boundary.size,
+        pixelRatio: media.devicePixelRatio,
+      ),
+      rect: boundary.localToGlobal(Offset.zero) & boundary.size,
+      screen: screen,
+    );
+  }
+
+  /// Draws the page below from its picture from now on: from the page's
+  /// first frame on screen, its first being offstage, which would leave
+  /// nothing drawn.
+  void _coverBelow() {
+    _covering = true;
+    if (animation case final animation?) {
+      _keepBelowCovered(animation.status);
+    }
+  }
+
+  /// Lets the page below draw itself again, as a page returning with no card
+  /// to return into fades out over it, the card gone from it.
+  void _uncoverBelow() {
+    _covering = false;
+    _dropBelow();
   }
 
   @override
@@ -404,6 +541,10 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
     );
   }
 }
+
+/// A picture of the page under the opening one, and where it stands on
+/// screen. [screen] is the navigator's size as it was taken.
+typedef _Below = ({ui.Image image, Rect rect, Size screen});
 
 class _ExpandTransition extends StatefulWidget {
   const _ExpandTransition({
@@ -468,6 +609,9 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
         );
         _returnsPlain =
             card == null || screen == null || !screen.overlaps(card);
+        if (_returnsPlain) {
+          widget.route._uncoverBelow();
+        }
       case AnimationStatus.dismissed:
     }
   }
@@ -497,6 +641,7 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
           topPadding: MediaQuery.paddingOf(context).top,
           cardImage: route.cardImage,
           cover: route.cover,
+          below: route._fittingBelow,
           child: child!,
         );
       },
@@ -523,6 +668,7 @@ class _Expand extends SingleChildRenderObjectWidget {
     required this.topPadding,
     required this.cardImage,
     required this.cover,
+    required this.below,
     required super.child,
   });
 
@@ -542,6 +688,9 @@ class _Expand extends SingleChildRenderObjectWidget {
   final double topPadding;
   final ui.Image? cardImage;
   final ui.Image? cover;
+
+  /// The page under this one, drawn in its place while it animates.
+  final _Below? below;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
@@ -599,6 +748,15 @@ class _RenderExpand extends RenderProxyBox {
     }
     final screen = Offset.zero & size;
     final canvas = context.canvas;
+    if (config.below case final below?) {
+      final image = below.image;
+      canvas.drawImageRect(
+        image,
+        Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+        _local(below.rect).shift(offset),
+        Paint()..filterQuality = FilterQuality.low,
+      );
+    }
     if (config.returnsPlain) {
       _paintPlain(context, offset, page);
       return;
@@ -686,23 +844,26 @@ class _RenderExpand extends RenderProxyBox {
         frame.rect,
         rrect,
         (context, offset) {
-          if (frame.pageOpacity >= 1) {
-            _opacity.layer = null;
-            context.paintChild(page, offset);
-            return;
+          context.paintChild(page, offset);
+          // The page fades in over the container's fill, all the page's
+          // color by now, as the card has faded out: so a veil of that color
+          // lifting off it looks the same as the page fading, without
+          // drawing the page offscreen every frame. The GPU, not the
+          // threads, held the phone's frames back.
+          if (frame.pageOpacity < 1) {
+            context.canvas.drawRect(
+              frame.rect.shift(offset),
+              Paint()
+                ..color = config.pageColor.withValues(
+                  alpha: config.pageColor.a * (1 - frame.pageOpacity),
+                ),
+            );
           }
-          _opacity.layer = context.pushOpacity(
-            offset,
-            (frame.pageOpacity * 255).round(),
-            (context, offset) => context.paintChild(page, offset),
-            oldLayer: _opacity.layer,
-          );
         },
         oldLayer: _clip.layer,
       );
     } else {
       _clip.layer = null;
-      _opacity.layer = null;
     }
     _transform.layer = null;
     if ((config.cover, frame.cover) case (final image?, final at?)
