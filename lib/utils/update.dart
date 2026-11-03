@@ -50,7 +50,10 @@ abstract final class Update {
       final data = res.data;
       if (data is! Map || data['tag_name'] == null) {
         if (!isAuto) {
-          SmartDialog.showToast('检查更新失败，GitHub接口未返回数据，请检查网络');
+          // 还没有发布的版本时是 404
+          SmartDialog.showToast(
+            res.statusCode == 404 ? '暂时没有可用的版本' : '检查更新失败，GitHub接口未返回数据，请检查网络',
+          );
         }
         return;
       }

@@ -215,7 +215,7 @@
 
 ## 下载
 
-可以从 [Releases](https://github.com/bggRGjQaUbCoE/PiliPlus/releases) 下载，或克隆仓库拉取代码后在本地编译。
+可以从 [Releases](https://github.com/PYH0809/PiliPlus/releases) 下载，或克隆仓库拉取代码后在本地编译。每次合进 main 都会自动发一版，应用内的检查更新也读这里。装着上游版或更早版本的，签名不同、检查更新也找不到这里，要先卸载、手动装一次本仓库的包。
 
 <br/>
 
