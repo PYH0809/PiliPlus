@@ -876,6 +876,26 @@ void main() {
     expect(_cardOpacity(tester), 1);
   });
 
+  testWidgets('a card gone while its detail loads opens it as before', (
+    tester,
+  ) async {
+    // As a dynamic with a folded link, fetched whole before it opens: the
+    // list may have refreshed its card away by the time it is back.
+    late VideoExpandSourceState card;
+    await _pump(tester, home: _card0(onSource: (source) => card = source));
+    await tester.pumpWidget(
+      GetMaterialApp(home: const Scaffold(body: Text('刷新后的列表'))),
+    );
+    expect(
+      card.expand<void>(
+        '/videoV',
+        arguments: {'cid': 3},
+        moveContent: true,
+      ),
+      isNull,
+    );
+  });
+
   testWidgets('a detail scrolled down to its comments shows no content', (
     tester,
   ) async {
