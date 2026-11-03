@@ -109,6 +109,11 @@ jobs:
                     echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> android/key.properties
                     echo keyAlias='${{ secrets.KEY_ALIAS }}' >> android/key.properties
                     echo keyPassword='${{ secrets.KEY_PASSWORD }}' >> android/key.properties
+                  elif [ "${{ github.event_name }}" = "push" ]; then
+                    # Without the key Gradle signs with the debug key, and that
+                    # APK can't install over the release app.
+                    echo "::error::SIGN_KEYSTORE_BASE64 is not set; a push build must be release-signed"
+                    exit 1
                   fi
 
             - name: Set and Extract version
