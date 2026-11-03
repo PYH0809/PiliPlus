@@ -76,6 +76,8 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: write
+            # release_note.py finds each commit's PR
+            pull-requests: read
         outputs:
             tag: ${{ steps.draft.outputs.tag }}
         steps:
