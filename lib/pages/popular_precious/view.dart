@@ -53,7 +53,7 @@ class _PopularPreciousPageState extends State<PopularPreciousPage>
             final item = response[index];
             return VideoCardH(
               videoItem: item,
-              onTap: () {
+              onTap: (source) {
                 PageUtils.toVideoPage(
                   bvid: item.bvid,
                   cid: item.cid!,
@@ -66,6 +66,7 @@ class _PopularPreciousPageState extends State<PopularPreciousPage>
                     'oid': item.aid,
                     'isContinuePlaying': index != 0,
                   },
+                  expandFrom: source,
                 );
               },
             );

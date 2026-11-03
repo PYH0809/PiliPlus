@@ -25,7 +25,7 @@ class VideoCardH extends StatelessWidget {
     this.onRemove,
   });
   final HorizontalVideoModel videoItem;
-  final VoidCallback? onTap;
+  final ValueChanged<VideoExpandSourceState>? onTap;
   final ValueChanged<int>? onViewLater;
   final VoidCallback? onRemove;
 
@@ -52,7 +52,10 @@ class VideoCardH extends StatelessWidget {
             InkWell(
               onLongPress: onLongPress,
               onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-              onTap: onTap ?? () => pushVideoH(videoItem, expandFrom: source),
+              onTap: switch (onTap) {
+                final onTap? => () => onTap(source),
+                null => () => pushVideoH(videoItem, expandFrom: source),
+              },
               child: Padding(
                 padding: const .symmetric(
                   horizontal: Style.safeSpace,

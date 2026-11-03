@@ -78,7 +78,7 @@ class _LaterViewChildPageState extends State<LaterViewChildPage>
                     index: index,
                     videoItem: videoItem,
                     ctr: _laterController,
-                    onViewLater: (cid) => PageUtils.toVideoPage(
+                    onViewLater: (cid, source) => PageUtils.toVideoPage(
                       bvid: videoItem.bvid,
                       cid: cid,
                       cover: videoItem.pic,
@@ -97,6 +97,7 @@ class _LaterViewChildPageState extends State<LaterViewChildPage>
                               'isContinuePlaying': index != 0,
                             }
                           : const {'viewLater': true},
+                      expandFrom: source,
                     ),
                   );
                 },

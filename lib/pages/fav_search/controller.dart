@@ -1,3 +1,4 @@
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/fav_order_type.dart';
@@ -58,7 +59,11 @@ class FavSearchController
 
   @override
   // TODO: dimension
-  void onViewFav(FavDetailItemModel item, int? index) => PageUtils.toVideoPage(
+  void onViewFav(
+    FavDetailItemModel item,
+    int? index, {
+    VideoExpandSourceState? expandFrom,
+  }) => PageUtils.toVideoPage(
     bvid: item.bvid,
     cid: item.ugc!.firstCid!,
     cover: item.cover,
@@ -72,5 +77,6 @@ class FavSearchController
       'desc': true,
       'isContinuePlaying': true,
     },
+    expandFrom: expandFrom,
   );
 }

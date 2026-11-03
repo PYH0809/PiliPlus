@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/stat/stat.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/grpc/bilibili/app/interfaces/v1.pb.dart' show Arc;
 import 'package:PiliPlus/http/user.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
@@ -39,119 +40,127 @@ class SearchArchiveGrpc extends StatelessWidget {
       title: titleStr,
       cover: arc.pic,
     );
-    return Material(
-      type: MaterialType.transparency,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          InkWell(
-            onLongPress: onLongPress,
-            onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-            onTap: () {
-              if (item.isPugv) {
-                PageUtils.viewPgcFromUri(item.uri, isPgc: false);
-                return;
-              }
-              if (arc.hasRedirectUrl()) {
-                PageUtils.viewPgcFromUri(arc.redirectUrl);
-                return;
-              }
-              PageUtils.toVideoPage(
-                bvid: bvid,
-                cid: arc.firstCid.toInt(),
-                cover: arc.pic,
-                title: titleStr,
-                isVertical: arc.dimension.isVertical,
-              );
-            },
-            child: Padding(
-              padding: const .symmetric(
-                horizontal: Style.safeSpace,
-                vertical: 5,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  AspectRatio(
-                    aspectRatio: Style.aspectRatio,
-                    child: LayoutBuilder(
-                      builder: (context, boxConstraints) {
-                        final double maxWidth = boxConstraints.maxWidth;
-                        final double maxHeight = boxConstraints.maxHeight;
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            NetworkImgLayer(
-                              src: arc.pic,
-                              width: maxWidth,
-                              height: maxHeight,
-                            ),
-                            if (item.isPugv)
-                              const PBadge(
-                                text: '课堂',
-                                top: 6.0,
-                                right: 6.0,
-                              ),
-                            if (arc.duration > Int64.ZERO)
-                              PBadge(
-                                text: DurationUtils.formatDuration(
-                                  arc.duration.toInt(),
+    return VideoExpandSource(
+      key: ObjectKey(item),
+      color: ColorScheme.of(context).surface,
+      coverRadius: Style.mdRadius,
+      builder: (context, source) => Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            InkWell(
+              onLongPress: onLongPress,
+              onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
+              onTap: () {
+                if (item.isPugv) {
+                  PageUtils.viewPgcFromUri(item.uri, isPgc: false);
+                  return;
+                }
+                if (arc.hasRedirectUrl()) {
+                  PageUtils.viewPgcFromUri(arc.redirectUrl);
+                  return;
+                }
+                PageUtils.toVideoPage(
+                  bvid: bvid,
+                  cid: arc.firstCid.toInt(),
+                  cover: arc.pic,
+                  title: titleStr,
+                  isVertical: arc.dimension.isVertical,
+                  expandFrom: source,
+                );
+              },
+              child: Padding(
+                padding: const .symmetric(
+                  horizontal: Style.safeSpace,
+                  vertical: 5,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    AspectRatio(
+                      aspectRatio: Style.aspectRatio,
+                      child: LayoutBuilder(
+                        builder: (context, boxConstraints) {
+                          final double maxWidth = boxConstraints.maxWidth;
+                          final double maxHeight = boxConstraints.maxHeight;
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              source.cover(
+                                NetworkImgLayer(
+                                  src: arc.pic,
+                                  width: maxWidth,
+                                  height: maxHeight,
                                 ),
-                                right: 6.0,
-                                bottom: 6.0,
-                                type: PBadgeType.gray,
                               ),
-                          ],
-                        );
-                      },
+                              if (item.isPugv)
+                                const PBadge(
+                                  text: '课堂',
+                                  top: 6.0,
+                                  right: 6.0,
+                                ),
+                              if (arc.duration > Int64.ZERO)
+                                PBadge(
+                                  text: DurationUtils.formatDuration(
+                                    arc.duration.toInt(),
+                                  ),
+                                  right: 6.0,
+                                  bottom: 6.0,
+                                  type: PBadgeType.gray,
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    content(context, regTitle),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              right: 12,
+              width: 29,
+              height: 29,
+              child: PopupMenuButton(
+                padding: EdgeInsets.zero,
+                icon: Icon(
+                  Icons.more_vert_outlined,
+                  color: Theme.of(context).colorScheme.outline,
+                  size: 17,
+                ),
+                position: PopupMenuPosition.under,
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    height: 45,
+                    onTap: () => Utils.copyText(bvid),
+                    child: Row(
+                      spacing: 6,
+                      children: [
+                        const Icon(CustomIcons.identifier_circle, size: 16),
+                        Text(bvid, style: const TextStyle(fontSize: 13)),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  content(context, regTitle),
+                  PopupMenuItem(
+                    height: 45,
+                    onTap: () => UserHttp.toViewLater(bvid: bvid),
+                    child: const Row(
+                      spacing: 6,
+                      children: [
+                        Icon(MdiIcons.clockTimeEightOutline, size: 16),
+                        Text('稍后再看', style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 12,
-            width: 29,
-            height: 29,
-            child: PopupMenuButton(
-              padding: EdgeInsets.zero,
-              icon: Icon(
-                Icons.more_vert_outlined,
-                color: Theme.of(context).colorScheme.outline,
-                size: 17,
-              ),
-              position: PopupMenuPosition.under,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  height: 45,
-                  onTap: () => Utils.copyText(bvid),
-                  child: Row(
-                    spacing: 6,
-                    children: [
-                      const Icon(CustomIcons.identifier_circle, size: 16),
-                      Text(bvid, style: const TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  height: 45,
-                  onTap: () => UserHttp.toViewLater(bvid: bvid),
-                  child: const Row(
-                    spacing: 6,
-                    children: [
-                      Icon(MdiIcons.clockTimeEightOutline, size: 16),
-                      Text('稍后再看', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

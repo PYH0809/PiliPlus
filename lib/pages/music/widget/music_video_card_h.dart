@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/image/image_save.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/marquee.dart';
 import 'package:PiliPlus/common/widgets/stat/stat.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/http/search.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/models/common/stat_type.dart';
@@ -29,69 +30,77 @@ class MusicVideoCardH extends StatelessWidget {
       cover: videoItem.cover,
       bvid: videoItem.bvid,
     );
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: () async {
-          int? cid = videoItem.cid;
-          Dimension? dimension;
-          if (cid == null) {
-            if (await SearchHttp.ab2cWithDimension(bvid: videoItem.bvid)
-                case final res?) {
-              cid = res.cid;
-              dimension = res.dimension;
+    return VideoExpandSource(
+      key: ObjectKey(videoItem),
+      color: ColorScheme.of(context).surface,
+      coverRadius: Style.mdRadius,
+      builder: (context, source) => Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: () async {
+            int? cid = videoItem.cid;
+            Dimension? dimension;
+            if (cid == null) {
+              if (await SearchHttp.ab2cWithDimension(bvid: videoItem.bvid)
+                  case final res?) {
+                cid = res.cid;
+                dimension = res.dimension;
+              }
             }
-          }
-          if (cid != null) {
-            PageUtils.toVideoPage(
-              bvid: videoItem.bvid,
-              cid: cid,
-              cover: videoItem.cover,
-              title: videoItem.title,
-              dimension: dimension,
-            );
-          }
-        },
-        onLongPress: onLongPress,
-        onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Style.safeSpace,
-            vertical: 5,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AspectRatio(
-                aspectRatio: Style.aspectRatio,
-                child: LayoutBuilder(
-                  builder: (context, boxConstraints) {
-                    double maxWidth = boxConstraints.maxWidth;
-                    double maxHeight = boxConstraints.maxHeight;
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        NetworkImgLayer(
-                          src: videoItem.cover,
-                          width: maxWidth,
-                          height: maxHeight,
-                        ),
-                        PBadge(
-                          text: DurationUtils.formatDuration(
-                            videoItem.duration,
+            if (cid != null) {
+              PageUtils.toVideoPage(
+                bvid: videoItem.bvid,
+                cid: cid,
+                cover: videoItem.cover,
+                title: videoItem.title,
+                dimension: dimension,
+                expandFrom: source,
+              );
+            }
+          },
+          onLongPress: onLongPress,
+          onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Style.safeSpace,
+              vertical: 5,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AspectRatio(
+                  aspectRatio: Style.aspectRatio,
+                  child: LayoutBuilder(
+                    builder: (context, boxConstraints) {
+                      double maxWidth = boxConstraints.maxWidth;
+                      double maxHeight = boxConstraints.maxHeight;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          source.cover(
+                            NetworkImgLayer(
+                              src: videoItem.cover,
+                              width: maxWidth,
+                              height: maxHeight,
+                            ),
                           ),
-                          right: 6.0,
-                          bottom: 6.0,
-                          type: PBadgeType.gray,
-                        ),
-                      ],
-                    );
-                  },
+                          PBadge(
+                            text: DurationUtils.formatDuration(
+                              videoItem.duration,
+                            ),
+                            right: 6.0,
+                            bottom: 6.0,
+                            type: PBadgeType.gray,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              content(context),
-            ],
+                const SizedBox(width: 10),
+                content(context),
+              ],
+            ),
           ),
         ),
       ),

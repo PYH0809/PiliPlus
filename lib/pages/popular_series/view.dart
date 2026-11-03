@@ -68,7 +68,7 @@ class _PopularSeriesPageState extends State<PopularSeriesPage> with GridMixin {
               final item = response[index];
               return VideoCardH(
                 videoItem: item,
-                onTap: () {
+                onTap: (source) {
                   final config = _controller.config.value;
                   PageUtils.toVideoPage(
                     bvid: item.bvid,
@@ -82,6 +82,7 @@ class _PopularSeriesPageState extends State<PopularSeriesPage> with GridMixin {
                       'oid': item.aid,
                       'isContinuePlaying': index != 0,
                     },
+                    expandFrom: source,
                   );
                 },
               );

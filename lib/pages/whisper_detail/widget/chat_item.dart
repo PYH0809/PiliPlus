@@ -9,6 +9,7 @@ import 'package:PiliPlus/common/widgets/gesture/tap_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
 import 'package:PiliPlus/common/widgets/selection_text.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/grpc/bilibili/im/interfaces/v1.pb.dart'
     show EmotionInfo;
 import 'package:PiliPlus/grpc/bilibili/im/type.pb.dart' show Msg, MsgType;
@@ -410,92 +411,105 @@ class ChatItem extends StatelessWidget {
     } catch (_) {}
 
     return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 400.0),
-        decoration: BoxDecoration(
-          borderRadius: Style.mdRadius,
-          color: theme.colorScheme.onInverseSurface,
-        ),
-        child: LayoutBuilder(
-          builder: (_, constrains) {
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () async {
-                try {
-                  SmartDialog.showLoading();
-                  final bvid = content["bvid"];
-                  final res = await SearchHttp.ab2cWithDimension(bvid: bvid);
-                  final cid = res?.cid;
-                  SmartDialog.dismiss();
-                  if (cid != null) {
-                    PageUtils.toVideoPage(
-                      bvid: bvid,
-                      cid: cid,
-                      cover: content['cover'],
-                      dimension: res!.dimension,
-                      // title: res.title,
-                    );
+      child: VideoExpandSource(
+        // The message's, as its content is decoded anew each build.
+        key: ValueKey(item.msgKey),
+        color: theme.colorScheme.onInverseSurface,
+        radius: Style.imgRadius.x,
+        coverRadius: const .vertical(top: Style.imgRadius),
+        builder: (context, source) => Container(
+          constraints: const BoxConstraints(maxWidth: 400.0),
+          decoration: BoxDecoration(
+            borderRadius: Style.mdRadius,
+            color: theme.colorScheme.onInverseSurface,
+          ),
+          child: LayoutBuilder(
+            builder: (_, constrains) {
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () async {
+                  try {
+                    SmartDialog.showLoading();
+                    final bvid = content["bvid"];
+                    final res = await SearchHttp.ab2cWithDimension(bvid: bvid);
+                    final cid = res?.cid;
+                    SmartDialog.dismiss();
+                    if (cid != null) {
+                      PageUtils.toVideoPage(
+                        bvid: bvid,
+                        cid: cid,
+                        cover: content['cover'],
+                        dimension: res!.dimension,
+                        // title: res.title,
+                        expandFrom: source,
+                      );
+                    }
+                  } catch (err) {
+                    SmartDialog.dismiss();
+                    SmartDialog.showToast(err.toString());
                   }
-                } catch (err) {
-                  SmartDialog.dismiss();
-                  SmartDialog.showToast(err.toString());
-                }
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      NetworkImgLayer(
-                        width: constrains.maxWidth,
-                        height: constrains.maxWidth / Style.aspectRatio16x9,
-                        src: content['cover'],
-                        borderRadius: const .vertical(top: Style.imgRadius),
-                      ),
-                      PBadge(
-                        left: 6,
-                        bottom: 6,
-                        type: .gray,
-                        text: content['times'] == 0
-                            ? '--:--'
-                            : DurationUtils.formatDuration(content['times']),
-                      ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        source.cover(
+                          NetworkImgLayer(
+                            width: constrains.maxWidth,
+                            height: constrains.maxWidth / Style.aspectRatio16x9,
+                            src: content['cover'],
+                            borderRadius: const .vertical(top: Style.imgRadius),
+                          ),
+                        ),
+                        PBadge(
+                          left: 6,
+                          bottom: 6,
+                          type: .gray,
+                          text: content['times'] == 0
+                              ? '--:--'
+                              : DurationUtils.formatDuration(content['times']),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      content['times'] == 0 ? '内容已失效' : content['title'],
-                      style: TextStyle(
-                        letterSpacing: 0.6,
-                        height: 1.5,
-                        color: textColor,
-                        fontWeight: FontWeight.bold,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
                       ),
-                    ),
-                  ),
-                  if (attachMsg?.isNotEmpty ?? false)
-                    Container(
-                      margin: const .fromLTRB(12, 0, 12, 8),
-                      padding: const .symmetric(horizontal: 11, vertical: 3.5),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius: const .all(.circular(6)),
-                      ),
-                      child: msgTypeText_1(
-                        theme,
-                        content: content['attach_msg'],
-                        textColor: textColor,
+                      child: Text(
+                        content['times'] == 0 ? '内容已失效' : content['title'],
+                        style: TextStyle(
+                          letterSpacing: 0.6,
+                          height: 1.5,
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                ],
-              ),
-            );
-          },
+                    if (attachMsg?.isNotEmpty ?? false)
+                      Container(
+                        margin: const .fromLTRB(12, 0, 12, 8),
+                        padding: const .symmetric(
+                          horizontal: 11,
+                          vertical: 3.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: const .all(.circular(6)),
+                        ),
+                        child: msgTypeText_1(
+                          theme,
+                          content: content['attach_msg'],
+                          textColor: textColor,
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

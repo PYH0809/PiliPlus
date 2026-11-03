@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/fav_order_type.dart';
@@ -32,7 +33,11 @@ mixin BaseFavController
 
   ValueChanged<int>? updateCount;
 
-  void onViewFav(FavDetailItemModel item, int? index);
+  void onViewFav(
+    FavDetailItemModel item,
+    int? index, {
+    VideoExpandSourceState? expandFrom,
+  });
 
   Future<void> onCancelFav(int index, int id, int type) async {
     final res = await FavHttp.favVideo(
@@ -229,7 +234,11 @@ class FavDetailController
   }
 
   @override
-  void onViewFav(FavDetailItemModel item, int? index) {
+  void onViewFav(
+    FavDetailItemModel item,
+    int? index, {
+    VideoExpandSourceState? expandFrom,
+  }) {
     final folder = folderInfo.value;
     // TODO: dimension
     PageUtils.toVideoPage(
@@ -249,6 +258,7 @@ class FavDetailController
               'isOwner': isOwner,
             }
           : null,
+      expandFrom: expandFrom,
     );
   }
 }

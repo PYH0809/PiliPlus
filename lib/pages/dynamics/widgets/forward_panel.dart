@@ -1,4 +1,5 @@
 import 'package:PiliPlus/common/widgets/image/image_save.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/dyn_content.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/module_panel.dart';
@@ -94,11 +95,16 @@ Widget forwardPanel(
     }
   }
 
-  return InkWell(
-    onTap: () => PageUtils.pushDynDetail(orig),
-    onLongPress: showMore,
-    onSecondaryTap: PlatformUtils.isMobile ? null : showMore,
-    child: child,
+  return Builder(
+    builder: (context) => InkWell(
+      onTap: () => PageUtils.pushDynDetail(
+        orig,
+        expandFrom: VideoExpandSource.maybeOf(context),
+      ),
+      onLongPress: showMore,
+      onSecondaryTap: PlatformUtils.isMobile ? null : showMore,
+      child: child,
+    ),
   );
 }
 

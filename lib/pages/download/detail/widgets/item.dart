@@ -8,6 +8,7 @@ import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/progress_bar/video_progress_indicator.dart';
 import 'package:PiliPlus/common/widgets/select_mask.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_type.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
@@ -139,286 +140,295 @@ class DetailItem extends StatelessWidget {
           )
         : null;
 
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: () async {
-          if (!canDel) {
-            Get.to(const DownloadingPage());
-            return;
-          }
-          if (enableMultiSelect) {
-            (onSelect ?? controller.onSelect).call(entry);
-            return;
-          }
-          if (entry.isCompleted) {
-            await PageUtils.toVideoPage(
-              aid: entry.avid,
-              cid: cid!,
-              cover: entry.cover,
-              title: entry.showTitle,
-              isVertical: entry.pageData?.isVertical ?? false,
-              extraArguments: {
-                'sourceType': SourceType.file,
-                'entry': entry,
-                'dirPath': entry.entryDirPath,
-              },
-            );
-            if (context.mounted) {
-              Timer(const Duration(milliseconds: 400), () {
-                if (context.mounted) {
-                  // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-                  progress?.notifyListeners();
-                }
-              });
+    return VideoExpandSource(
+      key: ObjectKey(entry),
+      color: ColorScheme.of(context).surface,
+      coverRadius: Style.mdRadius,
+      builder: (context, source) => Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: () async {
+            if (!canDel) {
+              Get.to(const DownloadingPage());
+              return;
             }
-          } else {
-            final curDownload = downloadService.curDownload.value;
-            if (curDownload != null &&
-                curDownload.cid == cid &&
-                curDownload.status.isDownloading) {
-              downloadService.cancelDownload(
-                isDelete: false,
-                downloadNext: false,
+            if (enableMultiSelect) {
+              (onSelect ?? controller.onSelect).call(entry);
+              return;
+            }
+            if (entry.isCompleted) {
+              await PageUtils.toVideoPage(
+                aid: entry.avid,
+                cid: cid!,
+                cover: entry.cover,
+                title: entry.showTitle,
+                isVertical: entry.pageData?.isVertical ?? false,
+                extraArguments: {
+                  'sourceType': SourceType.file,
+                  'entry': entry,
+                  'dirPath': entry.entryDirPath,
+                },
+                expandFrom: source,
               );
+              if (context.mounted) {
+                Timer(const Duration(milliseconds: 400), () {
+                  if (context.mounted) {
+                    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+                    progress?.notifyListeners();
+                  }
+                });
+              }
             } else {
-              downloadService.startDownload(entry);
+              final curDownload = downloadService.curDownload.value;
+              if (curDownload != null &&
+                  curDownload.cid == cid &&
+                  curDownload.status.isDownloading) {
+                downloadService.cancelDownload(
+                  isDelete: false,
+                  downloadNext: false,
+                );
+              } else {
+                downloadService.startDownload(entry);
+              }
             }
-          }
-        },
-        onLongPress: onLongPress,
-        onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Style.safeSpace,
-            vertical: 5,
-          ),
-          child: Row(
-            spacing: 10,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  AspectRatio(
-                    aspectRatio: Style.aspectRatio,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final cover = File(
-                          path.join(entry.entryDirPath, PathUtils.coverName),
-                        );
-                        final maxWidth = constraints.maxWidth;
-                        final maxHeight = constraints.maxHeight;
-                        int? cacheWidth, cacheHeight;
-                        if (entry.pageData?.cacheWidth ?? false) {
-                          cacheWidth = maxWidth.cacheSize(context);
-                        } else {
-                          cacheHeight = maxHeight.cacheSize(context);
-                        }
-                        return cover.existsSync()
-                            ? ClipRRect(
-                                borderRadius: Style.mdRadius,
-                                child: Image.file(
-                                  cover,
-                                  width: maxWidth,
-                                  height: maxHeight,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: cacheWidth,
-                                  cacheHeight: cacheHeight,
-                                  colorBlendMode: NetworkImgLayer.reduce
-                                      ? BlendMode.modulate
-                                      : null,
-                                  color: NetworkImgLayer.reduce
-                                      ? NetworkImgLayer.reduceLuxColor
-                                      : null,
-                                ),
-                              )
-                            : NetworkImgLayer(
-                                src: entry.cover,
-                                width: maxWidth,
-                                height: maxHeight,
-                                cacheWidth: entry.pageData?.cacheWidth,
-                              );
-                      },
-                    ),
-                  ),
-                  entry.qaBadge,
-                  if (progress != null)
-                    ListenableBuilder(
-                      listenable: progress!,
-                      builder: (_, _) {
-                        final progress = GStorage.watchProgress.get(
-                          cid.toString(),
-                        );
-                        if (progress != null) {
-                          return Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: Column(
-                              crossAxisAlignment: .end,
-                              children: [
-                                Padding(
-                                  padding: const .only(right: 6, bottom: 3),
-                                  child: PBadge(
-                                    isStack: false,
-                                    text: progress >= entry.totalTimeMilli - 400
-                                        ? '已看完'
-                                        : '${DurationUtils.formatDuration(
-                                                progress ~/ 1000,
-                                              )}/'
-                                              '${DurationUtils.formatDuration(
-                                                entry.totalTimeMilli ~/ 1000,
-                                              )}',
-                                    type: .gray,
-                                  ),
-                                ),
-                                VideoProgressIndicator(
-                                  color: theme.colorScheme.primary,
-                                  backgroundColor:
-                                      theme.colorScheme.secondaryContainer,
-                                  progress: progress / entry.totalTimeMilli,
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        return PBadge(
-                          text: DurationUtils.formatDuration(
-                            entry.totalTimeMilli ~/ 1000,
-                          ),
-                          right: 6.0,
-                          bottom: 7.0,
-                          type: PBadgeType.gray,
-                        );
-                      },
-                    )
-                  else if (entry.totalTimeMilli != 0)
-                    PBadge(
-                      text: DurationUtils.formatDuration(
-                        entry.totalTimeMilli ~/ 1000,
-                      ),
-                      right: 6,
-                      bottom: 7,
-                      type: PBadgeType.gray,
-                    ),
-                  Positioned.fill(
-                    child: selectMask(
-                      theme.colorScheme,
-                      checked ?? entry.checked,
-                    ),
-                  ),
-                ],
-              ),
-              Expanded(
-                child: Stack(
+          },
+          onLongPress: onLongPress,
+          onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Style.safeSpace,
+              vertical: 5,
+            ),
+            child: Row(
+              spacing: 10,
+              children: [
+                Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Column(
-                      spacing: 5,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          showTitle ? entry.title : entry.showTitle,
-                          textAlign: TextAlign.start,
-                          style: TextStyle(
-                            fontSize: theme.textTheme.bodyMedium!.fontSize,
-                            height: 1.42,
-                            letterSpacing: 0.3,
-                          ),
-                          maxLines: showTitle
-                              ? entry.ep != null
-                                    ? 1
-                                    : 2
-                              : 2,
-                          overflow: TextOverflow.ellipsis,
+                    AspectRatio(
+                      aspectRatio: Style.aspectRatio,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final cover = File(
+                            path.join(entry.entryDirPath, PathUtils.coverName),
+                          );
+                          final maxWidth = constraints.maxWidth;
+                          final maxHeight = constraints.maxHeight;
+                          int? cacheWidth, cacheHeight;
+                          if (entry.pageData?.cacheWidth ?? false) {
+                            cacheWidth = maxWidth.cacheSize(context);
+                          } else {
+                            cacheHeight = maxHeight.cacheSize(context);
+                          }
+                          return source.cover(
+                            cover.existsSync()
+                                ? ClipRRect(
+                                    borderRadius: Style.mdRadius,
+                                    child: Image.file(
+                                      cover,
+                                      width: maxWidth,
+                                      height: maxHeight,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: cacheWidth,
+                                      cacheHeight: cacheHeight,
+                                      colorBlendMode: NetworkImgLayer.reduce
+                                          ? BlendMode.modulate
+                                          : null,
+                                      color: NetworkImgLayer.reduce
+                                          ? NetworkImgLayer.reduceLuxColor
+                                          : null,
+                                    ),
+                                  )
+                                : NetworkImgLayer(
+                                    src: entry.cover,
+                                    width: maxWidth,
+                                    height: maxHeight,
+                                    cacheWidth: entry.pageData?.cacheWidth,
+                                  ),
+                          );
+                        },
+                      ),
+                    ),
+                    entry.qaBadge,
+                    if (progress != null)
+                      ListenableBuilder(
+                        listenable: progress!,
+                        builder: (_, _) {
+                          final progress = GStorage.watchProgress.get(
+                            cid.toString(),
+                          );
+                          if (progress != null) {
+                            return Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: Column(
+                                crossAxisAlignment: .end,
+                                children: [
+                                  Padding(
+                                    padding: const .only(right: 6, bottom: 3),
+                                    child: PBadge(
+                                      isStack: false,
+                                      text:
+                                          progress >= entry.totalTimeMilli - 400
+                                          ? '已看完'
+                                          : '${DurationUtils.formatDuration(
+                                                  progress ~/ 1000,
+                                                )}/'
+                                                '${DurationUtils.formatDuration(
+                                                  entry.totalTimeMilli ~/ 1000,
+                                                )}',
+                                      type: .gray,
+                                    ),
+                                  ),
+                                  VideoProgressIndicator(
+                                    color: theme.colorScheme.primary,
+                                    backgroundColor:
+                                        theme.colorScheme.secondaryContainer,
+                                    progress: progress / entry.totalTimeMilli,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return PBadge(
+                            text: DurationUtils.formatDuration(
+                              entry.totalTimeMilli ~/ 1000,
+                            ),
+                            right: 6.0,
+                            bottom: 7.0,
+                            type: PBadgeType.gray,
+                          );
+                        },
+                      )
+                    else if (entry.totalTimeMilli != 0)
+                      PBadge(
+                        text: DurationUtils.formatDuration(
+                          entry.totalTimeMilli ~/ 1000,
                         ),
-                        if (showTitle) ...[
-                          if (entry.pageData?.part case final part?)
-                            if (part != entry.title)
+                        right: 6,
+                        bottom: 7,
+                        type: PBadgeType.gray,
+                      ),
+                    Positioned.fill(
+                      child: selectMask(
+                        theme.colorScheme,
+                        checked ?? entry.checked,
+                      ),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Column(
+                        spacing: 5,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            showTitle ? entry.title : entry.showTitle,
+                            textAlign: TextAlign.start,
+                            style: TextStyle(
+                              fontSize: theme.textTheme.bodyMedium!.fontSize,
+                              height: 1.42,
+                              letterSpacing: 0.3,
+                            ),
+                            maxLines: showTitle
+                                ? entry.ep != null
+                                      ? 1
+                                      : 2
+                                : 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (showTitle) ...[
+                            if (entry.pageData?.part case final part?)
+                              if (part != entry.title)
+                                Text(
+                                  part,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            if (entry.ep?.showTitle case final showTitle?)
                               Text(
-                                part,
-                                maxLines: 1,
+                                showTitle,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                          if (entry.ep?.showTitle case final showTitle?)
-                            Text(
-                              showTitle,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                    if (entry.isCompleted) ...[
-                      Positioned(
-                        left: 0,
-                        bottom: 0,
-                        child: Text(
-                          '${entry.totalBytes.formatSize}${entry.ownerName != null ? '  ${entry.ownerName}' : ''}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.6,
-                            color: outline,
+                      ),
+                      if (entry.isCompleted) ...[
+                        Positioned(
+                          left: 0,
+                          bottom: 0,
+                          child: Text(
+                            '${entry.totalBytes.formatSize}${entry.ownerName != null ? '  ${entry.ownerName}' : ''}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.6,
+                              color: outline,
+                            ),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: entry.moreBtn(theme.colorScheme),
-                      ),
-                    ] else
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: isCurr
-                            ? RepaintBoundary(
-                                child: Obx(
-                                  () {
-                                    final curDownload =
-                                        downloadService.curDownload.value;
-                                    if (curDownload != null) {
-                                      final status = curDownload.status;
-                                      final color =
-                                          status != DownloadStatus.pause
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.outline;
-                                      return progressWidget(
-                                        statusMsg: status.message,
-                                        progressStr:
-                                            status ==
-                                                    DownloadStatus
-                                                        .downloading ||
-                                                status == DownloadStatus.pause
-                                            ? '${curDownload.downloadedBytes.formatSize}/${curDownload.totalBytes.formatSize}'
-                                            : '',
-                                        progress: curDownload.totalBytes == 0
-                                            ? 0
-                                            : curDownload.downloadedBytes /
-                                                  curDownload.totalBytes,
-                                        color: color,
-                                        highlightColor: theme.highlightColor,
-                                      );
-                                    }
-                                    return entryProgress(theme);
-                                  },
-                                ),
-                              )
-                            : entryProgress(theme),
-                      ),
-                  ],
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: entry.moreBtn(theme.colorScheme),
+                        ),
+                      ] else
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: isCurr
+                              ? RepaintBoundary(
+                                  child: Obx(
+                                    () {
+                                      final curDownload =
+                                          downloadService.curDownload.value;
+                                      if (curDownload != null) {
+                                        final status = curDownload.status;
+                                        final color =
+                                            status != DownloadStatus.pause
+                                            ? theme.colorScheme.primary
+                                            : theme.colorScheme.outline;
+                                        return progressWidget(
+                                          statusMsg: status.message,
+                                          progressStr:
+                                              status ==
+                                                      DownloadStatus
+                                                          .downloading ||
+                                                  status == DownloadStatus.pause
+                                              ? '${curDownload.downloadedBytes.formatSize}/${curDownload.totalBytes.formatSize}'
+                                              : '',
+                                          progress: curDownload.totalBytes == 0
+                                              ? 0
+                                              : curDownload.downloadedBytes /
+                                                    curDownload.totalBytes,
+                                          color: color,
+                                          highlightColor: theme.highlightColor,
+                                        );
+                                      }
+                                      return entryProgress(theme);
+                                    },
+                                  ),
+                                )
+                              : entryProgress(theme),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
