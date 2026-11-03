@@ -428,18 +428,45 @@ void main() {
 
     await tester.pumpAndSettle();
     final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
-    // Opened, it lets the picture go, taking it again as it returns.
-    expect(route.debugHoldsBelow, isFalse);
+    // Opened, it keeps the picture for the return, which then draws the
+    // page below from its first frame on.
+    expect(route.debugHoldsBelow, isTrue);
+    final before = paints;
     Get.back<void>();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
+    expect(paints, before);
     expect(find.text('视频页 3'), findsOneWidget);
-    expect(route.debugHoldsBelow, isTrue);
     expect(await repaintsBelow(), isFalse);
 
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
     expect(await repaintsBelow(), isTrue);
+  });
+
+  testWidgets('a page opened over it lets the picture below go', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+
+    // With arguments, as the page under it reads them as it rebuilds.
+    Get.to<void>(() => const Text('上面的页'), arguments: {'cid': 3});
+    await tester.pumpAndSettle();
+    expect(route.debugHoldsBelow, isFalse);
+
+    // Back on top, it takes the picture again as it returns.
+    Get.back<void>();
+    await tester.pumpAndSettle();
+    Get.back<void>();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(route.debugHoldsBelow, isTrue);
+    await tester.pumpAndSettle();
+    expect(find.text('视频页 3'), findsNothing);
   });
 
   testWidgets('the page takes no taps while it moves', (tester) async {

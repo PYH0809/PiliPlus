@@ -479,6 +479,18 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   }
 
   @override
+  void didChangeNext(Route<dynamic>? nextRoute) {
+    super.didChangeNext(nextRoute);
+    // A page over this one: the picture, the screen's size in the device's
+    // pixels, would take its memory up for as long as both are open, one for
+    // each page opened on.
+    if (nextRoute != null) {
+      _covering = false;
+      _dropBelow();
+    }
+  }
+
+  @override
   void dispose() {
     cardImage?.dispose();
     cover?.dispose();
@@ -522,17 +534,13 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
 
   void _keepBelowCovered(AnimationStatus status) {
     switch (status) {
-      // Opened, the route covers the page below by itself: the picture,
-      // the screen's size in the device's pixels, would only take memory up
-      // for as long as the page is open, one for each page opened on.
-      // The route can report itself completed before it sets off, as it is
-      // pushed: only once it has covered the page below does it let go.
-      case AnimationStatus.completed when _covering:
-        _below?.image.dispose();
-        _below = null;
-        _covering = false;
-      // Returning, it is taken again, as it stands now, once it has drawn
-      // a frame on: the navigator draws it while the route returns.
+      // Opened, the route keeps the picture for its return while it is on
+      // top: taking it again would have the navigator draw the page below,
+      // its glass and all, on the return's first frames, and then draw it
+      // once more into the picture. A page opened over this one lets it go
+      // (didChangeNext), so only the top page holds one.
+      // Returning without one, it is taken again, as it stands now, once it
+      // has drawn a frame on: the navigator draws it while the route returns.
       case AnimationStatus.reverse when _below == null && !_returnsPlain:
         SchedulerBinding.instance.addPostFrameCallback((_) {
           if (_below != null ||
@@ -915,15 +923,20 @@ class _RenderExpand extends RenderProxyBox {
       frame.rect,
       Radius.circular(frame.radius),
     );
-    canvas.drawRRect(
-      rrect.shift(offset),
-      Paint()
-        ..color = Color.lerp(
-          config.cardColor,
-          config.pageColor,
-          1 - frame.cardOpacity,
-        )!,
-    );
+    // Once the page shows, its own background covers the fill: the card has
+    // faded out by then, both ways. A pass over the screen the GPU, which
+    // holds the phone's frames back, is spared.
+    if (frame.pageOpacity == 0) {
+      canvas.drawRRect(
+        rrect.shift(offset),
+        Paint()
+          ..color = Color.lerp(
+            config.cardColor,
+            config.pageColor,
+            1 - frame.cardOpacity,
+          )!,
+      );
+    }
     if (config.cardImage case final image? when frame.cardOpacity > 0) {
       // Scaled to the container's width from its top, as OpenContainer fits
       // the card it fades out.
