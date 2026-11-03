@@ -138,6 +138,24 @@ class VideoDetailController extends GetxController
   double get uiScale => plPlayerController.uiScale;
 
   late VideoItem firstVideo;
+
+  final _opened = Completer<void>();
+
+  /// Completes once the page has opened, its route's transition over. The
+  /// player and the media card wait for it: their calls to the platform run
+  /// on Android's main thread, which then hands the transition's frames their
+  /// vsyncs late.
+  Future<void> get opened => _opened.future;
+  bool get isOpened => _opened.isCompleted;
+
+  void onOpened() {
+    if (_opened.isCompleted) {
+      return;
+    }
+    _opened.complete();
+    plPlayerController.listenOrientation();
+  }
+
   String? videoUrl;
   String? audioUrl;
   Duration? defaultST;
@@ -783,6 +801,9 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    if (!isOpened) {
+      await opened;
+    }
     _keptLinks = false;
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;

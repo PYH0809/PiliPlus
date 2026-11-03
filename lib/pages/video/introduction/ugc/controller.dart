@@ -107,11 +107,21 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         }
         return;
       }
-      videoPlayerServiceHandler?.onVideoDetailChange(
-        response,
-        cid.value,
-        heroTag,
-      );
+      // As the player does, the media card waits for the page to open.
+      final cid = this.cid.value;
+      if (videoDetailCtr.isOpened) {
+        videoPlayerServiceHandler?.onVideoDetailChange(response, cid, heroTag);
+      } else {
+        videoDetailCtr.opened.then((_) {
+          if (!isClosed) {
+            videoPlayerServiceHandler?.onVideoDetailChange(
+              response,
+              cid,
+              heroTag,
+            );
+          }
+        });
+      }
       final currentDetail = videoDetail.value;
       if (currentDetail.ugcSeason?.id == response.ugcSeason?.id) {
         // keep reversed season

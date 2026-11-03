@@ -12,6 +12,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
+import 'package:PiliPlus/common/widgets/route_opened.dart';
 import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart'
@@ -1297,9 +1298,12 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         child: child,
       );
     }
-    return videoDetailController.plPlayerController.darkVideoPage
-        ? Theme(data: theme, child: child)
-        : child;
+    return RouteOpened(
+      onOpened: videoDetailController.onOpened,
+      child: videoDetailController.plPlayerController.darkVideoPage
+          ? Theme(data: theme, child: child)
+          : child,
+    );
   }
 
   /// [tabBar] above [pages]; in glass, laid over them, the pages scrolling

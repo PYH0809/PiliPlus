@@ -613,6 +613,24 @@ class PlPlayerController
   late final checkIsAutoRotate = Platform.isAndroid && mode != .gravity;
   StreamSubscription<OrientationParams>? _orientationListener;
 
+  /// Follows the phone's orientation, which turns the player to and from full
+  /// screen. Subscribing holds Android's main thread for tens of
+  /// milliseconds, so a page that opens with a transition listens once it has
+  /// opened.
+  void listenOrientation() {
+    if (_orientationListener != null ||
+        !PlatformUtils.isMobile ||
+        DeviceUtils.isChromeOS) {
+      return;
+    }
+    _orientationListener = NativeDeviceOrientationPlatform.instance
+        .onOrientationChanged(
+          checkIsAutoRotate: checkIsAutoRotate,
+          angleDegrees: Platform.isAndroid ? Pref.angleDegrees : null,
+        )
+        .listen(_onOrientationChanged);
+  }
+
   void _stopOrientationListener() {
     _orientationListener?.cancel();
     _orientationListener = null;
@@ -661,15 +679,6 @@ class PlPlayerController
 
   // 添加一个私有构造函数
   PlPlayerController._() {
-    if (PlatformUtils.isMobile && !DeviceUtils.isChromeOS) {
-      _orientationListener = NativeDeviceOrientationPlatform.instance
-          .onOrientationChanged(
-            checkIsAutoRotate: checkIsAutoRotate,
-            angleDegrees: Platform.isAndroid ? Pref.angleDegrees : null,
-          )
-          .listen(_onOrientationChanged);
-    }
-
     if (!Accounts.heartbeat.isLogin || Pref.historyPause) {
       enableHeart = false;
     }
