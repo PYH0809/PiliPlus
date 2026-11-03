@@ -122,6 +122,7 @@ abstract final class PageUtils {
     Object? type,
     int? rootRpId,
     int? secondRpId,
+    VideoExpandSourceState? expandFrom,
   }) async {
     assert(id != null || rid != null);
     SmartDialog.showLoading();
@@ -146,15 +147,24 @@ abstract final class PageUtils {
           off: off,
         );
       } else {
-        toDupNamed(
-          '/dynamicDetail',
-          arguments: {
-            'item': response,
-            rootRpIdKey: ?rootRpId,
-            secondRpIdKey: ?secondRpId,
-          },
-          off: off,
-        );
+        final arguments = {
+          'item': response,
+          rootRpIdKey: ?rootRpId,
+          secondRpIdKey: ?secondRpId,
+        };
+        // Out of the card it was tapped on, if that still stands: a card
+        // gone meanwhile opens it as before.
+        if (!off) {
+          if (expandFrom?.expand<void>(
+                '/dynamicDetail',
+                arguments: arguments,
+                moveContent: true,
+              )
+              case _?) {
+            return;
+          }
+        }
+        toDupNamed('/dynamicDetail', arguments: arguments, off: off);
       }
     } else {
       SmartDialog.showToast('${type != null ? 'type: $type ' : ''}$res');
@@ -267,7 +277,7 @@ abstract final class PageUtils {
         pushOpus();
       } else {
         if (item.linkFolded) {
-          pushDynFromId(id: item.idStr);
+          pushDynFromId(id: item.idStr, expandFrom: detailFrom);
           return;
         }
         final arguments = {
