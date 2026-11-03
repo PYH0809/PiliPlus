@@ -76,6 +76,24 @@ void main() {
     expect(shown, 1);
   });
 
+  test('a page opened over it, taking the player, does not count', () async {
+    final player = _Player()..cid = 2;
+    var shown = 0;
+    watchFirstFrame(player, cid: 2, shown: () => shown++);
+    player.dataStatus.value = DataStatus.loaded;
+    await Future<void>.delayed(Duration.zero);
+
+    // A related video opened over the page plays on the same player.
+    player
+      ..cid = 3
+      ..dataStatus.value = DataStatus.loading
+      ..dataStatus.value = DataStatus.loaded
+      ..playerStatus = PlayerStatus.playing
+      ..playTo(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(shown, 0);
+  });
+
   test('shows once the video fails to load', () async {
     final player = _Player()..cid = 2;
     var shown = 0;

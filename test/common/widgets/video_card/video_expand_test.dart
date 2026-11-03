@@ -7,6 +7,8 @@ import 'package:PiliPlus/models/model_hot_video_item.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
@@ -170,6 +172,26 @@ bool _expanding(WidgetTester tester) =>
       tester.element(find.byType(_Page, skipOffstage: false)),
     ) !=
     null;
+
+/// An image from the app's assets, as NetworkImgLayer's placeholder, loaded
+/// at once.
+class _Placeholder extends AssetBundleImageProvider {
+  const _Placeholder();
+
+  @override
+  Future<AssetBundleImageKey> obtainKey(ImageConfiguration configuration) =>
+      SynchronousFuture(
+        AssetBundleImageKey(bundle: rootBundle, name: 'loading', scale: 1),
+      );
+
+  @override
+  ImageStreamCompleter loadImage(
+    AssetBundleImageKey key,
+    ImageDecoderCallback decode,
+  ) => OneFrameImageStreamCompleter(
+    SynchronousFuture(ImageInfo(image: _coverImage.clone())),
+  );
+}
 
 /// Counts its paints, repainting whenever [repaint] changes.
 class _CountingPainter extends CustomPainter {
@@ -395,10 +417,14 @@ void main() {
     expect(await repaintsBelow(), isFalse);
 
     await tester.pumpAndSettle();
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    // Opened, it lets the picture go, taking it again as it returns.
+    expect(route.debugHoldsBelow, isFalse);
     Get.back<void>();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
     expect(find.text('视频页 3'), findsOneWidget);
+    expect(route.debugHoldsBelow, isTrue);
     expect(await repaintsBelow(), isFalse);
 
     await tester.pumpAndSettle();
@@ -613,6 +639,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a card still loading its cover grows no placeholder', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      home: VideoExpandSource(
+        color: Colors.white,
+        builder: (context, source) => SizedBox(
+          width: 180,
+          height: 200,
+          child: InkWell(
+            onTap: () => PageUtils.toVideoPage(
+              aid: 2,
+              bvid: 'BV1xx411c7mD',
+              cid: 3,
+              expandFrom: source,
+            ),
+            child: Column(
+              children: [
+                source.cover(
+                  const Image(
+                    image: _Placeholder(),
+                    width: 180,
+                    height: 112.5,
+                  ),
+                ),
+                const Text('卡片'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(RawImage), findsOneWidget);
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    final route = VideoExpandRoute.of(
+      tester.element(find.byType(_Page, skipOffstage: false)),
+    )!;
+    expect(route.cover, isNull);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('a list refreshed under the page returns it with no card', (

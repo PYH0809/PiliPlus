@@ -22,7 +22,12 @@ VoidCallback watchFirstFrame(
   }
 
   onPosition = (_) {
-    if (watching && player.playerStatus.isPlaying) {
+    // Still this video: a page opened over this one may have taken the
+    // player for its own meanwhile.
+    if (watching &&
+        player.cid == cid &&
+        player.dataStatus.loaded &&
+        player.playerStatus.isPlaying) {
       watching = false;
       // The player is going through its listeners: one leaving now would
       // change them under it.

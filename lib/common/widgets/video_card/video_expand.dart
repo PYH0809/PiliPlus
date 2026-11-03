@@ -201,21 +201,28 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
   // The cover's picture as the card shows it, decoded already: a handle of
   // its own on the image of the first RenderImage under the cover, and the
   // color it blends in, as the tint NetworkImgLayer gives covers in the dark.
+  // Not a placeholder's, from the app's assets, shown until the cover loads.
   (ui.Image, ColorFilter?)? _coverImage() {
     RenderImage? found;
-    void visit(RenderObject object) {
+    void visit(Element element, bool placeholder) {
       if (found != null) {
         return;
       }
-      if (object is RenderImage && object.image != null) {
-        found = object;
-        return;
+      if (element.widget case Image(:final image)) {
+        placeholder = _isAsset(image);
       }
-      object.visitChildren(visit);
+      if (!placeholder && element is RenderObjectElement) {
+        if (element.renderObject case final RenderImage image
+            when image.image != null) {
+          found = image;
+          return;
+        }
+      }
+      element.visitChildren((child) => visit(child, placeholder));
     }
 
-    if (_coverKey.currentContext?.findRenderObject() case final box?) {
-      visit(box);
+    if (_coverKey.currentContext case final Element element) {
+      visit(element, false);
     }
     final image = found;
     if (image == null) {
@@ -232,6 +239,12 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       },
     );
   }
+
+  static bool _isAsset(ImageProvider<Object> provider) => switch (provider) {
+    AssetBundleImageProvider() => true,
+    ResizeImage(:final imageProvider) => _isAsset(imageProvider),
+    _ => false,
+  };
 
   // The card as it was last painted, which fades out as the page grows.
   ui.Image? _cardImage(double pixelRatio) {
@@ -400,6 +413,14 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   _Below? _below;
   bool _covering = false;
 
+  // Whether it returns with no card to return into, over the page below
+  // drawn as it is.
+  bool _returnsPlain = false;
+
+  /// Whether the route holds a picture of the page below.
+  @visibleForTesting
+  bool get debugHoldsBelow => _below != null;
+
   /// The page's player, where the cover grows into.
   VideoExpandTargetState? _target;
 
@@ -488,6 +509,32 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   }
 
   void _keepBelowCovered(AnimationStatus status) {
+    switch (status) {
+      // Opened, the route covers the page below by itself: the picture,
+      // the screen's size in the device's pixels, would only take memory up
+      // for as long as the page is open, one for each page opened on.
+      // The route can report itself completed before it sets off, as it is
+      // pushed: only once it has covered the page below does it let go.
+      case AnimationStatus.completed when _covering:
+        _below?.image.dispose();
+        _below = null;
+        _covering = false;
+      // Returning, it is taken again, as it stands now, once it has drawn
+      // a frame on: the navigator draws it while the route returns.
+      case AnimationStatus.reverse when _below == null && !_returnsPlain:
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (_below != null ||
+              _returnsPlain ||
+              animation?.status != AnimationStatus.reverse) {
+            return;
+          }
+          _takeBelow();
+          _coverBelow();
+        });
+      case AnimationStatus.forward:
+        _returnsPlain = false;
+      default:
+    }
     if (_below == null ||
         !_covering ||
         !status.isAnimating ||
@@ -552,6 +599,7 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   /// Lets the page below draw itself again, as a page returning with no card
   /// to return into fades out over it, the card gone from it.
   void _uncoverBelow() {
+    _returnsPlain = true;
     _covering = false;
     _dropBelow();
   }
