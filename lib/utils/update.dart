@@ -16,6 +16,24 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 abstract final class Update {
+  // 本仓库的 tag 是 <版本号>+<build 号>，比 build 号；Release 的 created_at
+  // 是目标提交的时间，不是发版时间。其他 tag 照旧比时间
+  static bool hasUpdate(
+    Map data, {
+    int versionCode = BuildConfig.versionCode,
+    int buildTime = BuildConfig.buildTime,
+  }) {
+    final match = RegExp(
+      r'^[\d.]+\+(\d+)$',
+    ).firstMatch(data['tag_name'] as String? ?? '');
+    if (match != null) {
+      return int.parse(match[1]!) > versionCode;
+    }
+    final int latest =
+        DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000;
+    return buildTime < latest;
+  }
+
   // 检查更新
   static Future<void> checkUpdate([bool isAuto = true]) async {
     if (kDebugMode) return;
@@ -35,9 +53,7 @@ abstract final class Update {
         return;
       }
       final data = res.data[0];
-      final int latest =
-          DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000;
-      if (BuildConfig.buildTime >= latest) {
+      if (!hasUpdate(data)) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
         }
