@@ -1501,6 +1501,9 @@ class VideoDetailController extends GetxController
     videoUrl = null;
     audioUrl = null;
     _keptLinks = false;
+    // The part left would be set up once the page opens, its links gone:
+    // the new part's query asks for its own.
+    _initOnceOpened = null;
 
     // danmaku
     savedDanmaku = null;
