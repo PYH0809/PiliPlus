@@ -99,9 +99,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
     queryVideoTags();
     // Found now: the page's controller is gone once the page has closed.
     final videoDetailCtr = this.videoDetailCtr;
+    final bvid = this.bvid;
     final res = await VideoHttp.videoIntro(bvid: bvid);
     await videoDetailCtr.untilOpened;
-    if (isClosed) {
+    // A video switched to meanwhile queries its own.
+    if (isClosed || bvid != this.bvid) {
       return;
     }
     if (res case Success(:final response)) {
