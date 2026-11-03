@@ -62,7 +62,7 @@ class LiveRoomController extends GetxController {
   DanmakuController<DanmakuExtra>? danmakuController;
   final plPlayerController = PlPlayerController.getInstance(
     isLive: true,
-  )..listenOrientation();
+  );
 
   final isLoaded = false.obs;
   final roomInfoH5 = Rxn<RoomInfoH5Data>();

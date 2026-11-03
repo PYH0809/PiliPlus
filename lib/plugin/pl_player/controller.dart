@@ -1,4 +1,4 @@
-import 'dart:async' show Completer, StreamSubscription, Timer;
+import 'dart:async' show StreamSubscription, Timer;
 import 'dart:convert' show ascii, utf8;
 import 'dart:io' show Platform;
 import 'dart:math' show max, min;
@@ -613,55 +613,13 @@ class PlPlayerController
   late final checkIsAutoRotate = Platform.isAndroid && mode != .gravity;
   StreamSubscription<OrientationParams>? _orientationListener;
 
-  /// Follows the phone's orientation, which turns the player to and from full
-  /// screen. Subscribing holds Android's main thread for tens of
-  /// milliseconds, so a page that opens with a transition listens once it has
-  /// opened.
-  void listenOrientation() {
-    if (_orientationListener != null ||
-        !PlatformUtils.isMobile ||
-        DeviceUtils.isChromeOS) {
-      return;
-    }
-    _orientationListener = NativeDeviceOrientationPlatform.instance
-        .onOrientationChanged(
-          checkIsAutoRotate: checkIsAutoRotate,
-          angleDegrees: Platform.isAndroid ? Pref.angleDegrees : null,
-        )
-        .listen(_onOrientationChanged);
-  }
-
   void _stopOrientationListener() {
     _orientationListener?.cancel();
     _orientationListener = null;
   }
 
-  // Each call to triggerFullScreen, the latest having its way.
-  int _fullScreenRequests = 0;
-
-  // Completes as the first orientation is heard.
-  Completer<void>? _firstOrientation;
-
-  /// The phone's orientation, listened for now if no one has yet: waits a
-  /// little for the first, null without one.
-  Future<DeviceOrientation?> _heardOrientation() async {
-    if (_orientation == null) {
-      listenOrientation();
-      if (_orientationListener != null) {
-        await (_firstOrientation ??= Completer<void>()).future.timeout(
-          const Duration(milliseconds: 500),
-          onTimeout: () {},
-        );
-      }
-    }
-    return _orientation;
-  }
-
   void _onOrientationChanged(OrientationParams param) {
     _orientation = param.orientation;
-    if (_firstOrientation case final first? when !first.isCompleted) {
-      first.complete();
-    }
     if (Platform.isIOS && !visible) return;
     if (controlsLock.value) return;
     final orientation = param.orientation;
@@ -703,6 +661,15 @@ class PlPlayerController
 
   // 添加一个私有构造函数
   PlPlayerController._() {
+    if (PlatformUtils.isMobile && !DeviceUtils.isChromeOS) {
+      _orientationListener = NativeDeviceOrientationPlatform.instance
+          .onOrientationChanged(
+            checkIsAutoRotate: checkIsAutoRotate,
+            angleDegrees: Platform.isAndroid ? Pref.angleDegrees : null,
+          )
+          .listen(_onOrientationChanged);
+    }
+
     if (!Accounts.heartbeat.isLogin || Pref.historyPause) {
       enableHeart = false;
     }
@@ -1662,28 +1629,8 @@ class PlPlayerController
     DeviceOrientation? orientation,
     bool isManualFS = true,
   }) async {
-    final request = ++_fullScreenRequests;
     if (isDesktopPip) return;
     if (isFullScreen.value == status) return;
-    // Android turns to the landscape the phone is held in, which a page not
-    // yet done opening has not heard: it listens once it has opened.
-    if (status &&
-        Platform.isAndroid &&
-        orientation == null &&
-        _orientation == null) {
-      listenOrientation();
-      // Not where it listens to no orientation, as on ChromeOS.
-      if (_orientationListener != null) {
-        await _heardOrientation();
-        // Not if asked otherwise meanwhile, as out of full screen, nor once
-        // the player has gone, its page closed: the page below would turn.
-        if (request != _fullScreenRequests ||
-            !identical(_instance, this) ||
-            isFullScreen.value == status) {
-          return;
-        }
-      }
-    }
 
     if (_fsProcessing) return;
     _fsProcessing = true;

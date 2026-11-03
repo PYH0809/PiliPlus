@@ -138,20 +138,6 @@ class VideoDetailController extends GetxController
   double get uiScale => plPlayerController.uiScale;
 
   late VideoItem firstVideo;
-
-  bool _opened = false;
-
-  /// Called once the page has opened, its route's transition over.
-  void onOpened() {
-    if (_opened) {
-      return;
-    }
-    _opened = true;
-    // Subscribing holds Android's main thread for tens of milliseconds, which
-    // hands the transition's frames their vsyncs late.
-    plPlayerController.listenOrientation();
-  }
-
   String? videoUrl;
   String? audioUrl;
   Duration? defaultST;
