@@ -1071,6 +1071,9 @@ abstract final class Pref {
   static bool get floatingNavBar =>
       _setting.get(SettingBoxKey.floatingNavBar, defaultValue: false);
 
+  static bool get videoExpand =>
+      _setting.get(SettingBoxKey.videoExpand, defaultValue: true);
+
   static bool get liquidGlass =>
       _setting.get(SettingBoxKey.liquidGlass, defaultValue: true);
 

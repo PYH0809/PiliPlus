@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math';
 
@@ -21,6 +22,7 @@ import 'package:PiliPlus/common/widgets/scroll_physics.dart'
 import 'package:PiliPlus/common/widgets/simple_app_bar.dart';
 import 'package:PiliPlus/common/widgets/sliver/video_header.dart';
 import 'package:PiliPlus/common/widgets/svg/play_icon.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/models/common/episode_panel_type.dart';
 import 'package:PiliPlus/models/common/pgc_episode_type.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
@@ -53,6 +55,7 @@ import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/pages/video/widgets/intro_layout.dart';
 import 'package:PiliPlus/pages/video/widgets/player_focus.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
+import 'package:PiliPlus/plugin/pl_player/models/data_status.dart';
 import 'package:PiliPlus/plugin/pl_player/models/fullscreen_mode.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_status.dart';
@@ -1510,6 +1513,57 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     );
   }
 
+  /// Calls [shown] once this page's video shows its first frame, or at once
+  /// if it won't play by itself, and returns what stops watching. The player
+  /// is shared with the video pages below, which may still be playing.
+  VoidCallback _watchFirstFrame(VoidCallback shown) {
+    final player = videoDetailController.plPlayerController;
+    if (!videoDetailController.autoPlay) {
+      shown();
+      return () {};
+    }
+    final cid = videoDetailController.cid.value;
+    var watching = true;
+    StreamSubscription<DataStatus>? loading;
+    late final ValueChanged<Duration> onPosition;
+    void stop() {
+      watching = false;
+      loading?.cancel();
+      player.removePositionListener(onPosition);
+    }
+
+    onPosition = (_) {
+      if (watching && player.playerStatus.isPlaying) {
+        stop();
+        shown();
+      }
+    };
+
+    void check() {
+      if (!watching || player.cid != cid) {
+        return;
+      }
+      if (player.dataStatus.error) {
+        stop();
+        shown();
+      } else if (player.dataStatus.loaded) {
+        loading?.cancel();
+        // A player the pages below opened showed its first frame long
+        // since: its first position played on this video tells, then.
+        (player.videoController?.waitUntilFirstFrameRendered ?? Future.value())
+            .then((_) {
+              if (watching) {
+                player.addPositionListener(onPosition);
+              }
+            });
+      }
+    }
+
+    loading = player.dataStatus.listen((_) => check());
+    check();
+    return stop;
+  }
+
   Widget videoPlayer({required double width, required double height}) {
     final isFullScreen = this.isFullScreen;
     return Stack(
@@ -1523,6 +1577,11 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         ),
 
         plPlayer(width: width, height: height),
+
+        // The cover of the card this page grew out of, until the video shows.
+        Positioned.fill(
+          child: VideoExpandTarget(watchVideo: _watchFirstFrame),
+        ),
 
         Obx(() {
           if (!videoDetailController.autoPlay) {

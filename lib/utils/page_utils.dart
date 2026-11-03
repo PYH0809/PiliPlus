@@ -6,6 +6,7 @@ import 'package:PiliPlus/common/widgets/image_viewer/hero_dialog_route.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/grpc/im.dart';
 import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -605,6 +606,7 @@ abstract final class PageUtils {
     Dimension? dimension,
     int? rootRpId,
     int? secondRpId,
+    VideoExpandSourceState? expandFrom,
   }) {
     final arguments = {
       'aid': aid ?? IdUtils.bv2av(bvid!),
@@ -623,6 +625,13 @@ abstract final class PageUtils {
       secondRpIdKey: ?secondRpId,
       ...?extraArguments,
     };
+    // Out of the card tapped, its cover growing into the player.
+    if (!off) {
+      if (expandFrom?.expand<void>('/videoV', arguments: arguments)
+          case final opened?) {
+        return opened;
+      }
+    }
     return PageUtils.toDupNamed('/videoV', arguments: arguments, off: off);
   }
 
