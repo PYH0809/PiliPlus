@@ -103,8 +103,9 @@ jobs:
               run: |
                   version=$(grep -oP '^version:\s*\K[\d.]+' pubspec.yaml)
                   tag="$version+$(git rev-list --count HEAD)"
-                  # Drafts of cancelled or failed builds.
-                  gh release list --json tagName,isDraft --jq '.[]|select(.isDraft).tagName' |
+                  # Drafts that cancelled or failed push builds left: only tags of
+                  # this form, so a draft prepared by hand stays.
+                  gh release list --json tagName,isDraft --jq '.[]|select(.isDraft and (.tagName|test("^[0-9.]+\\+[0-9]+$"))).tagName' |
                     while read -r old; do gh release delete "$old" --yes; done
                   gh release create "$tag" --draft --target "$GITHUB_SHA" --title "$tag" --notes-file "$RUNNER_TEMP/note.md"
                   echo "tag=$tag" >> "$GITHUB_OUTPUT"
