@@ -97,7 +97,13 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
   @override
   Future<void> queryVideoIntro() async {
     queryVideoTags();
+    // Found now: the page's controller is gone once the page has closed.
+    final videoDetailCtr = this.videoDetailCtr;
     final res = await VideoHttp.videoIntro(bvid: bvid);
+    await videoDetailCtr.untilOpened;
+    if (isClosed) {
+      return;
+    }
     if (res case Success(:final response)) {
       if (response.redirectUrl != null &&
           videoDetailCtr.epId == null &&
@@ -107,21 +113,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
         }
         return;
       }
-      // As the player does, the media card waits for the page to open.
-      final cid = this.cid.value;
-      if (videoDetailCtr.isOpened) {
-        videoPlayerServiceHandler?.onVideoDetailChange(response, cid, heroTag);
-      } else {
-        videoDetailCtr.opened.then((_) {
-          if (!isClosed) {
-            videoPlayerServiceHandler?.onVideoDetailChange(
-              response,
-              cid,
-              heroTag,
-            );
-          }
-        });
-      }
+      videoPlayerServiceHandler?.onVideoDetailChange(
+        response,
+        cid.value,
+        heroTag,
+      );
       final currentDetail = videoDetail.value;
       if (currentDetail.ugcSeason?.id == response.ugcSeason?.id) {
         // keep reversed season

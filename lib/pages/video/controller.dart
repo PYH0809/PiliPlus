@@ -148,6 +148,12 @@ class VideoDetailController extends GetxController
   Future<void> get opened => _opened.future;
   bool get isOpened => _opened.isCompleted;
 
+  /// What the page's parts wait for before they show what they loaded, null
+  /// once open: shown while the transition runs, the intro, the related
+  /// videos and the comments would be laid out, their pictures uploaded and
+  /// their new glyphs drawn on its frames. They mostly arrive as it ends.
+  Future<void>? get untilOpened => isOpened ? null : opened;
+
   void onOpened() {
     if (_opened.isCompleted) {
       return;

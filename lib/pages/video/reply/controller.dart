@@ -80,11 +80,16 @@ class VideoReplyController extends ReplyController<MainListReply>
   }
 
   @override
-  Future<LoadingState<MainListReply>> customGetData() => ReplyGrpc.mainList(
-    oid: oid,
-    rpid: rootRpId,
-    type: replyType,
-    mode: mode,
-    offset: nextOffset,
-  );
+  Future<LoadingState<MainListReply>> customGetData() async {
+    final res = await ReplyGrpc.mainList(
+      oid: oid,
+      rpid: rootRpId,
+      type: replyType,
+      mode: mode,
+      offset: nextOffset,
+    );
+    // As the intro, shown once the page has opened.
+    await videoCtr.untilOpened;
+    return res;
+  }
 }
