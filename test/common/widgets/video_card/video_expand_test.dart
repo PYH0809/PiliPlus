@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:PiliPlus/common/widgets/video_card/video_card_h.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
+import 'package:PiliPlus/models/model_hot_video_item.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
@@ -610,6 +612,61 @@ void main() {
     expect(find.text('视频页 3'), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a list refreshed under the page returns it with no card', (
+    tester,
+  ) async {
+    HotVideoItemModel item(int aid, String title) => .fromJson({
+      'aid': aid,
+      'cid': aid + 100,
+      'bvid': 'BV1xx411c7mD',
+      'title': title,
+      'pubdate': 0,
+      'duration': 60,
+      'owner': {'mid': 1, 'name': 'UP'},
+      'stat': {'view': 1, 'danmaku': 1},
+    });
+    final list = ValueNotifier([item(2, '旧视频')]);
+    addTearDown(list.dispose);
+    await _pump(
+      tester,
+      // As the list pages build their cards, with no key.
+      home: SizedBox(
+        width: 400,
+        height: 120,
+        child: ValueListenableBuilder(
+          valueListenable: list,
+          builder: (context, items, _) => VideoCardH(videoItem: items[0]),
+        ),
+      ),
+    );
+    await tester.tap(find.text('旧视频'));
+    await tester.pumpAndSettle();
+    expect(find.text('视频页 102'), findsOneWidget);
+
+    list.value = [item(3, '新视频')];
+    await tester.pump();
+    Get.back<void>();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    // Another video's card, which the page does not return into.
+    expect(
+      tester
+          .widget<Opacity>(
+            find
+                .ancestor(
+                  of: find.text('新视频', skipOffstage: false),
+                  matching: find.byType(Opacity, skipOffstage: false),
+                )
+                .first,
+          )
+          .opacity,
+      1,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('视频页 102'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

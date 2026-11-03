@@ -39,6 +39,9 @@ class VideoCardH extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return VideoExpandSource(
+      // A list refreshed while its page is open puts another video here: the
+      // page then returns into no card, rather than this one's.
+      key: ObjectKey(videoItem),
       color: theme.colorScheme.surface,
       coverRadius: Style.mdRadius,
       builder: (context, source) => Material(
