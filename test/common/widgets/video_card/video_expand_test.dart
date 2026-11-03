@@ -50,6 +50,19 @@ class _Page extends StatelessWidget {
     return Scaffold(
       body: Column(
         children: [
+          // The player, built over the target, draws the cover over its
+          // video and under its controls.
+          const SizedBox(
+            key: _playerKey,
+            height: 225,
+            child: Stack(
+              children: [
+                ColoredBox(color: Colors.black, child: SizedBox.expand()),
+                VideoExpandCover(),
+                Text('控件'),
+              ],
+            ),
+          ),
           SizedBox(
             height: 225,
             // A new key builds the player anew, as a turned screen does.
@@ -72,6 +85,7 @@ class _Page extends StatelessWidget {
 }
 
 late ui.Image _coverImage;
+const _playerKey = Key('player');
 final _playerBuilds = ValueNotifier(0);
 
 Widget _card0({
@@ -441,12 +455,19 @@ void main() {
       of: find.byType(VideoExpandTarget),
       matching: find.byType(CustomPaint),
     );
+    final overVideo = find.descendant(
+      of: find.byKey(_playerKey),
+      matching: find.byType(CustomPaint),
+    );
     expect(cover, findsOneWidget);
+    expect(overVideo, findsOneWidget);
+    expect(find.text('控件'), findsOneWidget);
 
     shown!();
     expect(stopped, isTrue);
     await tester.pumpAndSettle();
     expect(cover, findsNothing);
+    expect(overVideo, findsNothing);
   });
 
   testWidgets('a player built again once the cover went shows it no more', (

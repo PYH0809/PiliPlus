@@ -103,6 +103,7 @@ class PLVideoPlayer extends StatefulWidget {
     this.showViewPoints,
     this.fill = Colors.black,
     this.alignment = Alignment.center,
+    this.overVideo,
     super.key,
   });
 
@@ -118,6 +119,9 @@ class PLVideoPlayer extends StatefulWidget {
   final VoidCallback? showViewPoints;
   final Color fill;
   final Alignment alignment;
+
+  /// Laid over the video, under the danmaku and the controls.
+  final Widget? overVideo;
 
   @override
   State<PLVideoPlayer> createState() => _PLVideoPlayerState();
@@ -1439,6 +1443,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
       key: _playerKey,
       children: <Widget>[
         _videoWidget,
+
+        if (widget.overVideo case final overVideo?)
+          Positioned.fill(child: overVideo),
 
         if (widget.danmuWidget case final danmaku?)
           Positioned.fill(top: 4, child: danmaku),

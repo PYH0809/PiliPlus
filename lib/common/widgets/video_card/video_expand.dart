@@ -413,6 +413,23 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   /// meanwhile holds it no longer.
   Timer? _coverTimer;
 
+  /// Whether the cover stands over the player, from when the page has
+  /// opened until it has faded out, and how far it shows.
+  final _coverShowing = ValueNotifier(false);
+  AnimationController? _coverOpacityController;
+  AnimationController get _coverOpacity => _coverOpacityController ??=
+      AnimationController(vsync: navigator!, duration: _coverFade, value: 1);
+  bool get _coverFaded => _coverOpacity.isDismissed;
+
+  void _letCoverGo() {
+    if (_coverGone) {
+      return;
+    }
+    _coverGone = true;
+    _coverTimer?.cancel();
+    _coverOpacity.reverse().whenComplete(() => _coverShowing.value = false);
+  }
+
   /// The route [context] is in, if a card opened it.
   static VideoExpandRoute<dynamic>? of(BuildContext context) =>
       switch (ModalRoute.of(context)) {
@@ -433,6 +450,8 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
     cardImage?.dispose();
     cover?.dispose();
     _coverTimer?.cancel();
+    _coverShowing.dispose();
+    _coverOpacityController?.dispose();
     _below?.image.dispose();
     _below = null;
     super.dispose();
@@ -1000,7 +1019,9 @@ void _paintCover(
 /// Marks the video page's player, which the cover of the card it opened
 /// from grows into, and holds the cover there until the video's first frame
 /// shows: [watchVideo] calls back once it has, and returns what stops it
-/// watching. On a page no card opened it is an empty box.
+/// watching. It draws the cover under the player, before the player is
+/// built; the player draws it over its video with a [VideoExpandCover]. On a
+/// page no card opened it is an empty box.
 class VideoExpandTarget extends StatefulWidget {
   const VideoExpandTarget({super.key, required this.watchVideo});
 
@@ -1010,19 +1031,12 @@ class VideoExpandTarget extends StatefulWidget {
   State<VideoExpandTarget> createState() => VideoExpandTargetState();
 }
 
-class VideoExpandTargetState extends State<VideoExpandTarget>
-    with SingleTickerProviderStateMixin {
+class VideoExpandTargetState extends State<VideoExpandTarget> {
   VideoExpandRoute<dynamic>? _route;
   Animation<double>? _routeAnimation;
-  late final _fade = AnimationController(
-    vsync: this,
-    duration: _coverFade,
-    value: 1,
-  );
   VoidCallback? _stopWatching;
   bool _videoShown = false;
   bool _opened = false;
-  bool _gone = false;
 
   RenderBox? get _box => switch (context.findRenderObject()) {
     final RenderBox box when box.attached && box.hasSize => box,
@@ -1048,27 +1062,28 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
     route._target = this;
     // Built again once the cover was let go, as the player is in another
     // layout after the screen turns: it stays gone.
-    _gone = route._coverGone;
-    if (_gone) {
+    if (route._coverGone) {
       return;
     }
     _routeAnimation!.addStatusListener(_handleRouteStatus);
-    _opened = _routeAnimation!.isCompleted;
     _stopWatching ??= widget.watchVideo(_handleVideoShown);
     // Built after the page had opened, it holds the cover no longer than
-    // one built as it opened would.
-    if (_opened) {
-      _fadeOnceShown();
-    }
+    // one built as it opened would. Not as it builds, as the cover shows in
+    // the player too.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(_route, route)) {
+        _handleRouteStatus(route.animation!.status);
+      }
+    });
   }
 
   void _handleRouteStatus(AnimationStatus status) {
-    final opened = status.isCompleted;
-    if (opened != _opened && mounted) {
-      setState(() => _opened = opened);
-      if (opened) {
-        _fadeOnceShown();
-      }
+    final route = _route!;
+    _opened = status.isCompleted;
+    // While the page moves, its route draws the cover.
+    route._coverShowing.value = _opened && !route._coverFaded;
+    if (_opened) {
+      _letGoOnceShown();
     }
   }
 
@@ -1077,39 +1092,22 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
     _stopWatching = () {};
     if (mounted) {
       _videoShown = true;
-      _fadeOnceShown();
+      _letGoOnceShown();
     }
   }
 
-  void _fadeOnceShown() {
-    if (!_opened || _gone) {
+  void _letGoOnceShown() {
+    final route = _route!;
+    if (!_opened || route._coverGone) {
       return;
     }
     if (_videoShown) {
-      _fadeOut();
+      route._letCoverGo();
     } else {
-      // Not past this, should the video never say it has shown.
-      final route = _route!;
-      route._coverTimer ??= Timer(_coverHoldAtMost, () {
-        // Let go though no player holds it now, as in picture in picture:
-        // one built again shows it no more.
-        route._coverGone = true;
-        route._target?._fadeOut();
-      });
+      // Not past this, should the video never say it has shown, though no
+      // player holds the cover then, as in picture in picture.
+      route._coverTimer ??= Timer(_coverHoldAtMost, route._letCoverGo);
     }
-  }
-
-  void _fadeOut() {
-    if (!mounted || _gone || !_fade.isCompleted) {
-      return;
-    }
-    _route?._coverTimer?.cancel();
-    _route?._coverGone = true;
-    _fade.reverse().whenComplete(() {
-      if (mounted) {
-        setState(() => _gone = true);
-      }
-    });
   }
 
   @override
@@ -1119,23 +1117,43 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
     if (identical(_route?._target, this)) {
       _route!._target = null;
     }
-    _fade.dispose();
     super.dispose();
   }
 
   @override
+  Widget build(BuildContext context) =>
+      const SizedBox.expand(child: VideoExpandCover());
+}
+
+/// The cover of the card the page grew out of, held over the player until
+/// the video shows: over the video and under the player's controls, where
+/// the player lays it. Empty on a page no card opened.
+class VideoExpandCover extends StatelessWidget {
+  const VideoExpandCover({super.key});
+
+  @override
   Widget build(BuildContext context) {
-    final cover = _route?.cover;
-    if (cover == null || !_opened || _gone) {
-      return const SizedBox.expand();
+    final route = VideoExpandRoute.of(context);
+    final cover = route?.cover;
+    if (route == null || cover == null) {
+      return const SizedBox.shrink();
     }
-    // Over the player, out of reach of taps, until the video shows.
-    return IgnorePointer(
-      child: SizedBox.expand(
-        child: CustomPaint(
-          painter: _CoverPainter(cover, _route?.coverFilter, _fade),
-        ),
-      ),
+    return ValueListenableBuilder(
+      valueListenable: route._coverShowing,
+      builder: (context, showing, _) => showing
+          // Out of reach of taps, which go to the player.
+          ? IgnorePointer(
+              child: SizedBox.expand(
+                child: CustomPaint(
+                  painter: _CoverPainter(
+                    cover,
+                    route.coverFilter,
+                    route._coverOpacity,
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
@@ -1164,5 +1182,7 @@ class _CoverPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CoverPainter oldDelegate) =>
-      !identical(oldDelegate.image, image) || oldDelegate.filter != filter;
+      !identical(oldDelegate.image, image) ||
+      oldDelegate.filter != filter ||
+      oldDelegate.opacity != opacity;
 }

@@ -1254,6 +1254,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     ),
               showEpisodes: showEpisodes,
               showViewPoints: showViewPoints,
+              overVideo: const VideoExpandCover(),
             ),
     ),
   );
@@ -1538,12 +1539,14 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           ),
         ),
 
-        plPlayer(width: width, height: height),
-
-        // The cover of the card this page grew out of, until the video shows.
+        // The player, and the cover of the card this page grew out of until
+        // the video shows: under the player, which draws it again over its
+        // video and under its controls once it is built.
         Positioned.fill(
           child: VideoExpandTarget(watchVideo: _watchFirstFrame),
         ),
+
+        plPlayer(width: width, height: height),
 
         Obx(() {
           if (!videoDetailController.autoPlay) {
