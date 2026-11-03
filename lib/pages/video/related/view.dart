@@ -2,7 +2,6 @@ import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_h.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/model_hot_video_item.dart';
-import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/related/controller.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/grid.dart';
@@ -22,11 +21,8 @@ class _RelatedVideoPanelState extends State<RelatedVideoPanel> with GridMixin {
   @override
   void initState() {
     super.initState();
-    // Found now: the page's controller is gone by the time a list that
-    // returns after the page has closed asks it.
-    final videoCtr = Get.find<VideoDetailController>(tag: widget.heroTag);
     _relatedController = Get.putOrFind(
-      () => RelatedController(showAfter: () => videoCtr.untilOpened),
+      RelatedController.new,
       tag: widget.heroTag,
     );
   }

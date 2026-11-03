@@ -139,23 +139,14 @@ class VideoDetailController extends GetxController
 
   late VideoItem firstVideo;
 
-  final _opened = Completer<void>();
+  bool _opened = false;
 
-  /// Completes once the page has opened, its route's transition over.
-  Future<void> get opened => _opened.future;
-  bool get isOpened => _opened.isCompleted;
-
-  /// What the related videos and the comments wait for before they show what
-  /// they loaded, null once open: shown while the transition runs, they
-  /// would be laid out, their pictures uploaded and their new glyphs drawn on
-  /// its frames. They mostly arrive as it ends.
-  Future<void>? get untilOpened => isOpened ? null : opened;
-
+  /// Called once the page has opened, its route's transition over.
   void onOpened() {
-    if (_opened.isCompleted) {
+    if (_opened) {
       return;
     }
-    _opened.complete();
+    _opened = true;
     // Subscribing holds Android's main thread for tens of milliseconds, which
     // hands the transition's frames their vsyncs late.
     plPlayerController.listenOrientation();
