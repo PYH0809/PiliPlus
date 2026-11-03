@@ -156,7 +156,10 @@ class VideoDetailController extends GetxController
 
   // The player's setup asked for while the page opens, the latest only. It
   // is told whether a route covers the page by then.
-  ValueChanged<bool>? _initOnceOpened;
+  Future<void> Function(bool covered)? _initOnceOpened;
+
+  // That setup, once the page has opened.
+  Future<void>? _initOpened;
 
   /// The page has opened; [covered] while a route opened over it meanwhile,
   /// as the panel to send danmaku: the player is then set up without
@@ -169,7 +172,7 @@ class VideoDetailController extends GetxController
     plPlayerController.listenOrientation();
     final init = _initOnceOpened;
     _initOnceOpened = null;
-    init?.call(covered);
+    _initOpened = init?.call(covered);
   }
 
   String? videoUrl;
@@ -700,6 +703,9 @@ class VideoDetailController extends GetxController
     if (isPlaying) {
       await plPlayerController.pause();
     }
+    // Opened while the page opens, before the player is set up: it was to
+    // play, and is set up paused under the panel (onOpened).
+    final wasToPlay = !isPlaying && !isOpened && _autoPlay.value;
     await Get.key.currentState!.push(
       PublishRoute(
         pageBuilder: (buildContext, animation, secondaryAnimation) {
@@ -725,6 +731,11 @@ class VideoDetailController extends GetxController
     );
     if (isPlaying) {
       plPlayerController.play();
+    } else if (wasToPlay && _initOpened case final init?) {
+      await init;
+      if (!isClosed) {
+        plPlayerController.play();
+      }
     }
   }
 
