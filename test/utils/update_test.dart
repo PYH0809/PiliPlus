@@ -62,5 +62,11 @@ void main() {
       expect(Update.hasPackage(data, 'ios'), isFalse);
       expect(Update.hasPackage({'assets': []}, 'android'), isFalse);
     });
+
+    test('matches the format when one is asked for', () {
+      expect(Update.hasPackage(data, 'linux', ext: 'deb'), isTrue);
+      expect(Update.hasPackage(data, 'linux', ext: 'rpm'), isFalse);
+      expect(Update.hasPackage(data, 'linux', ext: 'tar.gz'), isFalse);
+    });
   });
 }

@@ -79,18 +79,23 @@ def collect():
     return base, sorted(prs.values(), key=lambda p: p['number']), upstream
 
 
-def fallback(prs, upstream):
-    lines = [f"{p['title']} #{p['number']}" for p in prs if not is_sync(p)]
-    for tag, body in upstream:
-        lines += ['', f'同步上游 {tag}', body]
-    return '\n'.join(lines).strip() or '其他调整'
+def fallback(prs):
+    return '\n'.join(f"{p['title']} #{p['number']}" for p in prs)
+
+
+def compose(own, upstream):
+    """This repository's lines, then each upstream release's note verbatim:
+    appended here, not left to the model, so none goes missing or reworded."""
+    parts = [own] if own else []
+    parts += [f'同步上游 {tag}\n{body}' for tag, body in upstream]
+    return '\n\n'.join(parts) or '其他调整'
 
 
 def is_sync(pr):
     return pr['title'].startswith('chore: merge upstream')
 
 
-def ask_model(prs, upstream, examples):
+def ask_model(prs, examples):
     key = os.environ.get('OPENROUTER_API_KEY')
     if not key:
         return None
@@ -100,18 +105,13 @@ def ask_model(prs, upstream, examples):
         '风格照下面的上游历史说明：简体中文，一行一条，短句，从用户视角写能看到的变化，不写实现细节；'
         '先写新功能和调整，空一行后以「修复 bug」开头列修复；每条末尾写对应 PR 的 #编号；'
         f'PR 作者是 @{OWNER} 时不署名，其他作者在末尾加 by @用户名；'
-        'CI、文档、测试、纯重构等用户看不到的改动省略；「chore: merge upstream」开头的 PR 只是同步上游，本身不单列。\n'
-        '如果给了上游版本的更新说明，把它们放在最后：每个版本空一行，先写一行「同步上游 <版本号>」，'
-        '再原样照抄该版本的说明，不改写、不删条目。\n\n'
+        'CI、文档、测试、纯重构等用户看不到的改动省略。\n\n'
         '上游历史说明示例：\n' + examples
     )
     parts = ['## 这一版合并的 PR']
     for p in prs:
         body = (p.get('body') or '').strip()[:4000]
         parts.append(f"### #{p['number']} {p['title']}（作者 @{p['user']['login']}）\n{body}")
-    if upstream:
-        parts.append('## 同步进来的上游版本')
-        parts += [f'### {tag}\n{body}' for tag, body in upstream]
     req = urllib.request.Request(
         'https://openrouter.ai/api/v1/chat/completions',
         json.dumps({
@@ -146,7 +146,10 @@ def main():
     for rel in (gh_api(f'repos/{UPSTREAM}/releases?per_page=3') or []):
         if rel.get('body'):
             examples.append(f"### {rel['tag_name']}\n{rel['body'].strip()}")
-    note = ask_model(prs, upstream, '\n\n'.join(examples)) or fallback(prs, upstream)
+    # Syncs only bring upstream's changes in, which compose() adds as they are.
+    own = [p for p in prs if not is_sync(p)]
+    own_note = (ask_model(own, '\n\n'.join(examples)) or fallback(own)) if own else ''
+    note = compose(own_note, upstream)
     with open(sys.argv[1], 'w', encoding='utf-8') as f:
         f.write(note + '\n')
     print(note)

@@ -34,11 +34,16 @@ abstract final class Update {
     return buildTime < latest;
   }
 
-  // 安装包名形如 PiliPlus_<平台>_<版本>...，os 取 Platform.operatingSystem
-  static bool hasPackage(Map data, String os) {
+  // 安装包名形如 PiliPlus_<平台>_<版本>...，os 取 Platform.operatingSystem；
+  // 给了 ext 时只认这种格式
+  static bool hasPackage(Map data, String os, {String? ext}) {
     final assets = data['assets'];
     return assets is List &&
-        assets.any((i) => (i['name'] as String?)?.contains('_${os}_') ?? false);
+        assets.any((i) {
+          final name = i['name'] as String? ?? '';
+          return name.contains('_${os}_') &&
+              (ext == null || name.endsWith(ext));
+        });
   }
 
   // 检查更新
@@ -128,13 +133,19 @@ abstract final class Update {
                     style: TextStyle(color: colorScheme.outline),
                   ),
                 ),
+                // 只给已经传上来的格式
                 if (Platform.isWindows) ...[
-                  downloadBtn('zip', ext: 'zip'),
-                  downloadBtn('exe', ext: 'exe'),
+                  if (hasPackage(data, 'windows', ext: 'zip'))
+                    downloadBtn('zip', ext: 'zip'),
+                  if (hasPackage(data, 'windows', ext: 'exe'))
+                    downloadBtn('exe', ext: 'exe'),
                 ] else if (Platform.isLinux) ...[
-                  downloadBtn('rpm', ext: 'rpm'),
-                  downloadBtn('deb', ext: 'deb'),
-                  downloadBtn('targz', ext: 'tar.gz'),
+                  if (hasPackage(data, 'linux', ext: 'rpm'))
+                    downloadBtn('rpm', ext: 'rpm'),
+                  if (hasPackage(data, 'linux', ext: 'deb'))
+                    downloadBtn('deb', ext: 'deb'),
+                  if (hasPackage(data, 'linux', ext: 'tar.gz'))
+                    downloadBtn('targz', ext: 'tar.gz'),
                 ] else
                   downloadBtn('Github'),
               ],
