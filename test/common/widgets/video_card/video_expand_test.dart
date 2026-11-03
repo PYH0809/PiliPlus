@@ -482,6 +482,25 @@ void main() {
     expect(cover, findsNothing);
   });
 
+  testWidgets('a player built again keeps to the first deadline', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    final cover = find.descendant(
+      of: find.byType(VideoExpandTarget),
+      matching: find.byType(CustomPaint),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    _playerBuilds.value++;
+    await tester.pump();
+    expect(cover, findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1100));
+    await tester.pumpAndSettle();
+    expect(cover, findsNothing);
+  });
+
   testWidgets('the cover lets go after a while if the video never shows', (
     tester,
   ) async {

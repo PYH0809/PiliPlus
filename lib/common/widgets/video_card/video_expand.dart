@@ -388,6 +388,11 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   /// and a player built again shows it no more.
   bool _coverGone = false;
 
+  /// Lets the cover over the player go, should the video never say it has
+  /// shown: set as the page first holds it, so that a player built again
+  /// meanwhile holds it no longer.
+  Timer? _coverTimer;
+
   /// The route [context] is in, if a card opened it.
   static VideoExpandRoute<dynamic>? of(BuildContext context) =>
       switch (ModalRoute.of(context)) {
@@ -407,6 +412,7 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   void dispose() {
     cardImage?.dispose();
     cover?.dispose();
+    _coverTimer?.cancel();
     _below?.image.dispose();
     _below = null;
     super.dispose();
@@ -987,7 +993,6 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
     value: 1,
   );
   VoidCallback? _stopWatching;
-  Timer? _holdTimer;
   bool _videoShown = false;
   bool _opened = false;
   bool _gone = false;
@@ -1057,15 +1062,19 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
       _fadeOut();
     } else {
       // Not past this, should the video never say it has shown.
-      _holdTimer ??= Timer(_coverHoldAtMost, _fadeOut);
+      final route = _route!;
+      route._coverTimer ??= Timer(
+        _coverHoldAtMost,
+        () => route._target?._fadeOut(),
+      );
     }
   }
 
   void _fadeOut() {
-    _holdTimer?.cancel();
     if (!mounted || _gone || !_fade.isCompleted) {
       return;
     }
+    _route?._coverTimer?.cancel();
     _route?._coverGone = true;
     _fade.reverse().whenComplete(() {
       if (mounted) {
@@ -1077,7 +1086,6 @@ class VideoExpandTargetState extends State<VideoExpandTarget>
   @override
   void dispose() {
     _stopWatching?.call();
-    _holdTimer?.cancel();
     _routeAnimation?.removeStatusListener(_handleRouteStatus);
     if (identical(_route?._target, this)) {
       _route!._target = null;
