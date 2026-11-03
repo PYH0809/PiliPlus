@@ -636,12 +636,14 @@ class PlPlayerController
     _orientationListener = null;
   }
 
+  // Each call to triggerFullScreen, the latest having its way.
+  int _fullScreenRequests = 0;
+
   // Completes as the first orientation is heard.
   Completer<void>? _firstOrientation;
 
-  /// The phone's orientation, listened for now if no one has yet, as a page
-  /// whose player turns to full screen before its transition has ended:
-  /// waits a little for the first, null without one.
+  /// The phone's orientation, listened for now if no one has yet: waits a
+  /// little for the first, null without one.
   Future<DeviceOrientation?> _heardOrientation() async {
     if (_orientation == null) {
       listenOrientation();
@@ -1637,19 +1639,6 @@ class PlPlayerController
       // https://github.com/flutter/flutter/issues/73651
       // https://github.com/flutter/flutter/issues/183708
       if (Platform.isAndroid) {
-        if (orientation == null && _orientation == null) {
-          return _heardOrientation().then((heard) async {
-            // Not once the player has gone, its page closed meanwhile: the
-            // page below would be turned.
-            if (!identical(_instance, this) || _orientationListener == null) {
-              return;
-            }
-            await changeOrientation(
-              isVertical: isVertical,
-              orientation: heard ?? .landscapeLeft,
-            );
-          });
-        }
         if ((orientation ?? _orientation) == .landscapeRight) {
           return landscapeRightMode();
         } else {
@@ -1673,8 +1662,28 @@ class PlPlayerController
     DeviceOrientation? orientation,
     bool isManualFS = true,
   }) async {
+    final request = ++_fullScreenRequests;
     if (isDesktopPip) return;
     if (isFullScreen.value == status) return;
+    // Android turns to the landscape the phone is held in, which a page not
+    // yet done opening has not heard: it listens once it has opened.
+    if (status &&
+        Platform.isAndroid &&
+        orientation == null &&
+        _orientation == null) {
+      listenOrientation();
+      // Not where it listens to no orientation, as on ChromeOS.
+      if (_orientationListener != null) {
+        await _heardOrientation();
+        // Not if asked otherwise meanwhile, as out of full screen, nor once
+        // the player has gone, its page closed: the page below would turn.
+        if (request != _fullScreenRequests ||
+            !identical(_instance, this) ||
+            isFullScreen.value == status) {
+          return;
+        }
+      }
+    }
 
     if (_fsProcessing) return;
     _fsProcessing = true;
