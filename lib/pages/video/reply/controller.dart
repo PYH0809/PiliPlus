@@ -81,6 +81,7 @@ class VideoReplyController extends ReplyController<MainListReply>
 
   @override
   Future<LoadingState<MainListReply>> customGetData() async {
+    final oid = this.oid;
     final res = await ReplyGrpc.mainList(
       oid: oid,
       rpid: rootRpId,
@@ -88,8 +89,12 @@ class VideoReplyController extends ReplyController<MainListReply>
       mode: mode,
       offset: nextOffset,
     );
-    // As the intro, shown once the page has opened.
+    // As the intro, shown once the page has opened. A part picked meanwhile
+    // has comments of its own.
     await videoCtr.untilOpened;
+    if (oid != this.oid) {
+      return customGetData();
+    }
     return res;
   }
 }

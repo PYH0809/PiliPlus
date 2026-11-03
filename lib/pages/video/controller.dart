@@ -154,12 +154,18 @@ class VideoDetailController extends GetxController
   /// their new glyphs drawn on its frames. They mostly arrive as it ends.
   Future<void>? get untilOpened => isOpened ? null : opened;
 
+  // The player's setup asked for while the page opens, the latest only.
+  VoidCallback? _initOnceOpened;
+
   void onOpened() {
     if (_opened.isCompleted) {
       return;
     }
     _opened.complete();
     plPlayerController.listenOrientation();
+    final init = _initOnceOpened;
+    _initOnceOpened = null;
+    init?.call();
   }
 
   String? videoUrl;
@@ -807,8 +813,16 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    // Set up once the page has opened, without holding up what called it:
+    // the query for the links would stay open meanwhile, and a part picked
+    // in the meantime could not query its own. Only the latest is set up,
+    // the part shown then.
     if (!isOpened) {
-      await opened;
+      _initOnceOpened = () => playerInit(
+        autoplay: autoplay,
+        autoFullScreenFlag: autoFullScreenFlag,
+      );
+      return;
     }
     _keptLinks = false;
     Duration? seek = defaultST ?? playedTime;

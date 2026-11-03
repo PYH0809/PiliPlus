@@ -25,8 +25,13 @@ class RelatedController
 
   @override
   Future<LoadingState<List<HotVideoItemModel>?>> customGetData() async {
+    final bvid = this.bvid;
     final res = await VideoHttp.relatedVideoList(bvid: bvid);
     await showAfter?.call();
+    // A video switched to meanwhile has related videos of its own.
+    if (bvid != this.bvid) {
+      return customGetData();
+    }
     return res;
   }
 }
