@@ -884,7 +884,7 @@ void main() {
     late VideoExpandSourceState card;
     await _pump(tester, home: _card0(onSource: (source) => card = source));
     await tester.pumpWidget(
-      GetMaterialApp(home: const Scaffold(body: Text('刷新后的列表'))),
+      const GetMaterialApp(home: Scaffold(body: Text('刷新后的列表'))),
     );
     expect(
       card.expand<void>(
