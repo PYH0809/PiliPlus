@@ -823,6 +823,7 @@ class _ExpandTransitionState extends State<_ExpandTransition> {
           pageColor:
               route._pageColor ?? Theme.of(context).scaffoldBackgroundColor,
           topPadding: MediaQuery.paddingOf(context).top,
+          devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
           cardImage: route.cardImage,
           cover: route.cover,
           coverFilter: route.coverFilter,
@@ -854,6 +855,7 @@ class _Expand extends SingleChildRenderObjectWidget {
     required this.cardColor,
     required this.pageColor,
     required this.topPadding,
+    required this.devicePixelRatio,
     required this.cardImage,
     required this.cover,
     required this.coverFilter,
@@ -884,6 +886,7 @@ class _Expand extends SingleChildRenderObjectWidget {
   final Color cardColor;
   final Color pageColor;
   final double topPadding;
+  final double devicePixelRatio;
   final ui.Image? cardImage;
   final ui.Image? cover;
   final ColorFilter? coverFilter;
@@ -908,6 +911,55 @@ class _RenderExpand extends RenderProxyBox {
   final _opacity = LayerHandle<OpacityLayer>();
   final _transform = LayerHandle<TransformLayer>();
 
+  // The page as it stood as it first showed, or as it set off back, drawn
+  // while it moves, as GlassMorphButton's page is: drawn live, the page's
+  // glass captured what lies behind each pane again every frame, which the
+  // GPU held the phone's frames back on (9 passes a frame on a dynamic's
+  // detail). Taken a frame after the page was first drawn live, so that its
+  // glass has caught what lies behind it; at rest the page draws itself.
+  ui.Image? _pageShot;
+  bool? _pageShotReturning;
+  Size? _pageShotSize;
+  // Whether the page was drawn live the frame before, its glass up to date.
+  bool _pageLive = false;
+  // A page holding what cannot be drawn into a picture, as a playing video.
+  bool _pageUnsnappable = false;
+
+  void _dropPageShot() {
+    _pageShot?.dispose();
+    _pageShot = null;
+  }
+
+  ui.Image? _pageShotOf(RenderBox page, bool returning) {
+    if (_pageShot case final shot?
+        when _pageShotReturning == returning && _pageShotSize == size) {
+      return shot;
+    }
+    _dropPageShot();
+    if (_pageUnsnappable || !_pageLive) {
+      return null;
+    }
+    final layer = OffsetLayer();
+    // As SnapshotWidget paints its child to take it.
+    PaintingContext(layer, Offset.zero & size)
+      ..paintChild(page, Offset.zero)
+      // ignore: invalid_use_of_protected_member
+      ..stopRecordingIfNeeded();
+    if (!layer.supportsRasterization()) {
+      layer.dispose();
+      _pageUnsnappable = true;
+      return null;
+    }
+    _pageShot = layer.toImageSync(
+      Offset.zero & size,
+      pixelRatio: _config!.devicePixelRatio,
+    );
+    layer.dispose();
+    _pageShotReturning = returning;
+    _pageShotSize = size;
+    return _pageShot;
+  }
+
   // Where the card last was, should it leave the screen as the page opens.
   Rect? _lastCard;
   Rect? _lastCover;
@@ -924,6 +976,7 @@ class _RenderExpand extends RenderProxyBox {
   @override
   void dispose() {
     _clear();
+    _dropPageShot();
     super.dispose();
   }
 
@@ -942,7 +995,10 @@ class _RenderExpand extends RenderProxyBox {
     final page = child!;
     if (!config.animating) {
       _clear();
+      _dropPageShot();
+      _pageUnsnappable = false;
       context.paintChild(page, offset);
+      _pageLive = true;
       return;
     }
     final screen = Offset.zero & size;
@@ -1057,13 +1113,23 @@ class _RenderExpand extends RenderProxyBox {
         ..restore();
     }
     if (frame.pageOpacity > 0) {
+      final shot = _pageShotOf(page, config.returning);
       _clip.layer = context.pushClipRRect(
         needsCompositing,
         offset,
         frame.rect,
         rrect,
         (context, offset) {
-          context.paintChild(page, offset);
+          if (shot != null) {
+            context.canvas.drawImageRect(
+              shot,
+              Offset.zero & Size(shot.width.toDouble(), shot.height.toDouble()),
+              (Offset.zero & size).shift(offset),
+              Paint()..filterQuality = FilterQuality.low,
+            );
+          } else {
+            context.paintChild(page, offset);
+          }
           // The page fades in over the container's fill, all the page's
           // color by now, as the card has faded out: so a veil of that color
           // lifting off it looks the same as the page fading, without
@@ -1081,8 +1147,10 @@ class _RenderExpand extends RenderProxyBox {
         },
         oldLayer: _clip.layer,
       );
+      _pageLive = shot == null;
     } else {
       _clip.layer = null;
+      _pageLive = false;
     }
     _transform.layer = null;
     if ((config.cover, frame.cover) case (final image?, final at?)
@@ -1122,6 +1190,9 @@ class _RenderExpand extends RenderProxyBox {
   // The page fading in or out over the screen, a little shrunk, when there
   // is no card to grow out of or return into.
   void _paintPlain(PaintingContext context, Offset offset, RenderBox page) {
+    // Drawn live here, the page as it is.
+    _dropPageShot();
+    _pageLive = true;
     final config = _config!;
     final t = config.t;
     final shape = Curves.fastOutSlowIn.transform(t);
