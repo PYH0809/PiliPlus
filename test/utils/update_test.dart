@@ -372,10 +372,12 @@ void main() {
       expect(old.existsSync(), isFalse);
       recent.deleteSync();
 
-      // a stale file of the same name is downloaded again
+      // a stale file of the same name is downloaded again, after it is
+      // deleted to make room
       File('${dir.path}/p.apk').writeAsBytesSync([7, 7, 7]);
       await downloader((url, _) {
         fetched++;
+        expect(File('${dir.path}/p.apk').existsSync(), isFalse);
         return good;
       }).run();
       expect(fetched, 1);

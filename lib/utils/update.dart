@@ -416,8 +416,11 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             ),
           ],
         ),
-        .failed => Text('所有下载源都失败了：\n$_message'),
-        .install => Text(_message),
+        // 长的提示在横屏或大字号下也要看得全
+        .failed => SingleChildScrollView(
+          child: Text('所有下载源都失败了：\n$_message'),
+        ),
+        .install => SingleChildScrollView(child: Text(_message)),
       },
       actionsOverflowDirection: VerticalDirection.up,
       actions: switch (_stage) {

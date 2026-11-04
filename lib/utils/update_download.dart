@@ -102,8 +102,10 @@ class UpdateDownloader {
     void Function(int received, int total)? onProgress,
   ) async {
     final target = file;
-    if (target.existsSync() && await verify(target, asset)) {
-      return _cancelled ? null : target;
+    if (target.existsSync()) {
+      if (await verify(target, asset)) return _cancelled ? null : target;
+      // 坏的或者别的构建的同名包，先腾出地方
+      _delete(target);
     }
 
     final folder = Directory(dir);
