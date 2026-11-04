@@ -19,6 +19,11 @@ jobs:
   build-linux-app:
     name: Release Linux x64
     runs-on: ubuntu-latest
+    # PiliPlus: two runs releasing the same tag take turns, so one can't
+    # replace the packages under the linux.json the other just uploaded
+    concurrency:
+      group: release-${{ inputs.draft_tag || inputs.tag || github.run_id }}-linux
+      cancel-in-progress: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -218,6 +223,17 @@ jobs:
           printf "完成: PiliPlus_linux_%s_amd64.AppImage\n" "${{ env.version }}"
         shell: bash
 
+      # PiliPlus: a rerun replaces the packages of a release that may already
+      # have linux.json: withdraw it first, so it never points at packages
+      # half replaced
+      - name: Withdraw the update manifest
+        if: ${{ inputs.draft_tag != '' || inputs.tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: pwsh lib/scripts/release_manifest.ps1 -Withdraw linux "${{ inputs.draft_tag || inputs.tag }}"
+
       - name: Release
         if: ${{ github.event.inputs.tag != '' }}
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -238,6 +254,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release upload "${{ inputs.draft_tag }}" PiliPlus_linux_*.tar.gz PiliPlus_linux_*.deb PiliPlus_linux_*.rpm PiliPlus_linux_*.AppImage --clobber
+
+      # PiliPlus: linux.json, which the app's update check reads, goes up after
+      # the packages, so its presence means they are all there
+      - name: Upload the update manifest
+        if: ${{ inputs.draft_tag != '' || inputs.tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: pwsh lib/scripts/release_manifest.ps1 linux "${{ inputs.draft_tag || inputs.tag }}" PiliPlus_linux_*.tar.gz PiliPlus_linux_*.deb PiliPlus_linux_*.rpm PiliPlus_linux_*.AppImage
 
       - name: Upload linux targz package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

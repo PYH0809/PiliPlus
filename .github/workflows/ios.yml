@@ -19,6 +19,11 @@ jobs:
   build-macos-app:
     name: Release IOS
     runs-on: macos-26
+    # PiliPlus: two runs releasing the same tag take turns, so one can't
+    # replace the packages under the ios.json the other just uploaded
+    concurrency:
+      group: release-${{ inputs.draft_tag || inputs.tag || github.run_id }}-ios
+      cancel-in-progress: false
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,6 +52,17 @@ jobs:
           find Payload/Runner.app/Frameworks -type d -name "*.framework" -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
           zip -r9 PiliPlus_ios_${{env.version}}.ipa Payload/Runner.app
 
+      # PiliPlus: a rerun replaces the packages of a release that may already
+      # have ios.json: withdraw it first, so it never points at packages
+      # half replaced
+      - name: Withdraw the update manifest
+        if: ${{ inputs.draft_tag != '' || inputs.tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: pwsh lib/scripts/release_manifest.ps1 -Withdraw ios "${{ inputs.draft_tag || inputs.tag }}"
+
       - name: Release
         if: ${{ github.event.inputs.tag != '' }}
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -64,6 +80,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release upload "${{ inputs.draft_tag }}" PiliPlus_ios_*.ipa --clobber
+
+      # PiliPlus: ios.json, which the app's update check reads, goes up after
+      # the packages, so its presence means they are all there
+      - name: Upload the update manifest
+        if: ${{ inputs.draft_tag != '' || inputs.tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: pwsh lib/scripts/release_manifest.ps1 ios "${{ inputs.draft_tag || inputs.tag }}" PiliPlus_ios_*.ipa
 
       - name: Upload ios release
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

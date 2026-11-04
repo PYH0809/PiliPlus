@@ -2,54 +2,44 @@ import 'dart:io' show Platform;
 
 import 'package:PiliPlus/build_config.dart';
 import 'package:PiliPlus/common/constants.dart';
-import 'package:PiliPlus/http/api.dart';
-import 'package:PiliPlus/http/browser_ua.dart';
-import 'package:PiliPlus/http/init.dart';
-import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/http/update.dart';
+import 'package:PiliPlus/models_new/update/manifest.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
 abstract final class Update {
-  // 本仓库的 tag 是 <版本号>+<build 号>，比 build 号；Release 的 created_at
-  // 是目标提交的时间，不是发版时间。其他 tag 照旧比时间
+  // 清单里的 versionCode 是 tag 的 +N，也就是安装包的 build 号
   static bool hasUpdate(
-    Map data, {
+    UpdateManifest manifest, {
     int versionCode = BuildConfig.versionCode,
-    int buildTime = BuildConfig.buildTime,
-  }) {
-    final match = RegExp(
-      r'^[\d.]+\+(\d+)$',
-    ).firstMatch(data['tag_name'] as String? ?? '');
-    if (match != null) {
-      return int.parse(match[1]!) > versionCode;
+  }) => manifest.versionCode > versionCode;
+
+  // 按设备的 ABI 顺序挑安装包，supportedAbis 里排前面的是设备首选
+  static UpdateAsset? pickApk(
+    List<UpdateAsset> assets,
+    List<String> supportedAbis,
+  ) {
+    for (final abi in supportedAbis) {
+      for (final asset in assets) {
+        if (asset.abi == abi && asset.name.endsWith('.apk')) return asset;
+      }
     }
-    final int latest =
-        DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000;
-    return buildTime < latest;
+    return null;
   }
 
-  // 安装包名形如 PiliPlus_<平台>_<版本>...，os 取 Platform.operatingSystem；
   // 给了 ext 时只认这种格式
-  static bool hasPackage(Map data, String os, {String? ext}) {
-    final assets = data['assets'];
-    return assets is List &&
-        assets.any((i) {
-          final name = i['name'] as String? ?? '';
-          return name.contains('_${os}_') &&
-              (ext == null || name.endsWith(ext));
-        });
-  }
+  static bool hasPackage(UpdateManifest manifest, {String? ext}) =>
+      manifest.assets.any((i) => ext == null || i.format == ext);
 
-  // 桌面端按格式给下载按钮，只给已经传上来的格式；一个都没有时给 Github，
-  // 打开 Release 页面
+  // 桌面端按格式给下载按钮，只给清单里有的格式；一个都没有时给 Github
   static List<Widget> formatButtons(
-    Map data,
+    UpdateManifest manifest,
     Widget Function(String text, {String? ext}) downloadBtn, {
     String os = '',
   }) {
@@ -66,7 +56,7 @@ abstract final class Update {
     };
     final buttons = [
       for (final (text, ext) in formats)
-        if (hasPackage(data, os, ext: ext)) downloadBtn(text, ext: ext),
+        if (hasPackage(manifest, ext: ext)) downloadBtn(text, ext: ext),
     ];
     return buttons.isEmpty ? [downloadBtn('Github')] : buttons;
   }
@@ -76,125 +66,106 @@ abstract final class Update {
     if (kDebugMode) return;
     SmartDialog.dismiss();
     try {
-      final res = await Request().get(
-        Api.latestApp,
-        options: Options(
-          headers: {'user-agent': BrowserUa.mob},
-          extra: {'account': const NoAccount()},
-        ),
-      );
-      // 读 /releases/latest，也就是发版时标成 Latest 的那个
-      final data = res.data;
-      if (data is! Map || data['tag_name'] == null) {
-        if (!isAuto) {
-          // 还没有发布的版本时是 404
-          SmartDialog.showToast(
-            res.statusCode == 404 ? '暂时没有可用的版本' : '检查更新失败，GitHub接口未返回数据，请检查网络',
-          );
-        }
-        return;
+      final res = await UpdateHttp.manifest();
+      final UpdateManifest manifest;
+      switch (res) {
+        case Success(:final response):
+          manifest = response;
+        case Error():
+          // 自动检查时不打扰，包括这个平台的包还在上传（404）
+          if (!isAuto) res.toast();
+          return;
+        default:
+          return;
       }
-      if (!hasUpdate(data)) {
+      if (!hasUpdate(manifest)) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
         }
-      } else if (!hasPackage(data, Platform.operatingSystem)) {
-        // 安卓的包传完就发布，其他平台的包随后才补上，下次检查再提示
-        if (!isAuto) {
-          SmartDialog.showToast('新版本的安装包还在上传，请稍后再试');
-        }
-      } else {
-        SmartDialog.show(
-          animationType: SmartAnimationType.centerFade_otherSlide,
-          builder: (context) {
-            final colorScheme = ColorScheme.of(context);
-            Widget downloadBtn(String text, {String? ext}) => TextButton(
-              onPressed: () => onDownload(data, ext: ext),
-              child: Text(text),
-            );
-            return AlertDialog(
-              title: const Text('🎉 发现新版本 '),
-              content: SizedBox(
-                height: 280,
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${data['tag_name']}',
-                        style: const TextStyle(fontSize: 20),
+        return;
+      }
+      SmartDialog.show(
+        animationType: SmartAnimationType.centerFade_otherSlide,
+        builder: (context) {
+          final colorScheme = ColorScheme.of(context);
+          Widget downloadBtn(String text, {String? ext}) => TextButton(
+            onPressed: () => onDownload(manifest, ext: ext),
+            child: Text(text),
+          );
+          return AlertDialog(
+            title: const Text('🎉 发现新版本 '),
+            content: SizedBox(
+              height: 280,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      manifest.tag,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(manifest.body),
+                    TextButton(
+                      onPressed: () => PageUtils.launchURL(
+                        '${Constants.sourceCodeUrl}/commits/main',
                       ),
-                      const SizedBox(height: 8),
-                      Text('${data['body']}'),
-                      TextButton(
-                        onPressed: () => PageUtils.launchURL(
-                          '${Constants.sourceCodeUrl}/commits/main',
-                        ),
-                        child: Text(
-                          "点此查看完整更新(即commit)内容",
-                          style: TextStyle(color: colorScheme.primary),
-                        ),
+                      child: Text(
+                        "点此查看完整更新(即commit)内容",
+                        style: TextStyle(color: colorScheme.primary),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              actions: [
-                if (isAuto)
-                  TextButton(
-                    onPressed: () {
-                      SmartDialog.dismiss();
-                      GStorage.setting.put(SettingBoxKey.autoUpdate, false);
-                    },
-                    child: Text(
-                      '不再提醒',
-                      style: TextStyle(color: colorScheme.outline),
-                    ),
-                  ),
+            ),
+            actions: [
+              if (isAuto)
                 TextButton(
-                  onPressed: SmartDialog.dismiss,
+                  onPressed: () {
+                    SmartDialog.dismiss();
+                    GStorage.setting.put(SettingBoxKey.autoUpdate, false);
+                  },
                   child: Text(
-                    '取消',
+                    '不再提醒',
                     style: TextStyle(color: colorScheme.outline),
                   ),
                 ),
-                ...formatButtons(data, downloadBtn),
-              ],
-            );
-          },
-        );
-      }
+              TextButton(
+                onPressed: SmartDialog.dismiss,
+                child: Text(
+                  '取消',
+                  style: TextStyle(color: colorScheme.outline),
+                ),
+              ),
+              ...formatButtons(manifest, downloadBtn),
+            ],
+          );
+        },
+      );
     } catch (e) {
       if (kDebugMode) debugPrint('failed to check update: $e');
     }
   }
 
-  // 下载适用于当前系统的安装包
-  static Future<void> onDownload(Map data, {String? ext}) async {
+  // 在浏览器里下载适用于当前系统的安装包。浏览器下载没法校验哈希，
+  // 所以直连 GitHub，不走镜像
+  static Future<void> onDownload(UpdateManifest manifest, {String? ext}) async {
     SmartDialog.dismiss();
     try {
-      void download(String plat) {
-        if (data['assets'].isNotEmpty) {
-          for (Map<String, dynamic> i in data['assets']) {
-            final String name = i['name'];
-            if (name.contains(plat) &&
-                (ext == null || ext.isEmpty ? true : name.endsWith(ext))) {
-              PageUtils.launchURL(i['browser_download_url']);
-              return;
-            }
-          }
-          throw UnsupportedError('platform not found: $plat');
-        }
-      }
-
+      final UpdateAsset? asset;
       if (Platform.isAndroid) {
-        // 获取设备信息
-        AndroidDeviceInfo androidInfo = await DeviceInfoPlugin().androidInfo;
-        // [arm64-v8a]
-        download(androidInfo.supportedAbis.first);
+        asset = pickApk(
+          manifest.assets,
+          (await DeviceInfoPlugin().androidInfo).supportedAbis,
+        );
       } else {
-        download(Platform.operatingSystem);
+        asset = manifest.assets
+            .where((i) => ext == null || i.format == ext)
+            .firstOrNull;
       }
+      if (asset == null) throw UnsupportedError('no package');
+      PageUtils.launchURL(UpdateHttp.assetUrl(manifest, asset));
     } catch (e) {
       if (kDebugMode) debugPrint('download error: $e');
       PageUtils.launchURL('${Constants.sourceCodeUrl}/releases/latest');
