@@ -563,6 +563,32 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a return cutting the opening short keeps its picture', (
+    tester,
+  ) async {
+    Future<bool> pagePaints() async {
+      final before = _pagePaints;
+      _pageChanges.value++;
+      await tester.pump(const Duration(milliseconds: 16));
+      return _pagePaints > before;
+    }
+
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await pagePaints(), isFalse);
+
+    // Back halfway: the page stays drawn from its picture, not hidden a
+    // frame to be drawn whole again.
+    Get.back<void>();
+    await tester.pump();
+    expect(await pagePaints(), isFalse);
+    expect(await pagePaints(), isFalse);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('the page takes no taps while it moves', (tester) async {
     _pageTaps = 0;
     await _pump(tester);
