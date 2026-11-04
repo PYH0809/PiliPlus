@@ -116,6 +116,11 @@ jobs:
         name: Release Android
         runs-on: ubuntu-latest
         permissions: write-all
+        # Two runs releasing the same tag take turns: one could otherwise
+        # replace the APKs under the android.json the other just uploaded.
+        concurrency:
+            group: release-${{ needs.prepare.outputs.tag || github.event.inputs.tag || github.run_id }}-android
+            cancel-in-progress: false
 
         steps:
             - name: 代码迁出

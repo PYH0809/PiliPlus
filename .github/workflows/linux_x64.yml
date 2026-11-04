@@ -19,6 +19,11 @@ jobs:
   build-linux-app:
     name: Release Linux x64
     runs-on: ubuntu-latest
+    # PiliPlus: two runs releasing the same tag take turns, so one can't
+    # replace the packages under the linux.json the other just uploaded
+    concurrency:
+      group: release-${{ inputs.draft_tag || inputs.tag || github.run_id }}-linux
+      cancel-in-progress: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
