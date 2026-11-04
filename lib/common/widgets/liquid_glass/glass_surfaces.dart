@@ -52,7 +52,7 @@ abstract final class GlassSurfaces {
       final colorScheme = theme.colorScheme;
       return _AlertMotion(
         child: GlassPanel(
-          style: alertStyle(colorScheme),
+          style: LiquidGlassStyle.alert(colorScheme),
           rim: LiquidGlassRim.alert(colorScheme),
           shadows: menuShadows(colorScheme),
           radius: _alertRadius,
@@ -168,22 +168,6 @@ abstract final class GlassSurfaces {
       style: LiquidGlassStyle.pill(colorScheme),
       shadows: floatingGlassShadows(colorScheme),
       child: child,
-    );
-  }
-
-  /// An alert's glass, thicker than FlClash's, as an iOS alert is: over busy
-  /// covers its text reads on a soft wash of their colors rather than the
-  /// covers themselves.
-  static LiquidGlassStyle alertStyle(ColorScheme colorScheme) {
-    final menu = LiquidGlassStyle.menu(colorScheme);
-    final dark = colorScheme.brightness == Brightness.dark;
-    return LiquidGlassStyle(
-      tint: menu.tint.withValues(alpha: dark ? 0.8 : 0.74),
-      contrast: menu.contrast,
-      blur: 30,
-      saturation: dark ? 1.3 : 1.4,
-      brightness: menu.brightness,
-      rim: 0,
     );
   }
 
