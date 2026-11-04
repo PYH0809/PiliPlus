@@ -146,11 +146,15 @@ void main() {
       'assets': [],
     });
     final m = release('2.2.0+6120', 6120);
+    final key = Update.skipKey(m);
     // skipped this very version: silent on auto, shown on a manual check
-    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6120'), isTrue);
-    expect(Update.isSkipped(m, isAuto: false, skipped: '2.2.0+6120'), isFalse);
+    expect(Update.isSkipped(m, isAuto: true, skipped: key), isTrue);
+    expect(Update.isSkipped(m, isAuto: false, skipped: key), isFalse);
     // the next release prompts again
-    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6119'), isFalse);
+    expect(
+      Update.isSkipped(release('2.2.0+6121', 6121), isAuto: true, skipped: key),
+      isFalse,
+    );
     // nothing skipped
     expect(Update.isSkipped(m, isAuto: true, skipped: ''), isFalse);
     // no order is read from tags or build numbers: a manual 2.2.0+9000
@@ -159,13 +163,19 @@ void main() {
       Update.isSkipped(
         release('2.2.0+6101', 6101),
         isAuto: true,
-        skipped: '2.2.0+9000',
+        skipped: Update.skipKey(release('2.2.0+9000', 6100)),
       ),
       isFalse,
     );
+    // the same tag released again with another build number is new
+    final v2 = Update.skipKey(release('v2', 6101));
     expect(
-      Update.isSkipped(release('v2', 9000), isAuto: true, skipped: 'v2'),
+      Update.isSkipped(release('v2', 6101), isAuto: true, skipped: v2),
       isTrue,
+    );
+    expect(
+      Update.isSkipped(release('v2', 6102), isAuto: true, skipped: v2),
+      isFalse,
     );
   });
 

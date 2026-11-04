@@ -449,7 +449,7 @@ abstract final class Pref {
   static bool get autoUpdate =>
       _setting.get(SettingBoxKey.autoUpdate, defaultValue: true);
 
-  // 「跳过此版本」跳过的 tag；自动检查更新时它和更早的版本不再提示
+  // 「跳过此版本」跳过的那一版（Update.skipKey）；自动检查时它不再提示
   static String get skippedUpdate =>
       _setting.get(SettingBoxKey.skippedUpdate, defaultValue: '');
 

@@ -27,15 +27,20 @@ abstract final class Update {
     int versionCode = BuildConfig.versionCode,
   }) => manifest.versionCode > versionCode;
 
-  // 用户在对话框里点过「跳过此版本」的版本（存它的 tag），自动检查时不再
-  // 提示；从「关于」手动检查是用户自己要看，照常提示。清单总是最新的那一
-  // 版，再出新版就是另一个 tag，照常提示。只认同一个 tag，不按 tag 里的
-  // 数字或构建号比先后：手动发版能把两者都单独定
+  // 「跳过此版本」记下的这一版：tag 加构建号，同一个 tag 重新发版（换了
+  // 构建号）也算新的一版
+  static String skipKey(UpdateManifest manifest) =>
+      '${manifest.tag}@${manifest.versionCode}';
+
+  // 用户在对话框里点过「跳过此版本」的版本，自动检查时不再提示；从「关于」
+  // 手动检查是用户自己要看，照常提示。清单总是最新的那一版，再出新版就是
+  // 另一个 tag 或构建号，照常提示。只认完全相同的一版，不按 tag 里的数字
+  // 或构建号比先后：手动发版能把两者都单独定
   static bool isSkipped(
     UpdateManifest manifest, {
     required bool isAuto,
     required String skipped,
-  }) => isAuto && skipped.isNotEmpty && manifest.tag == skipped;
+  }) => isAuto && skipped == skipKey(manifest);
 
   static String releaseUrl(UpdateManifest manifest) =>
       '${Constants.sourceCodeUrl}/releases/tag/'
@@ -222,7 +227,10 @@ class _UpdateDialog extends StatelessWidget {
     final skip = TextButton(
       onPressed: () {
         SmartDialog.dismiss();
-        GStorage.setting.put(SettingBoxKey.skippedUpdate, manifest.tag);
+        GStorage.setting.put(
+          SettingBoxKey.skippedUpdate,
+          Update.skipKey(manifest),
+        );
       },
       child: Text('跳过此版本', style: TextStyle(color: colorScheme.onSurface)),
     );
