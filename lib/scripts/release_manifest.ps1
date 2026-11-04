@@ -75,21 +75,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "can't read release $Tag"
 }
 
-# The release before this one, for the update dialog's link to this
-# version's commits: the most recently published release other than this
-# tag, which is what prepare's release note took as its base (the Latest at
-# the time). Android's manifest goes up before publish and the others' after
-# it, so this tag is left out rather than "the latest" taken. Empty when the
-# list can't be read; the app then opens this version's release page.
-$previousTag = $null
-$releases = gh release list --exclude-drafts --limit 20 --json tagName,publishedAt,isPrerelease | ConvertFrom-Json
-if ($LASTEXITCODE -eq 0) {
-    # /releases/latest, the note's base, is never a prerelease
-    $previousTag = $releases |
-        Where-Object { $_.tagName -ne $Tag -and -not $_.isPrerelease } |
-        Sort-Object { [DateTime]$_.publishedAt } |
-        Select-Object -Last 1 -ExpandProperty tagName
-}
+# The release prepare's note was written against ($env:PREVIOUS_TAG), for
+# the update dialog's link to this version's commits. Empty on a manual
+# run; the app then opens this version's release page.
+$previousTag = if ($env:PREVIOUS_TAG) { $env:PREVIOUS_TAG } else { $null }
 
 $manifest = [ordered]@{
     tag         = $Tag

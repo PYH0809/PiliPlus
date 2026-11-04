@@ -140,53 +140,32 @@ void main() {
   });
 
   test('a skipped version stays quiet only on an auto check', () {
-    final m = _manifest([]); // 2.2.0+6120
-    // skipped this very version: silent on auto, shown on a manual check
-    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6120'), isTrue);
-    expect(Update.isSkipped(m, isAuto: false, skipped: '2.2.0+6120'), isFalse);
-    // a newer one than the skipped prompts again
-    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6119'), isFalse);
-    // skipping a later one covers this one too
-    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6125'), isTrue);
-    // nothing skipped
-    expect(Update.isSkipped(m, isAuto: true, skipped: ''), isFalse);
-  });
-
-  test('skipping goes by the release order, not a raised build number', () {
     UpdateManifest release(String tag, int code) => UpdateManifest.fromJson({
       'tag': tag,
       'versionCode': code,
       'assets': [],
     });
-    // +6100 built with its build number raised to 9000, then skipped
+    final m = release('2.2.0+6120', 6120);
+    // skipped this very version: silent on auto, shown on a manual check
+    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6120'), isTrue);
+    expect(Update.isSkipped(m, isAuto: false, skipped: '2.2.0+6120'), isFalse);
+    // the next release prompts again
+    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6119'), isFalse);
+    // nothing skipped
+    expect(Update.isSkipped(m, isAuto: true, skipped: ''), isFalse);
+    // no order is read from tags or build numbers: a manual 2.2.0+9000
+    // built as 6100, once skipped, doesn't hide the next +6101
     expect(
       Update.isSkipped(
         release('2.2.0+6101', 6101),
         isAuto: true,
-        skipped: '2.2.0+6100',
+        skipped: '2.2.0+9000',
       ),
       isFalse,
     );
-    // a tag without +N has no order: only that very tag is skipped
     expect(
       Update.isSkipped(release('v2', 9000), isAuto: true, skipped: 'v2'),
       isTrue,
-    );
-    expect(
-      Update.isSkipped(
-        release('2.2.0+6101', 6101),
-        isAuto: true,
-        skipped: 'v2',
-      ),
-      isFalse,
-    );
-    expect(
-      Update.isSkipped(
-        release('v3', 9001),
-        isAuto: true,
-        skipped: '2.2.0+6100',
-      ),
-      isFalse,
     );
   });
 

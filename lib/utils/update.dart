@@ -27,23 +27,19 @@ abstract final class Update {
     int versionCode = BuildConfig.versionCode,
   }) => manifest.versionCode > versionCode;
 
-  static final _releaseNumber = RegExp(r'\+(\d+)$');
-
   // 用户在对话框里点过「跳过此版本」的版本（存它的 tag），自动检查时不再
-  // 提示，比它新的照常提示；从「关于」手动检查是用户自己要看，照常提示。
-  // 新旧按 tag 的 +N（发版顺序）比，不用构建号：手动发版能把构建号单独
-  // 调高；有一边的 tag 不带 +N 时比不出先后，只跳过同一个 tag
+  // 提示；从「关于」手动检查是用户自己要看，照常提示。清单总是最新的那一
+  // 版，再出新版就是另一个 tag，照常提示。只认同一个 tag，不按 tag 里的
+  // 数字或构建号比先后：手动发版能把两者都单独定
   static bool isSkipped(
     UpdateManifest manifest, {
     required bool isAuto,
     required String skipped,
-  }) {
-    if (!isAuto || skipped.isEmpty) return false;
-    final current = _releaseNumber.firstMatch(manifest.tag)?[1];
-    final previous = _releaseNumber.firstMatch(skipped)?[1];
-    if (current == null || previous == null) return manifest.tag == skipped;
-    return int.parse(current) <= int.parse(previous);
-  }
+  }) => isAuto && skipped.isNotEmpty && manifest.tag == skipped;
+
+  static String releaseUrl(UpdateManifest manifest) =>
+      '${Constants.sourceCodeUrl}/releases/tag/'
+      '${Uri.encodeComponent(manifest.tag)}';
 
   // 这一版的提交：清单带了上一版的 tag 就比较两版，没有就打开这一版的
   // Release 页
@@ -53,7 +49,7 @@ abstract final class Update {
       return '${Constants.sourceCodeUrl}/compare/'
           '${Uri.encodeComponent(previous)}...$tag';
     }
-    return '${Constants.sourceCodeUrl}/releases/tag/$tag';
+    return releaseUrl(manifest);
   }
 
   // 按设备的 ABI 顺序挑安装包，supportedAbis 里排前面的是设备首选
@@ -155,10 +151,12 @@ abstract final class Update {
           manifest.assets,
           (await DeviceInfoPlugin().androidInfo).supportedAbis,
         );
+      } else if (ext == null) {
+        // 「前往下载」：没有对得上的格式，打开这一版的 Release 页面
+        PageUtils.launchURL(releaseUrl(manifest));
+        return;
       } else {
-        asset = manifest.assets
-            .where((i) => ext == null || i.format == ext)
-            .firstOrNull;
+        asset = manifest.assets.where((i) => i.format == ext).firstOrNull;
       }
       if (asset == null) throw UnsupportedError('no package');
       PageUtils.launchURL(UpdateHttp.assetUrl(manifest, asset));

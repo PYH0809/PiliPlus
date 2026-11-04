@@ -76,7 +76,9 @@ def collect():
         if rel and rel.get('body'):
             upstream.append((tag, rel['body'].strip()))
     upstream.sort(key=lambda r: [int(x) for x in r[0].split('.')])
-    return base, sorted(prs.values(), key=lambda p: p['number']), upstream
+    # Only a base that is one of our releases can be compared with this one.
+    release = base if latest else None
+    return base, sorted(prs.values(), key=lambda p: p['number']), upstream, release
 
 
 def fallback(prs):
@@ -140,7 +142,12 @@ def ask_model(prs, examples):
 
 
 def main():
-    base, prs, upstream = collect()
+    base, prs, upstream, release = collect()
+    # The release this note starts from, for the update dialog's link to this
+    # version's commits (release_manifest.ps1 gets it as PREVIOUS_TAG).
+    if output := os.environ.get('GITHUB_OUTPUT'):
+        with open(output, 'a', encoding='utf-8') as f:
+            f.write(f'base={release or ""}\n')
     print(f'since {base}: PRs {[p["number"] for p in prs]}, upstream {[t for t, _ in upstream]}')
     examples = []
     for rel in (gh_api(f'repos/{UPSTREAM}/releases?per_page=3') or []):
