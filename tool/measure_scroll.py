@@ -186,7 +186,11 @@ def pinning():
             f"echo {levels[1]} > {KGSL}/max_pwrlevel",
             f"service call SurfaceFlinger {FORCE_CONFIG} i32 -1",
         ):
-            if "ok" not in adb_shell(f"su -c '{step} && echo ok'", check=False):
+            try:
+                done = "ok" in adb_shell(f"su -c '{step} && echo ok'", check=False)
+            except subprocess.TimeoutExpired:
+                done = False
+            if not done:
                 failed.append(step)
         if failed:
             print(f"could not undo: {failed}; put them back by hand", flush=True)
