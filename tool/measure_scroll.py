@@ -218,11 +218,16 @@ def drag(app, start, end, root):
          f"{int(end * height)} {int(DRAG_S * 1000)}"]
     )
     periods, shown = set(), set()
+    # The phone's clock less this one's, from the newest frame shown while
+    # the page moves: it shows one every refresh, so its time is nearly now.
+    offset = []
 
     def read_presents():
         period, times = presents(required=False)
         periods.add(period)
         shown.update(times)
+        if times and not offset:
+            offset.append(time.time() - max(times) / 1e9)
 
     while swipe.poll() is None:
         time.sleep(0.5)
@@ -232,8 +237,8 @@ def drag(app, start, end, root):
     # The window counts from the first frame, which comes a little after
     # the command: read on past its end, as frame timings, which come in
     # batches at least once a second, take that long anyway.
-    ended = began + DRAG_S + 0.5 + 0.5
-    while time.time() < ended + 0.6:
+    reading = began + DRAG_S + 0.5 + 1.1
+    while time.time() < reading:
         time.sleep(0.4)
         read_presents()
     # [raster finish us, raster ms, UI ms] a frame, on SurfaceFlinger's clock.
@@ -241,6 +246,8 @@ def drag(app, start, end, root):
     first = log[0][0] * 1000 if log else 0
     frames = [f for f in log if f[0] * 1000 - first <= WINDOW_NS]
     shown = sorted(t for t in shown if first <= t <= first + WINDOW_NS)
+    # Where the window ends on this computer's clock, for the GPU's windows.
+    ended = (first + WINDOW_NS) / 1e9 + offset[0] if first and offset else reading
     span = (frames[-1][0] - frames[0][0]) / 1e6 if len(frames) > 1 else 0
     periods.discard(None)
     return {
@@ -250,7 +257,7 @@ def drag(app, start, end, root):
         "ui": statistics.mean(f[2] for f in frames) if frames else 0,
         # Unpinned, the display may change its rate within the drag, which
         # leaves no one period to judge the gaps by.
-        "late": late(periods.pop(), shown) if len(periods) == 1 else None,
+        "late": late(periods.pop(), shown) if len(periods) == 1 and len(shown) > 1 else None,
         "gpu": gpu.share(began, ended) if gpu else None,
     }
 
@@ -347,7 +354,10 @@ def main():
             line += f"  GPU busy {100 * statistics.median(busy):3.0f}%"
         print(line, flush=True)
     if any(d["late"] is None for _, d in drags):
-        print("late ?: the display changed its rate within the drag; --pin holds it")
+        print(
+            "late ?: the display changed its rate within the drag (--pin holds it), "
+            "or the layer showed no frames in it (--surface names another)"
+        )
     print(f"battery {temperature()} °C", flush=True)
 
 
