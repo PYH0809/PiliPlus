@@ -570,4 +570,39 @@ void main() {
       expect(dir.listSync(), isEmpty);
     });
   });
+
+  group('the update dialog', () {
+    final long = UpdateManifest.fromJson({
+      'tag': '2.2.0+6140',
+      'versionCode': 6140,
+      'body': [
+        for (var i = 0; i < 30; i++) '一条改动，说得比较长，会折成两行显示 #$i',
+      ].join('\n'),
+      'assets': [_asset('p_arm64-v8a.apk', abi: 'arm64-v8a')],
+    });
+
+    for (final (name, size) in [
+      ('a phone', const Size(411, 860)),
+      ('a short window', const Size(640, 240)),
+    ]) {
+      testWidgets('fits $name, its buttons on screen', (tester) async {
+        tester.view
+          ..physicalSize = size
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (_) => Update.dialogFor(long, apk: long.assets.single),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        for (final label in ['下载并安装', '跳过此版本', '取消']) {
+          final rect = tester.getRect(find.text(label));
+          expect(rect.bottom, lessThanOrEqualTo(size.height), reason: label);
+        }
+      });
+    }
+  });
 }

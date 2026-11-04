@@ -16,7 +16,7 @@ import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/update_download.dart';
 import 'package:PiliPlus/utils/update_view.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -158,6 +158,13 @@ abstract final class Update {
     }
   }
 
+  @visibleForTesting
+  static Widget dialogFor(
+    UpdateManifest manifest, {
+    UpdateAsset? apk,
+    bool isAuto = true,
+  }) => _UpdateDialog(manifest: manifest, apk: apk, isAuto: isAuto);
+
   static void _downloadInApp(UpdateManifest manifest, UpdateAsset apk) {
     SmartDialog.dismiss();
     SmartDialog.show(
@@ -226,8 +233,39 @@ class _UpdateDialog extends StatelessWidget {
       skip,
       cancel,
     ];
+    final compact = height < 560;
+    final note = Column(
+      crossAxisAlignment: .start,
+      children: [
+        ReleaseNoteView(sections: ReleaseNote.parse(manifest.body)),
+        const SizedBox(height: 8),
+        Transform.translate(
+          offset: const Offset(-4, 0),
+          child: DialogLink(
+            label: '查看这一版的全部提交 ›',
+            onTap: () => PageUtils.launchURL(Update.commitsUrl(manifest)),
+          ),
+        ),
+        // 桌面端的其他格式也在能滚的区域里，不占固定高度
+        if (formats.length > 1)
+          Wrap(
+            crossAxisAlignment: .center,
+            children: [
+              Text(
+                '其他格式',
+                style: TextStyle(fontSize: 13, color: colorScheme.outline),
+              ),
+              const SizedBox(width: 4),
+              ...formats.skip(1),
+            ],
+          ),
+      ],
+    );
     return AlertDialog(
       title: const Text('发现新版本'),
+      // 矮视口（横屏、窗口很矮）时整个标题和内容一起滚，按钮留在下面；
+      // 平时只有说明在限高的区域里滚
+      scrollable: compact,
       content: Column(
         mainAxisSize: .min,
         crossAxisAlignment: .start,
@@ -237,48 +275,18 @@ class _UpdateDialog extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: colorScheme.outline),
           ),
           const SizedBox(height: 14),
-          // 说明长时在这块里滚动，按钮和标题不动；提交链接在说明末尾，
-          // 看完说明才看得到
-          Flexible(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: (height * 0.4).clamp(120.0, 320.0),
-              ),
-              child: FadingScroll(
-                child: Column(
-                  crossAxisAlignment: .start,
-                  children: [
-                    ReleaseNoteView(
-                      sections: ReleaseNote.parse(manifest.body),
-                    ),
-                    const SizedBox(height: 8),
-                    Transform.translate(
-                      offset: const Offset(-4, 0),
-                      child: DialogLink(
-                        label: '查看这一版的全部提交 ›',
-                        onTap: () =>
-                            PageUtils.launchURL(Update.commitsUrl(manifest)),
-                      ),
-                    ),
-                  ],
+          if (compact)
+            note
+          else
+            // 提交链接在说明末尾，看完说明才看得到
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: (height * 0.4).clamp(120.0, 320.0),
                 ),
+                child: FadingScroll(child: note),
               ),
             ),
-          ),
-          if (formats.length > 1) ...[
-            const SizedBox(height: 4),
-            Wrap(
-              crossAxisAlignment: .center,
-              children: [
-                Text(
-                  '其他格式',
-                  style: TextStyle(fontSize: 13, color: colorScheme.outline),
-                ),
-                const SizedBox(width: 4),
-                ...formats.skip(1),
-              ],
-            ),
-          ],
         ],
       ),
       // 玻璃的 GlassAlertActions 把 FilledButton 放最上、取消放最下，
