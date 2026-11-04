@@ -204,7 +204,10 @@ class VideoExpandSource extends StatefulWidget {
 
   /// Whether a press on the cover takes the page below before the tap, as
   /// the opening's first frame would: false while a tap does not open the
-  /// page, as in multi-select.
+  /// page, as in multi-select. A card whose tap opens something else only
+  /// now and then, as an audio or a bangumi entry, can leave it on: the
+  /// picture is drawn while the finger holds still and the screen with it,
+  /// one for the whole app, let go within half a second.
   final bool takesPressShot;
 
   /// The card's own fill, which the page's fades in over.
