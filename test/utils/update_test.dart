@@ -309,6 +309,33 @@ void main() {
       },
     );
 
+    test('a restart writes its own temporary file', () async {
+      // the first run is cancelled while it still holds its file, and a new
+      // one starts at once: the old run's cleanup must not touch the new file
+      final paths = <String>[];
+      late UpdateDownloader first;
+      UpdateDownloader start() => UpdateDownloader(
+        manifest: m,
+        asset: m.assets.single,
+        dir: dir.path,
+        mirrors: const [''],
+        fetch: (url, path, {required cancelToken, required onProgress}) async {
+          paths.add(path);
+          File(path).writeAsBytesSync(good);
+          if (paths.length == 1) {
+            first.cancel();
+            // the restart runs while the first still has its file
+            expect(await start().run(), isNotNull);
+          }
+        },
+      );
+      first = start();
+      expect(await first.run(), isNull);
+      expect(paths, hasLength(2));
+      expect(paths.first, isNot(paths.last));
+      expect(File('${dir.path}/p.apk').readAsBytesSync(), good);
+    });
+
     test('reports every source when all fail', () async {
       await expectLater(
         downloader((url, _) => [0]).run(),

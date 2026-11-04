@@ -106,7 +106,11 @@ class UpdateDownloader {
 
     final folder = Directory(dir);
     await folder.create(recursive: true);
-    final part = File('${target.path}.part');
+    // 每次下载用自己的临时文件：取消后马上重来时，旧的这次还在校验，
+    // 不能动到新的这次正在写的文件
+    final part = File(
+      '${target.path}.${DateTime.now().microsecondsSinceEpoch}.part',
+    );
     // 以前版本的安装包
     for (final i in folder.listSync()) {
       if (i.path != target.path && i.path != part.path) _delete(File(i.path));
@@ -157,7 +161,12 @@ class UpdateDownloader {
         failures.add('$name：文件比清单里的大');
         continue;
       }
-      if (!await verify(part, asset)) {
+      final verified = await verify(part, asset);
+      if (_cancelled) {
+        _delete(part);
+        break;
+      }
+      if (!verified) {
         _delete(part);
         failures.add('$name：文件校验不通过');
         continue;

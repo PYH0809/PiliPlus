@@ -269,6 +269,9 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       );
       if (file == null || !mounted) return;
       _file = file;
+      // 在后台时系统可能拦下打开安装程序和设置页，等回到前台再装
+      await _whenResumed();
+      if (!mounted) return;
       await _install();
     } on UpdateDownloadException catch (e) {
       if (!mounted) return;
@@ -277,6 +280,22 @@ class _DownloadDialogState extends State<_DownloadDialog> {
         _message = '$e';
       });
     }
+  }
+
+  Future<void> _whenResumed() {
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state == null || state == .resumed) return Future.value();
+    final resumed = Completer<void>();
+    _lifecycle?.dispose();
+    _lifecycle = AppLifecycleListener(
+      onResume: () {
+        if (!resumed.isCompleted) resumed.complete();
+      },
+    );
+    return resumed.future.whenComplete(() {
+      _lifecycle?.dispose();
+      _lifecycle = null;
+    });
   }
 
   Future<void> _install() async {
