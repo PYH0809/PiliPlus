@@ -6,12 +6,13 @@ then:
 
     python3 tool/measure_scroll.py run.log [label] [--rounds N] [--pin]
 
-Each round drags the page up and then down, 1.2 s each with the finger held,
-so it never flings, in the middle of a 1440x3120 screen. For each drag it
-prints the frames the app drew, their fps and mean raster time (FrameStats),
-and the frames the screen showed late (SurfaceFlinger's present times for
-the app's surface, as `dumpsys gfxinfo` counts none: Flutter draws into a
-SurfaceView).
+Each round drags the page up and then down, 1.2 s each, in the middle of a
+1440x3120 screen; `input swipe` lets go moving, so a long list may fling on
+a little, and every number below takes that in too. For each drag it prints
+the frames the app drew, their fps and mean raster time (FrameStats), and
+the frames the screen showed a refresh or more late (SurfaceFlinger's
+present times for the app's surface, against its refresh period, as
+`dumpsys gfxinfo` counts none: Flutter draws into a SurfaceView).
 
 With root (`su`), it also reads the GPU's busy time from kgsl
 (`/sys/class/kgsl/kgsl-3d0/gpubusy`) over each drag, and prints it per frame
@@ -94,35 +95,34 @@ class App:
 
 
 def presents():
-    """The app surface's present times SurfaceFlinger holds, in ns."""
-    times = []
+    """The display's refresh period and the app surface's present times
+    SurfaceFlinger holds, in ns."""
+    period, times = None, []
     for line in adb_shell(f'dumpsys SurfaceFlinger --latency "{SURFACE}"').split("\n"):
         parts = line.split()
-        if len(parts) == 3 and all(p.isdigit() for p in parts) and 0 < int(parts[1]) < 2**62:
+        if not parts or not all(p.isdigit() for p in parts):
+            continue
+        if len(parts) == 1 and period is None:
+            period = int(parts[0])
+        elif len(parts) == 3 and 0 < int(parts[1]) < 2**62:
             times.append(int(parts[1]))
-    if not times:
+    if not period or not times:
         sys.exit(f"SurfaceFlinger holds no frames for {SURFACE!r}: is the app in front?")
-    return times
+    return period, times
 
 
-def late(times):
-    gaps = [b - a for a, b in zip(times, times[1:])]
-    if not gaps:
-        return 0
-    usual = sorted(gaps)[len(gaps) // 2]
-    return sum(1 for gap in gaps if gap > usual * 1.5)
+def late(period, times):
+    """Frames shown a refresh or more after the one before them."""
+    return sum(1 for a, b in zip(times, times[1:]) if b - a > period * 1.5)
 
 
 def drag(app, start, end, root):
     app.ext("resetFrames")
     adb_shell("dumpsys SurfaceFlinger --latency-clear")
-    swipe = f"input swipe 720 {start} 720 {end} 1200"
-    busy = None
     if root:
-        out = su(f"cat {KGSL}/gpubusy >/dev/null; {swipe}; cat {KGSL}/gpubusy").split()
-        busy = int(out[0]) / 1000
-    else:
-        adb_shell(swipe)
+        # Each read answers the busy time since the last one.
+        su(f"cat {KGSL}/gpubusy >/dev/null")
+    adb_shell(f"input swipe 720 {start} 720 {end} 1200")
     # Frame timings come in batches: wait till the count stops growing.
     frames, deadline = {}, time.time() + 3
     while time.time() < deadline:
@@ -132,11 +132,13 @@ def drag(app, start, end, root):
         if frames.get("frames", 0) == last and last > 0:
             break
     count = frames.get("frames", 0)
+    # Over the same frames, the fling after the drag's end with them.
+    busy = int(su(f"cat {KGSL}/gpubusy").split()[0]) / 1000 if root else None
     return {
         "frames": count,
         "fps": frames.get("fps", 0),
         "raster": frames.get("rasterMean", 0),
-        "late": late(presents()),
+        "late": late(*presents()),
         "gpu": busy / count if busy is not None and count else None,
     }
 
@@ -154,17 +156,23 @@ def pinning():
 
     def pin():
         su(
-            f"echo {PINNED_LEVEL} > {KGSL}/max_pwrlevel; "
-            f"echo {PINNED_LEVEL} > {KGSL}/min_pwrlevel; "
+            f"echo {PINNED_LEVEL} > {KGSL}/max_pwrlevel && "
+            f"echo {PINNED_LEVEL} > {KGSL}/min_pwrlevel && "
             f"service call SurfaceFlinger {FORCE_CONFIG} i32 {NINETY_HZ_CONFIG}"
         )
 
     def undo():
-        su(
-            f"echo {levels[0]} > {KGSL}/min_pwrlevel; "
-            f"echo {levels[1]} > {KGSL}/max_pwrlevel; "
-            f"service call SurfaceFlinger {FORCE_CONFIG} i32 -1"
-        )
+        # Every step, whichever fails, then say which did.
+        failed = []
+        for step in (
+            f"echo {levels[0]} > {KGSL}/min_pwrlevel",
+            f"echo {levels[1]} > {KGSL}/max_pwrlevel",
+            f"service call SurfaceFlinger {FORCE_CONFIG} i32 -1",
+        ):
+            if "ok" not in adb_shell(f"su -c '{step} && echo ok'", check=False):
+                failed.append(step)
+        if failed:
+            print(f"could not undo: {failed}; put them back by hand", flush=True)
 
     return pin, undo
 

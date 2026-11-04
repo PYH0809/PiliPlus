@@ -15,7 +15,7 @@ What each one reads:
 | Numbers | Needs |
 | ------- | ----- |
 | Frames drawn, fps, UI and raster times (FrameStats, from `resetFrames` on) | adb |
-| Frames the screen showed late (SurfaceFlinger's present times; `dumpsys gfxinfo` counts none, as Flutter draws into a SurfaceView) | adb |
+| Frames the screen showed a refresh or more late (SurfaceFlinger's present times against its refresh period; `dumpsys gfxinfo` counts none, as Flutter draws into a SurfaceView) | adb |
 | GPU busy time a frame (kgsl `gpubusy`) | root |
 | `--pin`: the GPU held at 427 MHz and the display at 90 Hz while measuring, put back after | root |
 
