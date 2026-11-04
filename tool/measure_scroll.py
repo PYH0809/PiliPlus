@@ -170,6 +170,10 @@ class GpuBusy:
         )
         self._reader = threading.Thread(target=self._read, daemon=True)
         self._reader.start()
+        # The first reading is the window before: wait for it, to leave it out.
+        deadline = time.time() + 2
+        while not self.windows and time.time() < deadline:
+            time.sleep(0.05)
 
     def _read(self):
         for line in self._process.stdout:
@@ -177,17 +181,17 @@ class GpuBusy:
             if len(parts) == 2 and (not self.windows or self.windows[-1][1] != parts):
                 self.windows.append((time.time(), parts))
 
-    def share(self, start, end):
-        """The busy share of the windows that came out after [start] up to
-        the first after [end], which holds it; None without that one."""
+    def share(self, end):
+        """The busy share of the windows that came out after the first
+        reading up to the first after [end], which holds it; None without
+        that one."""
         deadline = time.time() + 2.5
         while time.time() < deadline and not any(t >= end for t, _ in self.windows):
             time.sleep(0.1)
         self._process.terminate()
         kept = []
-        for at, (busy, total) in self.windows:
-            if at > start:
-                kept.append((int(busy), int(total)))
+        for at, (busy, total) in self.windows[1:]:
+            kept.append((int(busy), int(total)))
             if at >= end:
                 break
         else:
@@ -215,6 +219,8 @@ def drag(app, start, end, root):
     offset = (before + time.time()) / 2 - micros / 1e6
     gpu = GpuBusy() if root else None
     began = time.time()
+    # Frames before the drag, as an animated picture's, are left out.
+    since = (began - offset) * 1e6
     # SurfaceFlinger keeps the last 128 or so: read them as the drag goes.
     serial = ["-s", SERIAL] if SERIAL else []
     swipe = subprocess.Popen(
@@ -241,14 +247,14 @@ def drag(app, start, end, root):
         time.sleep(0.4)
         read_presents()
         if first is None:
-            log = json.loads(app.ext("frameLog"))
+            log = [f for f in json.loads(app.ext("frameLog")) if f[0] >= since]
             if log:
                 first = log[0][0] * 1000
                 ended = first / 1e9 + offset + WINDOW_NS / 1e9
     if swipe.wait() != 0:
         sys.exit(f"input swipe failed: {swipe.returncode}")
     # [raster finish us, raster ms, UI ms] a frame, on the phone's clock.
-    log = json.loads(app.ext("frameLog"))
+    log = [f for f in json.loads(app.ext("frameLog")) if f[0] >= since]
     first = log[0][0] * 1000 if log else 0
     frames = [f for f in log if f[0] * 1000 - first <= WINDOW_NS]
     shown = sorted(t for t in shown if first <= t <= first + WINDOW_NS)
@@ -262,7 +268,7 @@ def drag(app, start, end, root):
         # Unpinned, the display may change its rate within the window, which
         # leaves no one period to judge the gaps by; nor do no frames shown.
         "late": late(periods.pop(), shown) if len(periods) == 1 and len(shown) > 1 else None,
-        "gpu": gpu.share(began, ended) if gpu else None,
+        "gpu": gpu.share(ended) if gpu else None,
     }
 
 
