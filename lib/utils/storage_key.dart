@@ -159,7 +159,6 @@ abstract final class SettingBoxKey {
       liquidGlass = 'liquidGlass',
       videoGlassMode = 'videoGlassMode',
       videoGlassNotes = 'videoGlassNotes',
-      perfOverlay = 'perfOverlay',
       removeSafeArea = 'removeSafeArea',
       angleDegrees = 'angleDegrees',
       liveStream = 'liveStream',

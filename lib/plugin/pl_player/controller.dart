@@ -1316,12 +1316,16 @@ class PlPlayerController
 
   bool tripling = false;
 
+  /// Whether the controls stay till tapped away, for measuring what they
+  /// cost from a computer (`ext.piliplus.controlsStay`).
+  static var debugControlsStay = false;
+
   /// 隐藏控制条
   void hideTaskControls() {
     _timer?.cancel();
-    // While measuring with the performance overlay, the controls stay till
-    // tapped away, their cost with them.
-    if (Pref.perfOverlay) return;
+    // While measuring from a computer, the controls stay till tapped away,
+    // their cost with them.
+    if (debugControlsStay) return;
     _timer = Timer(showControlDuration, () {
       if (!isSeeking.value && !tripling && !_hold.held && hoverDx == null) {
         controls = false;

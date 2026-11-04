@@ -220,11 +220,11 @@ class VideoGlass extends StatelessWidget {
   /// or out.
   static final frostHeld = ValueNotifier(false);
 
-  /// What the widest pane over the video last drew, for the performance
-  /// overlay to show while measuring on a device.
+  /// What the widest pane over the video last drew, for the debug commands
+  /// to report while measuring on a device.
   static final debugInfo = ValueNotifier<String>('');
 
-  /// Whether to fill [debugInfo], as the performance overlay is on.
+  /// Whether to fill [debugInfo], as the frames are being counted.
   static var debugDescribing = false;
 
   @override

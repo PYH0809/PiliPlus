@@ -173,14 +173,6 @@ List<SettingsModel> get styleSettings => [
     setKey: SettingBoxKey.videoGlassNotes,
     defaultVal: true,
   ),
-  const SwitchModel(
-    title: '显示性能浮层',
-    subtitle: '在屏幕上显示最近 120 帧的 UI 和 raster（GPU）耗时，用于对比各项效果的开销',
-    leading: Icon(Icons.speed_outlined),
-    setKey: SettingBoxKey.perfOverlay,
-    defaultVal: false,
-    needReboot: true,
-  ),
   SwitchModel(
     title: '显示粉丝勋章',
     leading: const Icon(MdiIcons.medalOutline),

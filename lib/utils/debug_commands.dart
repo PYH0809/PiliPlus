@@ -29,10 +29,14 @@ import 'package:get/get.dart';
 /// - `ext.piliplus.play`: plays the open player.
 /// - `ext.piliplus.clock?offsetMinutes=`: moves the player's clock on, so that
 ///   play links seem to have expired without waiting hours; 0 puts it back.
-/// - `ext.piliplus.state`: the open player's state, the frames the
-///   performance overlay counted, what the glass over the video drew and when
-///   the open links expire.
-/// - `ext.piliplus.resetFrames`: starts the overlay's count over.
+/// - `ext.piliplus.state`: the open player's state, the frames counted since
+///   `resetFrames`, what the glass over the video drew and when the open
+///   links expire.
+/// - `ext.piliplus.resetFrames`: starts counting the frames, or over.
+/// - `ext.piliplus.frameLog`: each frame counted, when its raster finished
+///   and its raster and UI times.
+/// - `ext.piliplus.controlsStay?on=`: whether the player's controls stay till
+///   tapped away rather than hide by themselves.
 /// - `ext.piliplus.layers`: the layer tree the screen last drew, a layer a
 ///   line with what it clips, filters, offsets or draws, to tell what each
 ///   offscreen pass holds.
@@ -43,9 +47,9 @@ import 'package:get/get.dart';
 ///   its frost's rims from images, `true` or `false`; no value for
 ///   the renderer's choice, only without Impeller. Everything repaints.
 /// - `ext.piliplus.frames?seconds=`: draws a frame every vsync for that long,
-///   though nothing changed, and answers once done: the overlay then counts
+///   though nothing changed, and answers once done: the count then holds
 ///   what the screen costs a frame, as a video's every new frame redraws it,
-///   which the overlay does not see.
+///   which the count does not see.
 abstract final class DebugCommands {
   /// When the open player's links expire; null before it has a source.
   static DateTime? _expiresAt(PlPlayerController? player) {
@@ -157,6 +161,15 @@ abstract final class DebugCommands {
 
       walk(root, 0);
       return lines.join('\n');
+    });
+    _register('controlsStay', (params) async {
+      PlPlayerController.debugControlsStay = params['on'] == 'true';
+      // Controls already showing keep or drop the timer that hides them.
+      final player = PlPlayerController.instance;
+      if (player != null && player.showControls.value) {
+        player.hideTaskControls();
+      }
+      return '${PlPlayerController.debugControlsStay}';
     });
     _register('resetFrames', (params) async {
       FrameStats.reset();
