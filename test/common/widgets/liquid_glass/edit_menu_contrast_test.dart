@@ -91,10 +91,10 @@ void main() {
     ('light blue', Color(0xFF80C8FF)),
   ]) {
     testWidgets(
-      'a dark edit menu\'s labels read at 3:1 or more over $name',
+      'a dark edit menu\'s labels read at 4.5:1 or more over $name',
       (tester) async {
         final glass = await _glassOver(tester, behind);
-        expect(_contrast(label, glass), greaterThanOrEqualTo(3));
+        expect(_contrast(label, glass), greaterThanOrEqualTo(4.5));
       },
       skip: !ui.ImageFilter.isShaderFilterSupported,
     );
