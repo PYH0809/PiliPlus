@@ -176,6 +176,12 @@ class UpdateDownloader {
         _delete(part);
         break;
       }
+      // 校验时点了换下载源
+      if (_skipping) {
+        _delete(part);
+        failures.add('$name：已跳过');
+        continue;
+      }
       if (!verified) {
         _delete(part);
         failures.add('$name：文件校验不通过');

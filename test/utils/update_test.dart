@@ -436,6 +436,20 @@ void main() {
       await started.close();
     });
 
+    test('skip during the hash check still moves on', () async {
+      late UpdateDownloader d;
+      final tried = <String>[];
+      d = downloader((url, _) {
+        tried.add(url);
+        // the download is done; the skip lands while the file is checked
+        if (url.startsWith('https://a/')) Future.microtask(d.skip);
+        return good;
+      });
+      final file = await d.run();
+      expect(tried, hasLength(2));
+      expect(file!.readAsBytesSync(), good);
+    });
+
     test('cancel stops without an error', () async {
       final tried = <String>[];
       late UpdateDownloader d;

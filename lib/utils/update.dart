@@ -337,8 +337,11 @@ class _DownloadDialogState extends State<_DownloadDialog> {
         _lifecycle = null;
       }
       if (!mounted) return;
-      if (!await AppInstaller.canInstall()) {
-        if (mounted) setState(() => _message = '没有获得安装应用的权限，无法安装');
+      final allowed = await AppInstaller.canInstall();
+      // 等的时候对话框可能被关掉了
+      if (!mounted) return;
+      if (!allowed) {
+        setState(() => _message = '没有获得安装应用的权限，无法安装');
         return;
       }
       res = await AppInstaller.install(file.path);
