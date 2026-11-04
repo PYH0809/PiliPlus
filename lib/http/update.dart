@@ -37,7 +37,8 @@ abstract final class UpdateHttp {
         options: Options(
           headers: {'user-agent': BrowserUa.mob},
           responseType: ResponseType.plain,
-          extra: {'account': const NoAccount()},
+          // 出错时由调用方提示，不要拦截器那条「服务器异常」
+          extra: {'account': const NoAccount(), AccountManager.silent: true},
         ),
       );
       return parseResponse(res.statusCode, res.data);
