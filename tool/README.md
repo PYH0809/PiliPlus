@@ -16,8 +16,8 @@ What each one reads:
 | ------- | ----- |
 | Frames drawn, fps, UI and raster times (FrameStats, from `resetFrames` on) | adb |
 | Frames the screen showed a refresh or more late (SurfaceFlinger's present times against its refresh period; `dumpsys gfxinfo` counts none, as Flutter draws into a SurfaceView) | adb |
-| GPU busy time a frame (kgsl `gpubusy`) | root |
-| `--pin`: the GPU held at 427 MHz and the display at 90 Hz while measuring, put back after | root |
+| GPU busy time a frame (kgsl `gpubusy`) | root, a Qualcomm GPU |
+| `--pin`: the GPU held at 427 MHz and the display at 90 Hz while measuring, put back after | root, a Qualcomm GPU |
 
 Without root, `measure_scroll.py` says the GPU numbers are left out and
 measures the rest. The GPU's clock follows its load, so without `--pin` a

@@ -14,11 +14,12 @@ the frames the screen showed a refresh or more late (SurfaceFlinger's
 present times for the app's surface, against its refresh period, as
 `dumpsys gfxinfo` counts none: Flutter draws into a SurfaceView).
 
-With root (`su`), it also reads the GPU's busy time from kgsl
-(`/sys/class/kgsl/kgsl-3d0/gpubusy`) over each drag, and prints it per frame
+With root (`su`) on a Qualcomm GPU, it also reads the GPU's busy time from
+kgsl (`/sys/class/kgsl/kgsl-3d0/gpubusy`) over each drag, and prints it per frame
 drawn. The GPU's clock follows its load, so --pin holds it at 427 MHz and
 the display at 90 Hz while measuring, and puts both back after. Without
-root those numbers are left out, and it says so.
+root or kgsl those numbers are left out, and it says so. --surface names the
+app's SurfaceFlinger layer, when the one it finds is not it.
 
 Interleave the builds or switches you compare, a few rounds each, and note
 the temperature it prints: a warm phone slows every one. ANDROID_SERIAL
@@ -37,7 +38,8 @@ import urllib.parse
 import urllib.request
 
 PACKAGE = "com.example.piliplus"
-SURFACE = f"SurfaceView - {PACKAGE}/{PACKAGE}.MainActivity#0"
+# The app's SurfaceFlinger layer; found by surface() unless --surface names it.
+SURFACE = None
 KGSL = "/sys/class/kgsl/kgsl-3d0"
 # kgsl's power level 2 is 427 MHz on an Adreno 640; the governor follows the
 # load between its min_pwrlevel and max_pwrlevel.
@@ -66,9 +68,19 @@ def su(command):
     return adb_shell(f"su -c '{command}'")
 
 
-def has_root():
-    # Without su this fails, as expected.
-    return "uid=0" in adb_shell("su -c id 2>/dev/null", check=False)
+def has_kgsl():
+    # Without su this fails, as expected; with it, a phone without a
+    # Qualcomm GPU has no kgsl.
+    return "ok" in adb_shell(f"su -c 'test -r {KGSL}/gpubusy && echo ok' 2>/dev/null", check=False)
+
+
+def surface():
+    """The app's SurfaceView layer, named as this Android names it."""
+    for line in adb_shell("dumpsys SurfaceFlinger --list").split("\n"):
+        name = line.strip()
+        if name.startswith("SurfaceView") and PACKAGE in name:
+            return name
+    sys.exit(f"no SurfaceView layer of {PACKAGE}: is the app in front? (--surface names it)")
 
 
 class App:
@@ -206,13 +218,18 @@ def main():
     parser.add_argument("label", nargs="?", default="scroll")
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--pin", action="store_true", help="root: 427 MHz, 90 Hz")
+    parser.add_argument("--surface", help="the app's SurfaceFlinger layer")
     args = parser.parse_args()
     app = App(args.log)
+    global SURFACE
+    SURFACE = args.surface or surface()
     # The app's surface is there, with frames from before.
     presents()
-    root = has_root()
+    root = has_kgsl()
     if not root:
-        print("no root: GPU busy time and the pins are left out", flush=True)
+        if args.pin:
+            sys.exit("--pin needs root and a Qualcomm GPU's kgsl")
+        print("no root or no kgsl: GPU busy time is left out", flush=True)
     pin, undo = pinning() if root and args.pin else (None, None)
     try:
         if pin:
