@@ -88,6 +88,11 @@ class _Page extends StatelessWidget {
               onTap: () => _pageTaps++,
               child: Text('视频页 ${arguments['cid']}'),
             ),
+            // Paints whenever _pageChanges changes, if the page is drawn.
+            CustomPaint(
+              size: const Size.square(20),
+              painter: _CountingPainter(_pageChanges, () => _pagePaints++),
+            ),
           ],
         ),
       ),
@@ -101,6 +106,8 @@ late ui.Image _coverImage;
 const _playerKey = Key('player');
 var _pageTaps = 0;
 final _playerBuilds = ValueNotifier(0);
+final _pageChanges = ValueNotifier(0);
+var _pagePaints = 0;
 
 Widget _card0({
   ValueChanged<VideoExpandSourceState>? onSource,
@@ -525,6 +532,63 @@ void main() {
     expect(find.text('视频页 3'), findsNothing);
   });
 
+  testWidgets('the page is drawn from a picture while it moves', (
+    tester,
+  ) async {
+    Future<bool> pagePaints() async {
+      final before = _pagePaints;
+      _pageChanges.value++;
+      await tester.pump(const Duration(milliseconds: 16));
+      return _pagePaints > before;
+    }
+
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    // Shown from a fifth in, drawn live once, so its glass catches what lies
+    // behind it, then from a picture of it.
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await pagePaints(), isFalse);
+
+    await tester.pumpAndSettle();
+    // At rest it draws itself.
+    expect(await pagePaints(), isTrue);
+
+    // Setting off back, it is taken at once: it was drawn live.
+    Get.back<void>();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await pagePaints(), isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a return cutting the opening short keeps its picture', (
+    tester,
+  ) async {
+    Future<bool> pagePaints() async {
+      final before = _pagePaints;
+      _pageChanges.value++;
+      await tester.pump(const Duration(milliseconds: 16));
+      return _pagePaints > before;
+    }
+
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await pagePaints(), isFalse);
+
+    // Back halfway: the page stays drawn from its picture, not hidden a
+    // frame to be drawn whole again.
+    Get.back<void>();
+    await tester.pump();
+    expect(await pagePaints(), isFalse);
+    expect(await pagePaints(), isFalse);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('the page takes no taps while it moves', (tester) async {
     _pageTaps = 0;
     await _pump(tester);
@@ -884,7 +948,7 @@ void main() {
     late VideoExpandSourceState card;
     await _pump(tester, home: _card0(onSource: (source) => card = source));
     await tester.pumpWidget(
-      GetMaterialApp(home: const Scaffold(body: Text('刷新后的列表'))),
+      const GetMaterialApp(home: Scaffold(body: Text('刷新后的列表'))),
     );
     expect(
       card.expand<void>(
