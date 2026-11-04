@@ -103,9 +103,13 @@ class UpdateDownloader {
   ) async {
     final target = file;
     if (target.existsSync()) {
-      if (await verify(target, asset)) return _cancelled ? null : target;
-      // 坏的或者别的构建的同名包，先腾出地方
-      _delete(target);
+      final checked = target.statSync().modified;
+      final ok = await verify(target, asset);
+      // 校验时被取消的话，取而代之的那次下载可能已经换上了新包，别动它
+      if (_cancelled) return null;
+      if (ok) return target;
+      // 坏的或者别的构建的同名包，先腾出地方；校验期间被换掉的不删
+      if (target.statSync().modified == checked) _delete(target);
     }
 
     final folder = Directory(dir);

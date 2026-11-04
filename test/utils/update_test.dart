@@ -336,6 +336,15 @@ void main() {
       expect(File('${dir.path}/p.apk').readAsBytesSync(), good);
     });
 
+    test('a run cancelled while checking the cache leaves it alone', () async {
+      final cached = File('${dir.path}/p.apk')..writeAsBytesSync([7, 7, 7]);
+      final d = downloader((url, _) => fail('should not download'));
+      final run = d.run();
+      d.cancel();
+      expect(await run, isNull);
+      expect(cached.readAsBytesSync(), [7, 7, 7]);
+    });
+
     test('reports every source when all fail', () async {
       await expectLater(
         downloader((url, _) => [0]).run(),
