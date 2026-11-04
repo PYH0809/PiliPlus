@@ -208,6 +208,11 @@ def drag(app, start, end, root):
     width, height = screen_size()
     app.ext("resetFrames")
     adb_shell(f'dumpsys SurfaceFlinger --latency-clear "{SURFACE}"')
+    # The phone's monotonic clock, which the frames' and SurfaceFlinger's
+    # times are on, less this computer's: the VM's timeline is on it too.
+    before = time.time()
+    micros = app.call("getVMTimelineMicros")["timestamp"]
+    offset = (before + time.time()) / 2 - micros / 1e6
     gpu = GpuBusy() if root else None
     began = time.time()
     # SurfaceFlinger keeps the last 128 or so: read them as the drag goes.
@@ -218,36 +223,35 @@ def drag(app, start, end, root):
          f"{int(end * height)} {int(DRAG_S * 1000)}"]
     )
     periods, shown = set(), set()
-    # The phone's clock less this one's, from the newest frame shown while
-    # the page moves: it shows one every refresh, so its time is nearly now.
-    offset = []
+    # Where the window ends on this computer's clock, once the first frame
+    # is known: until then, a little after it could.
+    ended = began + DRAG_S + 1.5
+    first = None
 
     def read_presents():
         period, times = presents(required=False)
-        periods.add(period)
+        # Only the rate the display ran at within the window judges it.
+        if time.time() <= ended:
+            periods.add(period)
         shown.update(times)
-        if times and not offset:
-            offset.append(time.time() - max(times) / 1e9)
 
-    while swipe.poll() is None:
-        time.sleep(0.5)
-        read_presents()
-    if swipe.returncode != 0:
-        sys.exit(f"input swipe failed: {swipe.returncode}")
-    # The window counts from the first frame, which comes a little after
-    # the command: read on past its end, as frame timings, which come in
-    # batches at least once a second, take that long anyway.
-    reading = began + DRAG_S + 0.5 + 1.1
-    while time.time() < reading:
+    # Read on till the window has ended, and a little more, as frame
+    # timings come in batches at least once a second.
+    while time.time() < ended + 1.1:
         time.sleep(0.4)
         read_presents()
-    # [raster finish us, raster ms, UI ms] a frame, on SurfaceFlinger's clock.
+        if first is None:
+            log = json.loads(app.ext("frameLog"))
+            if log:
+                first = log[0][0] * 1000
+                ended = first / 1e9 + offset + WINDOW_NS / 1e9
+    if swipe.wait() != 0:
+        sys.exit(f"input swipe failed: {swipe.returncode}")
+    # [raster finish us, raster ms, UI ms] a frame, on the phone's clock.
     log = json.loads(app.ext("frameLog"))
     first = log[0][0] * 1000 if log else 0
     frames = [f for f in log if f[0] * 1000 - first <= WINDOW_NS]
     shown = sorted(t for t in shown if first <= t <= first + WINDOW_NS)
-    # Where the window ends on this computer's clock, for the GPU's windows.
-    ended = (first + WINDOW_NS) / 1e9 + offset[0] if first and offset else reading
     span = (frames[-1][0] - frames[0][0]) / 1e6 if len(frames) > 1 else 0
     periods.discard(None)
     return {
@@ -255,8 +259,8 @@ def drag(app, start, end, root):
         "fps": (len(frames) - 1) / span if span else 0,
         "raster": statistics.mean(f[1] for f in frames) if frames else 0,
         "ui": statistics.mean(f[2] for f in frames) if frames else 0,
-        # Unpinned, the display may change its rate within the drag, which
-        # leaves no one period to judge the gaps by.
+        # Unpinned, the display may change its rate within the window, which
+        # leaves no one period to judge the gaps by; nor do no frames shown.
         "late": late(periods.pop(), shown) if len(periods) == 1 and len(shown) > 1 else None,
         "gpu": gpu.share(began, ended) if gpu else None,
     }
