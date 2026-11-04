@@ -1,5 +1,6 @@
 // Run both ways: `flutter test` frosts, `flutter test --enable-impeller`
 // bends through the shader, which covers the pane's rect under a clip.
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -50,12 +51,26 @@ void main() {
         ),
       ),
     );
-    // The shader loads off the frame.
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 300)),
-    );
+    // The shader loads off the frame: wait for it, then draw again, so the
+    // pane is the shader's and not the frost it falls back to meanwhile.
+    final shaded = ui.ImageFilter.isShaderFilterSupported;
+    if (shaded) {
+      final loaded = Completer<void>();
+      void onLoaded() => loaded.complete();
+      if (liquidGlassProgram(onLoaded) == null) {
+        await tester.runAsync(
+          () => loaded.future.timeout(const Duration(seconds: 5)),
+        );
+      }
+      forgetLiquidGlassProgram(onLoaded);
+      expect(liquidGlassProgram(() {}), isNotNull);
+    }
     tester.binding.scheduleFrame();
     await tester.pump();
+    if (shaded) {
+      // The host captured the backdrop for the pane, which the shader reads.
+      expect(LiquidGlassHost.debugLastCapture?.panes, hasLength(1));
+    }
 
     final pixels = await tester.runAsync(() async {
       final boundary =
