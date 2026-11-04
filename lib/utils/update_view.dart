@@ -209,20 +209,27 @@ class _FadingScrollState extends State<FadingScroll> {
         child: widget.child,
       ),
     );
-    // 一直套着，免得开关时滚动位置跟着子树重建丢掉
-    return ShaderMask(
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (rect) => LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.black,
-          Colors.black,
-          _more ? Colors.transparent : Colors.black,
-        ],
-        stops: [0, 1 - 32 / rect.height.clamp(32, double.infinity), 1],
-      ).createShader(rect),
-      child: scroll,
+    // 一直套着，免得开关时滚动位置跟着子树重建丢掉；窗口变高变矮时
+    // 视口尺寸会变，也要重算
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _update());
+        return false;
+      },
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black,
+            Colors.black,
+            _more ? Colors.transparent : Colors.black,
+          ],
+          stops: [0, 1 - 32 / rect.height.clamp(32, double.infinity), 1],
+        ).createShader(rect),
+        child: scroll,
+      ),
     );
   }
 }

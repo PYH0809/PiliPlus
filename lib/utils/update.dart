@@ -191,10 +191,10 @@ class _UpdateDialog extends StatelessWidget {
             onPressed: () => Update.onDownload(manifest, ext: ext),
             child: Text(text),
           )
-        // 强调色只给主按钮，次要按钮用正文色
-        : TextButton(
-            onPressed: () => Update.onDownload(manifest, ext: ext),
-            child: Text(text, style: TextStyle(color: colorScheme.onSurface)),
+        // 其他格式是说明下面的灰色小链接，按钮最多三个，矮窗口也放得下
+        : DialogLink(
+            label: text,
+            onTap: () => Update.onDownload(manifest, ext: ext),
           );
     final apk = this.apk;
     final size =
@@ -211,7 +211,10 @@ class _UpdateDialog extends StatelessWidget {
       },
       child: Text('跳过此版本', style: TextStyle(color: colorScheme.onSurface)),
     );
-    // 从上到下：主按钮、其余下载按钮、跳过此版本、取消
+    final formats = apk == null
+        ? Update.formatButtons(manifest, downloadBtn)
+        : const <Widget>[];
+    // 从上到下：主按钮、跳过此版本、取消
     final topDown = [
       if (apk != null)
         FilledButton(
@@ -219,7 +222,7 @@ class _UpdateDialog extends StatelessWidget {
           child: const Text('下载并安装'),
         )
       else
-        ...Update.formatButtons(manifest, downloadBtn),
+        formats.first,
       skip,
       cancel,
     ];
@@ -262,6 +265,20 @@ class _UpdateDialog extends StatelessWidget {
               ),
             ),
           ),
+          if (formats.length > 1) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              crossAxisAlignment: .center,
+              children: [
+                Text(
+                  '其他格式',
+                  style: TextStyle(fontSize: 13, color: colorScheme.outline),
+                ),
+                const SizedBox(width: 4),
+                ...formats.skip(1),
+              ],
+            ),
+          ],
         ],
       ),
       // 玻璃的 GlassAlertActions 把 FilledButton 放最上、取消放最下，
