@@ -14,9 +14,11 @@ the frames the screen showed a refresh or more late (SurfaceFlinger's
 present times for the app's surface, against its refresh period, as
 `dumpsys gfxinfo` counts none: Flutter draws into a SurfaceView).
 
-With root (`su`) on a Qualcomm GPU, it also reads the GPU's busy time from
-kgsl (`/sys/class/kgsl/kgsl-3d0/gpubusy`) over each drag, and prints it per frame
-drawn. The GPU's clock follows its load, so --pin holds it at 427 MHz and
+With root (`su`) on a Qualcomm GPU, it also prints how busy the GPU was over
+each drag, from kgsl (`/sys/class/kgsl/kgsl-3d0/gpubusy`). That answers the
+busy and total time of the driver's last window, about a second, so it is
+read through the drag and the windows that cover it are summed: they reach
+up to a second past either end of it. The GPU's clock follows its load, so --pin holds it at 427 MHz and
 the display at 90 Hz while measuring, and puts both back after. Without
 root or kgsl those numbers are left out, and it says so. --surface names the
 app's SurfaceFlinger layer, when the one it finds is not it.
@@ -135,9 +137,16 @@ def late(period, times):
 def drag(app, start, end, root):
     app.ext("resetFrames")
     adb_shell("dumpsys SurfaceFlinger --latency-clear")
+    sampler = None
     if root:
-        # Each read answers the busy time since the last one.
-        su(f"cat {KGSL}/gpubusy >/dev/null")
+        serial = ["-s", SERIAL] if SERIAL else []
+        sampler = subprocess.Popen(
+            ["adb", *serial, "shell",
+             # Bounded, should the phone's shell outlive adb's.
+             f"su -c 'for i in $(seq 40); do cat {KGSL}/gpubusy; sleep 0.25; done'"],
+            stdout=subprocess.PIPE,
+            text=True,
+        )
     # SurfaceFlinger keeps the last 128 or so: read them as the drag goes.
     serial = ["-s", SERIAL] if SERIAL else []
     swipe = subprocess.Popen(
@@ -165,14 +174,24 @@ def drag(app, start, end, root):
         if frames.get("frames", 0) == last and last > 0:
             break
     count = frames.get("frames", 0)
-    # Over the same frames, the fling after the drag's end with them.
-    busy = int(su(f"cat {KGSL}/gpubusy").split()[0]) / 1000 if root else None
+    busy = None
+    if sampler:
+        sampler.terminate()
+        windows = []
+        for line in sampler.communicate()[0].split("\n"):
+            parts = line.split()
+            if len(parts) == 2 and (not windows or windows[-1] != parts):
+                windows.append(parts)
+        # The first was the window before the drag.
+        windows = [(int(b), int(t)) for b, t in windows[1:]]
+        if windows:
+            busy = sum(b for b, _ in windows) / max(sum(t for _, t in windows), 1)
     return {
         "frames": count,
         "fps": frames.get("fps", 0),
         "raster": frames.get("rasterMean", 0),
         "late": late(min(periods - {None}), sorted(shown)) if periods - {None} else 0,
-        "gpu": busy / count if busy is not None and count else None,
+        "gpu": busy,
     }
 
 
@@ -248,6 +267,7 @@ def main():
     for way in ("up", "down"):
         # A drag the page could not follow, at an end of it, drew no frames.
         runs = [d for w, d in drags if w == way and d["frames"] >= 2]
+        busy = [r["gpu"] for r in runs if r["gpu"] is not None]
         if not runs:
             print(f"{args.label} {way:4}: no frames drawn; is there room to scroll?")
             continue
@@ -256,8 +276,8 @@ def main():
             f"  raster {statistics.median(r['raster'] for r in runs):4.1f} ms"
             f"  late {[r['late'] for r in runs]}"
         )
-        if root:
-            line += f"  GPU {statistics.median(r['gpu'] for r in runs):4.1f} ms a frame"
+        if busy:
+            line += f"  GPU busy {100 * statistics.median(busy):3.0f}%"
         print(line, flush=True)
     print(f"battery {temperature()} °C", flush=True)
 
