@@ -125,6 +125,15 @@ abstract final class Update {
                         style: TextStyle(color: colorScheme.primary),
                       ),
                     ),
+                    // 放在这里而不是按钮区：按钮竖排，多一个就挤掉矮屏上的说明
+                    if (apk != null)
+                      TextButton(
+                        onPressed: () => onDownload(manifest),
+                        child: Text(
+                          '用浏览器下载',
+                          style: TextStyle(color: colorScheme.primary),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -150,13 +159,12 @@ abstract final class Update {
                   style: TextStyle(color: colorScheme.outline),
                 ),
               ),
-              if (apk != null) ...[
-                downloadBtn('浏览器下载'),
+              if (apk != null)
                 FilledButton(
                   onPressed: () => _downloadInApp(manifest, apk),
                   child: const Text('下载并安装'),
-                ),
-              ] else
+                )
+              else
                 ...formatButtons(manifest, downloadBtn),
             ],
           );
