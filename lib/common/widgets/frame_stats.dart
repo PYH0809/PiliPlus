@@ -1,6 +1,7 @@
 import 'dart:ui' show FramePhase, FrameTiming;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
 /// The frames' UI and raster times since [reset], for the debug commands to
@@ -18,6 +19,15 @@ abstract final class FrameStats {
     _counting = true;
     SchedulerBinding.instance.addTimingsCallback(_onTimings);
     VideoGlass.debugDescribing = true;
+    // The glass over a still video describes itself as it paints: paint it
+    // once now, rather than wait for something else to.
+    void repaint(RenderObject object) {
+      object
+        ..markNeedsPaint()
+        ..visitChildren(repaint);
+    }
+
+    RendererBinding.instance.renderViews.forEach(repaint);
   }
 
   static void _onTimings(List<FrameTiming> timings) {

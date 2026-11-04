@@ -326,15 +326,19 @@ def main():
     danmaku = args.pop(0) if args[0] in ("true", "false") else "false"
     ext("setting", key="autoPlayEnable", value="true")
     ext("setting", key="enableShowDanmaku", value=danmaku)
-    # The controls stay as each case shows or hides them.
+    # The controls stay as each case shows or hides them, and hide by
+    # themselves again once done.
     ext("controlsStay", on="true")
-    for case in args:
-        try:
-            s = measure(case)
-        except Failed as e:
-            print(f"{case}: FAILED {e}", flush=True)
-            continue
-        print(f"{case}: {describe(s['frames'])}", flush=True)
+    try:
+        for case in args:
+            try:
+                s = measure(case)
+            except Failed as e:
+                print(f"{case}: FAILED {e}", flush=True)
+                continue
+            print(f"{case}: {describe(s['frames'])}", flush=True)
+    finally:
+        ext("controlsStay", on="false")
 
 
 if __name__ == "__main__":
