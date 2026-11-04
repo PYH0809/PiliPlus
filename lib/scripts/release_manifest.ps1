@@ -75,10 +75,25 @@ if ($LASTEXITCODE -ne 0) {
     throw "can't read release $Tag"
 }
 
+# The newest published release before this one, for the update dialog's link
+# to this version's commits. Android's manifest goes up before publish, the
+# others' after it, so "the latest" won't do: take the highest +N below ours.
+$previousTag = $null
+$tags = gh release list --exclude-drafts --limit 30 --json tagName --jq '.[].tagName'
+if ($LASTEXITCODE -eq 0) {
+    $previousTag = $tags |
+        Where-Object { $_ -match '\+(\d+)$' -and [int]$matches[1] -lt $versionCode } |
+        Sort-Object { [int]($_ -replace '^.*\+', '') } |
+        Select-Object -Last 1
+}
+
 $manifest = [ordered]@{
     tag         = $Tag
     versionCode = $versionCode
     body        = ($body -join "`n")
+    # When this platform's packages were ready, which the update dialog shows
+    date        = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    previousTag = $previousTag
     assets      = @($assets)
 }
 
