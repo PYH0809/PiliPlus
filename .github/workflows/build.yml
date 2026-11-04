@@ -202,6 +202,16 @@ jobs:
                   done
               shell: bash
 
+            # A rerun replaces the APKs of a release that may already have
+            # android.json: withdraw it first, so it never points at APKs
+            # half replaced. It goes up again once they all are.
+            - name: Withdraw the update manifest
+              if: ${{ needs.prepare.outputs.tag != '' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '') }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: pwsh lib/scripts/release_manifest.ps1 -Withdraw android "${{ needs.prepare.outputs.tag || github.event.inputs.tag }}"
+
             - name: Release
               if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
               uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3

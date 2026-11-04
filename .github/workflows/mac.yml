@@ -51,6 +51,17 @@ jobs:
       - name: Rename DMG
         run: mv PiliPlus*.dmg PiliPlus_macos_${{ env.version }}.dmg
 
+      # PiliPlus: a rerun replaces the packages of a release that may already
+      # have macos.json: withdraw it first, so it never points at packages
+      # half replaced
+      - name: Withdraw the update manifest
+        if: ${{ inputs.draft_tag != '' || inputs.tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: pwsh lib/scripts/release_manifest.ps1 -Withdraw macos "${{ inputs.draft_tag || inputs.tag }}"
+
       - name: Release
         if: ${{ github.event.inputs.tag != '' }}
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3

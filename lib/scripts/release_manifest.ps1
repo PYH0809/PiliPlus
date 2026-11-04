@@ -4,19 +4,45 @@
 # app download the packages through a mirror and still trust them.
 #
 #   pwsh lib/scripts/release_manifest.ps1 <os> <tag> <package>...
+#   pwsh lib/scripts/release_manifest.ps1 -Withdraw <os> <tag>
+#
+# -Withdraw deletes <os>.json before a rerun replaces the packages, so it
+# never points at packages half replaced. Only a release that doesn't exist
+# yet (a manual tag) is skipped; any other failure stops the upload.
 #
 # <os> is Dart's Platform.operatingSystem. The build number comes from
 # $env:version (<name>+<code>, set by build.ps1), so it is the one compiled
 # into the packages; the note is the release's body.
 param(
+    [switch]$Withdraw,
     [Parameter(Mandatory)][string]$Os,
     [Parameter(Mandatory)][string]$Tag,
-    [Parameter(Mandatory, ValueFromRemainingArguments)][string[]]$Files
+    [Parameter(ValueFromRemainingArguments)][string[]]$Files
 )
 
 $ErrorActionPreference = 'Stop'
 # gh prints UTF-8; Windows would read it in its ANSI code page
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
+
+if ($Withdraw) {
+    $names = gh release view $Tag --json assets --jq '.assets[].name' 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        if ("$names" -match 'release not found') {
+            return
+        }
+        throw "can't read release ${Tag}: $names"
+    }
+    if ($names -contains "$Os.json") {
+        gh release delete-asset $Tag "$Os.json" --yes
+        if ($LASTEXITCODE -ne 0) {
+            throw "can't delete $Os.json"
+        }
+    }
+    return
+}
+if (-not $Files) {
+    throw 'no packages'
+}
 
 if ($env:version -notmatch '\+(\d+)$') {
     throw "no build number in version '$env:version'"
