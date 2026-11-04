@@ -75,11 +75,14 @@ def has_kgsl():
 
 
 def surface():
-    """The app's SurfaceView layer, named as this Android names it."""
+    """The app's SurfaceView layer, named as this Android names it: of the
+    layers so named, as Android 12's container and its BLAST buffer layer,
+    the one that has shown frames."""
     for line in adb_shell("dumpsys SurfaceFlinger --list").split("\n"):
         name = line.strip()
         if name.startswith("SurfaceView") and PACKAGE in name:
-            return name
+            if presents(required=False, layer=name)[1]:
+                return name
     sys.exit(f"no SurfaceView layer of {PACKAGE}: is the app in front? (--surface names it)")
 
 
@@ -106,11 +109,12 @@ class App:
         return self.call(f"ext.piliplus.{name}", isolateId=self.isolate)["result"]
 
 
-def presents(required=True):
+def presents(required=True, layer=None):
     """The display's refresh period and the app surface's present times
     SurfaceFlinger holds, in ns."""
     period, times = None, []
-    for line in adb_shell(f'dumpsys SurfaceFlinger --latency "{SURFACE}"').split("\n"):
+    layer = layer or SURFACE
+    for line in adb_shell(f'dumpsys SurfaceFlinger --latency "{layer}"').split("\n"):
         parts = line.split()
         if not parts or not all(p.isdigit() for p in parts):
             continue
@@ -119,7 +123,7 @@ def presents(required=True):
         elif len(parts) == 3 and 0 < int(parts[1]) < 2**62:
             times.append(int(parts[1]))
     if required and (not period or not times):
-        sys.exit(f"SurfaceFlinger holds no frames for {SURFACE!r}: is the app in front?")
+        sys.exit(f"SurfaceFlinger holds no frames for {layer!r}: is the app in front?")
     return period, times
 
 
