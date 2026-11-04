@@ -8,7 +8,10 @@ turns on every glass part. It only takes effect after a restart.
 
 - `LiquidGlassHost` captures what is drawn behind each pane, and the shader in `shaders/liquid_glass.frag` refracts
   that capture. `lib/main.dart` wraps the whole app in `LiquidGlassScope` + `LiquidGlassHost` in its `builder`, so
-  glass works on any route or dialog. Don't add another host.
+  glass works on any route or dialog. Don't add another host: one within another leaves its panes to the outer one
+  and captures nothing itself.
+- `LiquidGlassGroup` keeps the panes below on one level, reading one capture, as iOS's `GlassEffectContainer`.
+  Groups given the same `shared` object are one wherever they lie, so separate subtrees can share a capture.
 - Refraction needs Impeller's shader filters (`ImageFilter.isShaderFilterSupported`). Without them, as on macOS
   and in upstream's Android builds, panes fall back to a thickened tint with a rim, not a blur. Check how a change
   looks both ways; this fork's Android builds have Impeller on.
@@ -37,7 +40,8 @@ turns on every glass part. It only takes effect after a restart.
   fading with it rather than leaving first. While it moves, the controls' frosted panes over the video hold their
   glass still (`VideoGlass.frostHeld`): drawn from an image taken as it set off, their content live. Bent glass,
   clear, stays live.
-- A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
+- A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `banner`, `menu`, `editMenu` (the text selection
+  toolbar, clearer than a menu), `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.
 - **Dialogs and popup menus** turn to glass without touching their call sites.
