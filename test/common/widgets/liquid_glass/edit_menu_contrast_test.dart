@@ -83,7 +83,8 @@ Future<Color> _glassOver(WidgetTester tester, Color behind) async {
 }
 
 void main() {
-  final label = ThemeData(brightness: Brightness.dark).colorScheme.onSurface;
+  // The text selection toolbar's labels when dark (GlassSurfaces).
+  const label = Colors.white;
 
   for (final (name, behind) in const [
     ('white', Color(0xFFFFFFFF)),

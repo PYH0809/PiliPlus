@@ -239,8 +239,9 @@ class LiquidGlassStyle {
         ? const LiquidGlassStyle(
             // PiliPlus: a thicker tint than FlClash's 0x85454545, whose light
             // labels read at 1.58:1 over white, 1.62 over yellow and 1.79
-            // over light blue; this one at 4.71, 4.80 and 4.99, past the
-            // 4.5:1 text needs (edit_menu_contrast_test.dart).
+            // over light blue; this one at 4.71, 4.80 and 4.99, and the
+            // toolbar's white labels at 6.10, 6.22 and 6.47, past the 4.5:1
+            // text needs (edit_menu_contrast_test.dart).
             tint: Color(0xC8303030),
             contrast: -0.33,
             blur: 0,

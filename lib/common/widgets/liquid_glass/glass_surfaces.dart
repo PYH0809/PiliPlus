@@ -138,7 +138,13 @@ abstract final class GlassSurfaces {
           _ => 0,
         },
         child: Theme(
-          data: withoutRipples(theme),
+          // White labels when dark, as iOS's: the pure black theme dims
+          // onSurface, which would read under 4.5:1 over bright content.
+          data: withoutRipples(theme).copyWith(
+            colorScheme: colorScheme.brightness == Brightness.dark
+                ? colorScheme.copyWith(onSurface: Colors.white)
+                : colorScheme,
+          ),
           child: Material(type: MaterialType.transparency, child: child),
         ),
       );
