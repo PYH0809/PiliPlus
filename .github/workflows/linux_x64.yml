@@ -239,6 +239,16 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: gh release upload "${{ inputs.draft_tag }}" PiliPlus_linux_*.tar.gz PiliPlus_linux_*.deb PiliPlus_linux_*.rpm PiliPlus_linux_*.AppImage --clobber
 
+      # PiliPlus: linux.json, which the app's update check reads, goes up after
+      # the packages, so its presence means they are all there
+      - name: Upload the update manifest
+        if: ${{ inputs.draft_tag != '' || inputs.tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: pwsh lib/scripts/release_manifest.ps1 linux "${{ inputs.draft_tag || inputs.tag }}" PiliPlus_linux_*.tar.gz PiliPlus_linux_*.deb PiliPlus_linux_*.rpm PiliPlus_linux_*.AppImage
+
       - name: Upload linux targz package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

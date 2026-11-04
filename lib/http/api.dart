@@ -410,9 +410,12 @@ abstract final class Api {
   // 黑名单
   static const String blackList = '/x/relation/blacks';
 
-  // github 获取最新版
-  static const String latestApp =
-      'https://api.github.com/repos/PYH0809/PiliPlus/releases/latest';
+  // github 最新版：Release 的文件下载不受 REST API 每小时 60 次的限制。
+  // <os>.json 是更新清单，安装包在 releaseDownload/<tag>/<文件名>
+  static const String latestRelease =
+      'https://github.com/PYH0809/PiliPlus/releases/latest/download';
+  static const String releaseDownload =
+      'https://github.com/PYH0809/PiliPlus/releases/download';
 
   // 多少人在看
   // https://api.bilibili.com/x/player/online/total?aid=913663681&cid=1203559746&bvid=BV1MM4y1s7NZ&ts=56427838

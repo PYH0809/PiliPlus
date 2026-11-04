@@ -217,6 +217,15 @@ jobs:
                   GH_REPO: ${{ github.repository }}
               run: gh release upload "${{ needs.prepare.outputs.tag }}" PiliPlus_android_*.apk --clobber
 
+            # android.json, which the app's update check reads, goes up after the
+            # APKs, so its presence means they are all there; publish comes after.
+            - name: Upload the update manifest
+              if: ${{ needs.prepare.outputs.tag != '' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '') }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+              run: pwsh lib/scripts/release_manifest.ps1 android "${{ needs.prepare.outputs.tag || github.event.inputs.tag }}" PiliPlus_android_*.apk
+
             - name: 上传
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
