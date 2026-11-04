@@ -8,6 +8,7 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
@@ -505,6 +506,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
     expect(await repaintsBelow(), isTrue);
+  });
+
+  testWidgets('a press held on the card takes the page below before the tap', (
+    tester,
+  ) async {
+    await _pump(tester);
+    final press = await tester.startGesture(
+      tester.getCenter(find.text('卡片')),
+    );
+    await tester.pump(VideoExpandSourceState.pressHold);
+    await tester.pump(const Duration(milliseconds: 40));
+    await press.up();
+    await tester.pump();
+    expect(Get.currentRoute, '/videoV');
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isTrue);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a quick tap or a press that scrolls takes it at the tap', (
+    tester,
+  ) async {
+    await _pump(tester);
+    // Moved past the touch slop before it held still long enough, the press
+    // took nothing; nor does a tap lifted at once.
+    final press = await tester.startGesture(
+      tester.getCenter(find.text('卡片')),
+    );
+    await press.moveBy(const Offset(0, kTouchSlop + 4));
+    await tester.pump(VideoExpandSourceState.pressHold * 2);
+    await press.cancel();
+    await tester.pump();
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('a page opened over it lets the picture below go', (
