@@ -10,8 +10,11 @@ Each round drags the page up and then down, 1.2 s each, through the
 middle of the screen, and measures 1.7 s from the first frame the drag
 draws, the fling after it with it: `input swipe` lets go moving. Frames a
 page draws by itself, as an animated picture's, fall outside that. For each
-drag it prints the frames the app drew, their fps and mean UI and raster
-times (FrameStats' frame log), and the frames the screen showed a refresh
+drag it prints the frames the app drew in the window, their fps from the
+first to the last of them (a page stops drawing once the fling settles, so
+a rate over the whole window would count that as slowness; a build that
+stalls instead draws fewer frames, which the count shows), their mean UI
+and raster times (FrameStats' frame log), and the frames the screen showed a refresh
 or more late (SurfaceFlinger's present times for the app's surface, against
 its refresh period, as `dumpsys gfxinfo` counts none: Flutter draws into a
 SurfaceView). A drag that reaches an end of the page stands still for the
