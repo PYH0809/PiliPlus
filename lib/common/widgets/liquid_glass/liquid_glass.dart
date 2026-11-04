@@ -1,6 +1,9 @@
-// Ported from FlClash (https://github.com/chen08209/FlClash),
-// lib/ui/liquid_glass.dart and lib/ui/liquid_glass_capture.dart, GPL-3.0.
-// Only the imports changed, besides the changes marked `PiliPlus:`. FlClash's
+// Ported from FlClash (https://github.com/chen08209/FlClash) v0.9.2,
+// lib/ui/liquid_glass.dart and lib/ui/liquid_glass_capture.dart, GPL-3.0, and
+// synced with prism_ui (https://github.com/chen08209/prism_ui) 63450c0ac,
+// where FlClash keeps them since v0.9.3. Only the imports and the shader's
+// path changed, besides the changes marked `PiliPlus:`; LiquidGlass keeps
+// FlClash's buttonStyle in place of prism_ui's buttonBackground. FlClash's
 // color, context and shape helpers that these use are in glass_support.dart.
 
 // Kept as upstream wrote it, to stay easy to sync.
@@ -88,11 +91,17 @@ class LiquidGlassScope extends InheritedWidget {
 }
 
 /// Keeps the panes below on one level, as iOS's GlassEffectContainer does.
+/// Groups given the same [shared] object are one, wherever they lie.
 class LiquidGlassGroup extends InheritedWidget {
-  const LiquidGlassGroup({super.key, required super.child});
+  const LiquidGlassGroup({super.key, this.shared, required super.child});
 
-  static Object? _of(BuildContext context) =>
-      context.getElementForInheritedWidgetOfExactType<LiquidGlassGroup>();
+  final Object? shared;
+
+  static Object? _of(BuildContext context) {
+    final element = context
+        .getElementForInheritedWidgetOfExactType<LiquidGlassGroup>();
+    return (element?.widget as LiquidGlassGroup?)?.shared ?? element;
+  }
 
   @override
   bool updateShouldNotify(LiquidGlassGroup oldWidget) => false;
@@ -175,6 +184,32 @@ class LiquidGlassStyle {
           );
   }
 
+  /// iOS 27's notification banner (.agents/architecture.md).
+  factory LiquidGlassStyle.banner(ColorScheme colorScheme, {Color? fill}) {
+    final dark = colorScheme.brightness == Brightness.dark;
+    final regular = LiquidGlassStyle.regular(colorScheme);
+    return LiquidGlassStyle(
+      tint:
+          fill?.withValues(alpha: _bannerFillAlpha) ??
+          (dark
+              ? colorScheme.surfaceContainer
+                    .shiftTone(_darkBannerTintOverCard)
+                    .withValues(alpha: 0.42)
+              : const Color(0x86F9F9F9)),
+      blur: 0,
+      haze: 0.72,
+      hazeBlur: 15.6,
+      saturation: dark ? 1.925 : 2.1,
+      rim: regular.rim,
+      rimWidth: regular.rimWidth,
+      rimTail: regular.rimTail,
+      rimFocus: regular.rimFocus,
+      rimAdded: regular.rimAdded,
+      hairline: regular.hairline,
+      hairlineSide: regular.hairlineSide,
+    );
+  }
+
   /// Thicker than [LiquidGlassStyle.regular], for rows that read over anything.
   /// It takes its rim from a [LiquidGlassRim].
   factory LiquidGlassStyle.menu(ColorScheme colorScheme) {
@@ -194,6 +229,47 @@ class LiquidGlassStyle {
             saturation: 2,
             brightness: 1.1,
             rim: 0,
+          );
+  }
+
+  /// iOS 27's edit menu, far clearer than a menu card.
+  factory LiquidGlassStyle.editMenu(ColorScheme colorScheme) {
+    final dark = colorScheme.brightness == Brightness.dark;
+    return dark
+        ? const LiquidGlassStyle(
+            // PiliPlus: a thicker tint than FlClash's 0x85454545, whose light
+            // labels read at 1.58:1 over white, 1.62 over yellow and 1.79
+            // over light blue; this one at 4.71, 4.80 and 4.99, and the
+            // toolbar's white labels at 6.10, 6.22 and 6.47, past the 4.5:1
+            // text needs (edit_menu_contrast_test.dart).
+            tint: Color(0xC8303030),
+            contrast: -0.33,
+            blur: 0,
+            haze: 0.71,
+            hazeBlur: 15.6,
+            saturation: 1.8,
+            brightness: 1.55,
+            rim: 0.28,
+            rimWidth: 1.2,
+            rimTail: 0.17,
+            rimFocus: 1,
+            rimAdded: 0.38,
+            hairlineSide: 0.75,
+          )
+        : const LiquidGlassStyle(
+            tint: Color(0x85FFFFFF),
+            blur: 0,
+            haze: 0.71,
+            hazeBlur: 15.6,
+            saturation: 1.97,
+            brightness: 0.98,
+            rim: 0.28,
+            rimWidth: 1.2,
+            rimTail: 0.17,
+            rimFocus: 1,
+            rimAdded: 0.38,
+            hairline: 0.25,
+            hairlineSide: 0.75,
           );
   }
 
@@ -310,27 +386,28 @@ class LiquidGlassStyle {
   }
 
   // PiliPlus: takes a tint too, for a pane thicker than its style.
-  LiquidGlassStyle copyWith({double? blur, Color? tint}) => LiquidGlassStyle(
-    tint: tint ?? this.tint,
-    contrast: contrast,
-    blur: blur ?? this.blur,
-    haze: haze,
-    hazeBlur: hazeBlur,
-    refraction: refraction,
-    bevel: bevel,
-    saturation: saturation,
-    brightness: brightness,
-    rim: rim,
-    rimWidth: rimWidth,
-    rimTail: rimTail,
-    rimFocus: rimFocus,
-    rimAdded: rimAdded,
-    endShade: endShade,
-    dispersion: dispersion,
-    rimBlur: rimBlur,
-    hairline: hairline,
-    hairlineSide: hairlineSide,
-  );
+  LiquidGlassStyle copyWith({double? blur, double? hazeBlur, Color? tint}) =>
+      LiquidGlassStyle(
+        tint: tint ?? this.tint,
+        contrast: contrast,
+        blur: blur ?? this.blur,
+        haze: haze,
+        hazeBlur: hazeBlur ?? this.hazeBlur,
+        refraction: refraction,
+        bevel: bevel,
+        saturation: saturation,
+        brightness: brightness,
+        rim: rim,
+        rimWidth: rimWidth,
+        rimTail: rimTail,
+        rimFocus: rimFocus,
+        rimAdded: rimAdded,
+        endShade: endShade,
+        dispersion: dispersion,
+        rimBlur: rimBlur,
+        hairline: hairline,
+        hairlineSide: hairlineSide,
+      );
 
   static LiquidGlassStyle lerp(
     LiquidGlassStyle a,
@@ -436,6 +513,8 @@ class LiquidGlassStyle {
 }
 
 const _darkGlassTintOverCard = 7.0;
+const _darkBannerTintOverCard = 18.0;
+const _bannerFillAlpha = 0.8;
 
 final _darkGlassTints = <Color, Color>{};
 
@@ -663,10 +742,16 @@ class LiquidGlass extends StatelessWidget {
     this.shadows = const [],
     this.pressed = false,
     this.glow,
+    this.hold,
+    this.steadyFrost = false,
     this.child,
   });
 
   final LiquidGlassStyle style;
+
+  /// As [LiquidGlassPane.paint] takes it, but from the pane's top left.
+  final Rect? hold;
+  final bool steadyFrost;
 
   /// Rounds each corner on its own in place of the pill.
   final BorderRadius? borderRadius;
@@ -723,6 +808,8 @@ class LiquidGlass extends StatelessWidget {
         press: 0,
         fading: false,
         glow: glow,
+        hold: hold,
+        steadyFrost: steadyFrost,
         child: child,
       );
     }
@@ -739,6 +826,8 @@ class LiquidGlass extends StatelessWidget {
         press: press,
         fading: !pressed,
         glow: null,
+        hold: hold,
+        steadyFrost: steadyFrost,
         child: child,
       ),
       child: child,
@@ -756,6 +845,8 @@ class _LiquidGlassPane extends SingleChildRenderObjectWidget {
     required this.press,
     required this.fading,
     required this.glow,
+    required this.hold,
+    required this.steadyFrost,
     super.child,
   });
 
@@ -767,6 +858,8 @@ class _LiquidGlassPane extends SingleChildRenderObjectWidget {
   final double press;
   final bool fading;
   final LiquidGlassGlow? glow;
+  final Rect? hold;
+  final bool steadyFrost;
 
   @override
   _RenderLiquidGlass createRenderObject(BuildContext context) {
@@ -779,6 +872,8 @@ class _LiquidGlassPane extends SingleChildRenderObjectWidget {
       press: press,
       fading: fading,
       glow: glow,
+      hold: hold,
+      steadyFrost: steadyFrost,
     );
   }
 
@@ -795,7 +890,9 @@ class _LiquidGlassPane extends SingleChildRenderObjectWidget {
       ..shadows = shadows
       ..press = press
       ..fading = fading
-      ..glow = glow;
+      ..glow = glow
+      ..hold = hold
+      ..steadyFrost = steadyFrost;
   }
 }
 
@@ -809,7 +906,11 @@ class _RenderLiquidGlass extends RenderProxyBox {
     required double press,
     required bool fading,
     required LiquidGlassGlow? glow,
-  }) : _group = group,
+    required Rect? hold,
+    required bool steadyFrost,
+  }) : _hold = hold,
+       _steadyFrost = steadyFrost,
+       _group = group,
        _style = style,
        _borderRadius = borderRadius,
        _clipper = clipper,
@@ -819,6 +920,24 @@ class _RenderLiquidGlass extends RenderProxyBox {
        _glow = glow;
 
   late final _pane = LiquidGlassPane(markNeedsPaint);
+
+  Rect? _hold;
+  set hold(Rect? value) {
+    if (value == _hold) {
+      return;
+    }
+    _hold = value;
+    markNeedsPaint();
+  }
+
+  bool _steadyFrost;
+  set steadyFrost(bool value) {
+    if (value == _steadyFrost) {
+      return;
+    }
+    _steadyFrost = value;
+    markNeedsPaint();
+  }
 
   Object? _group;
   set group(Object? value) {
@@ -979,6 +1098,8 @@ class _RenderLiquidGlass extends RenderProxyBox {
         style: _style,
         shadows: _shadows,
         group: _group,
+        hold: _hold?.shift(offset),
+        steadyFrost: _steadyFrost,
         glow:
             _glow ??
             LiquidGlassGlow(
@@ -1258,6 +1379,7 @@ class _LiquidGlassLayer extends Layer {
   LiquidGlassRim? rim;
   Object? group;
   _Placement? _held;
+  _Placement? _heldHaze;
 
   ui.Picture? _frost;
   (Rect, BorderRadius, Path?, LiquidGlassStyle, LiquidGlassRim?)? _frostKey;

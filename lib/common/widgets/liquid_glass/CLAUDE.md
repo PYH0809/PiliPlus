@@ -8,7 +8,10 @@ turns on every glass part. It only takes effect after a restart.
 
 - `LiquidGlassHost` captures what is drawn behind each pane, and the shader in `shaders/liquid_glass.frag` refracts
   that capture. `lib/main.dart` wraps the whole app in `LiquidGlassScope` + `LiquidGlassHost` in its `builder`, so
-  glass works on any route or dialog. Don't add another host.
+  glass works on any route or dialog. Don't add another host: one within another leaves its panes to the outer one
+  and captures nothing itself.
+- `LiquidGlassGroup` keeps the panes below on one level, reading one capture, as iOS's `GlassEffectContainer`.
+  Groups given the same `shared` object are one wherever they lie, so separate subtrees can share a capture.
 - Refraction needs Impeller's shader filters (`ImageFilter.isShaderFilterSupported`). Without them, as on macOS
   and in upstream's Android builds, panes fall back to a thickened tint with a rim, not a blur. Check how a change
   looks both ways; this fork's Android builds have Impeller on.
@@ -37,7 +40,8 @@ turns on every glass part. It only takes effect after a restart.
   fading with it rather than leaving first. While it moves, the controls' frosted panes over the video hold their
   glass still (`VideoGlass.frostHeld`): drawn from an image taken as it set off, their content live. Bent glass,
   clear, stays live.
-- A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `menu`, `alert`, `tinted`, `lens`, `lensContent`.
+- A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `banner`, `menu`, `editMenu` (the text selection
+  toolbar, clearer than a menu), `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
   light around the edge, which `GlassPanel` draws.
 - **Dialogs and popup menus** turn to glass without touching their call sites.
@@ -170,7 +174,7 @@ lays it over the body. The two are as tall, so the content stays put as they swa
 | `glass_panel.dart` | `GlassPanel`: glass with a rim and a wide shadow, clipping its child, as a menu or alert | Yes |
 | `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled, 取消 at the bottom | Yes |
 | `glass_switch.dart` | `GlassSwitch`, iOS 26's switch (a 63×28 track, a white capsule thumb) with FlClash's motion: a press lifts the thumb into a lens over the track. A `Switch`'s own `thumbIcon` (a lock) stays on the thumb; the theme's tick doesn't | Yes |
-| `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, thicker glass, grow in, swell on press), menus (24 dp, rows inset 8), the selection toolbar and switches; `panel`, `pill`, `onGlass` for call sites | Yes |
+| `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, FlClash's `alert` glass and rim, grow in, swell on press), menus (24 dp, rows inset 8), the selection toolbar and switches; `panel`, `pill`, `onGlass` for call sites | Yes |
 | `video_glass.dart` | `VideoGlass`: a backdrop filter pane over the video, which the host cannot replay; the player's and live room's controls, notes and full-screen panels | Yes |
 | `glass_droplet.dart` | The return into a button as a drop of glass, shared by menus and pages: where the platter and droplet stand at a time, their shadows | Yes |
 | `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass. `GlassMenuSource`, the button it takes in and gives back | Yes |
