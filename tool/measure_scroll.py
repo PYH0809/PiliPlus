@@ -196,11 +196,11 @@ class GpuBusy:
 
 
 def screen_size():
-    """The screen's size in pixels, its override's when it has one."""
-    sizes = re.findall(r"(\d+)x(\d+)", adb_shell("wm size"))
-    if not sizes:
-        sys.exit("wm size answered no size")
-    return int(sizes[-1][0]), int(sizes[-1][1])
+    """The screen's size in pixels as it is turned now, as input takes it."""
+    size = re.search(r"cur=(\d+)x(\d+)", adb_shell("dumpsys window displays"))
+    if not size:
+        sys.exit("dumpsys window displays answered no current size")
+    return int(size[1]), int(size[2])
 
 
 def drag(app, start, end, root):
@@ -229,11 +229,13 @@ def drag(app, start, end, root):
         read_presents()
     if swipe.returncode != 0:
         sys.exit(f"input swipe failed: {swipe.returncode}")
-    ended = began + DRAG_S + 0.5
-    time.sleep(max(0.0, ended - time.time()))
-    read_presents()
-    # Frame timings come in batches, at least once a second.
-    time.sleep(1.1)
+    # The window counts from the first frame, which comes a little after
+    # the command: read on past its end, as frame timings, which come in
+    # batches at least once a second, take that long anyway.
+    ended = began + DRAG_S + 0.5 + 0.5
+    while time.time() < ended + 0.6:
+        time.sleep(0.4)
+        read_presents()
     # [raster finish us, raster ms, UI ms] a frame, on SurfaceFlinger's clock.
     log = json.loads(app.ext("frameLog"))
     first = log[0][0] * 1000 if log else 0
