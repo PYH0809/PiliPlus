@@ -117,15 +117,21 @@ abstract final class GlassSurfaces {
     // As FlClash's: a press lifts the thumb into a lens over the track.
     SurfaceBuilders.switchBuilder = (context, value, onChanged, thumbIcon) =>
         GlassSwitch(value: value, onChanged: onChanged, thumbIcon: thumbIcon);
-    // The copy and paste menu floats over the text as iOS's edit menu does,
-    // a capsule of the menus' glass.
+    // The copy and paste menu floats over the text as iOS 27's edit menu
+    // does, FlClash's: a capsule of clearer glass than a menu's, with a light
+    // shadow and no rim of light around it.
     SurfaceBuilders.textSelectionToolbar = (context, shape, child) {
       final theme = Theme.of(context);
       final colorScheme = theme.colorScheme;
       return GlassPanel(
-        style: LiquidGlassStyle.menu(colorScheme),
-        rim: LiquidGlassRim.menu(colorScheme),
-        shadows: menuShadows(colorScheme),
+        style: LiquidGlassStyle.editMenu(colorScheme),
+        shadows: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
         radius: switch (shape) {
           RoundedRectangleBorder(:final borderRadius) =>
             borderRadius.resolve(Directionality.of(context)).topLeft.x,

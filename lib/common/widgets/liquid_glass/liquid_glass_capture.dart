@@ -58,6 +58,9 @@ class LiquidGlassHost extends StatelessWidget {
   static LiquidGlassCapture? debugLastCapture;
 
   @visibleForTesting
+  static int debugCaptures = 0;
+
+  @visibleForTesting
   static bool? debugCarryBandsOverride;
 
   /// PiliPlus: whether panes draw their shadows and their frost's rims from
@@ -411,8 +414,19 @@ class _LiquidGlassHostLayer extends ContainerLayer {
 
   @override
   void addToScene(ui.SceneBuilder builder) {
-    _capture();
+    if (!_hasHostAbove) {
+      _capture();
+    }
     super.addToScene(builder);
+  }
+
+  bool get _hasHostAbove {
+    for (Layer? above = parent; above != null; above = above.parent) {
+      if (above is _LiquidGlassHostLayer) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -503,6 +517,7 @@ class _LiquidGlassHostLayer extends ContainerLayer {
       _atlases.removeLast().image.dispose();
     }
     assert(() {
+      LiquidGlassHost.debugCaptures++;
       LiquidGlassHost.debugLastCapture = (
         snapshots: snapshots,
         keptBands: keptBands,
@@ -544,7 +559,10 @@ class _LiquidGlassHostLayer extends ContainerLayer {
             _Behind(
               pane,
               pane.steadyFrost && stretch > 0
-                  ? style.copyWith(blur: style.blur / stretch)
+                  ? style.copyWith(
+                      blur: style.blur / stretch,
+                      hazeBlur: style.hazeBlur / stretch,
+                    )
                   : style,
               toHost,
               root,
@@ -592,10 +610,12 @@ class _LiquidGlassHostLayer extends ContainerLayer {
     final stretch = math.max(storage[0].abs(), storage[5].abs());
     final device = entry.device;
     if (stretch == 0 || device.isEmpty || !device.overlaps(bounds)) {
-      pane._held = null;
+      pane
+        .._held = null
+        .._heldHaze = null;
       return false;
     }
-    final hold = hazed ? null : pane.hold;
+    final hold = pane.hold;
     final sweep = hold == null
         ? device
         : device.expandToInclude(MatrixUtils.transformRect(entry.toHost, hold));
@@ -607,7 +627,7 @@ class _LiquidGlassHostLayer extends ContainerLayer {
     final needed = device.inflate(reach).intersect(bounds);
     final covered = sweep.inflate(reach).intersect(bounds);
     final longest = math.max(covered.width, covered.height) * devicePixelRatio;
-    final captured = hold != null && pane.program != null
+    final captured = !hazed && hold != null && pane.program != null
         ? math.min(blur, pane.holdFrost ?? blur)
         : blur;
     final divisor = math.max(
@@ -626,7 +646,7 @@ class _LiquidGlassHostLayer extends ContainerLayer {
     final blurSigma = frost > softness
         ? math.sqrt(frost * frost - softness * softness)
         : 0.0;
-    final held = pane._held;
+    final held = hazed ? pane._heldHaze : pane._held;
     final _Placement placement;
     if (hold != null &&
         held != null &&
@@ -653,7 +673,9 @@ class _LiquidGlassHostLayer extends ContainerLayer {
         blurSigma: blurSigma,
       );
     }
-    if (!hazed) {
+    if (hazed) {
+      pane._heldHaze = hold == null ? null : placement;
+    } else {
       pane._held = hold == null ? null : placement;
     }
     entry
