@@ -144,6 +144,7 @@ class DetailItem extends StatelessWidget {
       key: ObjectKey(entry),
       color: ColorScheme.of(context).surface,
       coverRadius: Style.mdRadius,
+      takesPressShot: !enableMultiSelect,
       builder: (context, source) => Material(
         type: MaterialType.transparency,
         child: InkWell(
