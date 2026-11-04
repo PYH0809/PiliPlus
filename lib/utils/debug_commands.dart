@@ -164,6 +164,11 @@ abstract final class DebugCommands {
     });
     _register('controlsStay', (params) async {
       PlPlayerController.debugControlsStay = params['on'] == 'true';
+      // Controls already showing keep or drop the timer that hides them.
+      final player = PlPlayerController.instance;
+      if (player != null && player.showControls.value) {
+        player.hideTaskControls();
+      }
       return '${PlPlayerController.debugControlsStay}';
     });
     _register('resetFrames', (params) async {
