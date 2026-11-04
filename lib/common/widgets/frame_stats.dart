@@ -1,3 +1,4 @@
+import 'dart:developer' show Timeline;
 import 'dart:ui' show FramePhase, FrameTiming;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
@@ -11,10 +12,14 @@ abstract final class FrameStats {
   // Every frame since the last reset, up to a minute's at 120 Hz.
   static final _counted = <FrameTiming>[];
   static var _counting = false;
+  // Frames built before this, on the timeline's clock, which the frames'
+  // own timestamps share, are left out: their timings can come in late.
+  static var _since = 0;
 
   /// Starts the count over, as before measuring what a change costs.
   static void reset() {
     _counted.clear();
+    _since = Timeline.now;
     if (_counting) return;
     _counting = true;
     SchedulerBinding.instance.addTimingsCallback(_onTimings);
@@ -28,10 +33,15 @@ abstract final class FrameStats {
     }
 
     RendererBinding.instance.renderViews.forEach(repaint);
+    // That frame is the count's own: count from the next.
+    SchedulerBinding.instance.endOfFrame.then((_) => _since = Timeline.now);
   }
 
   static void _onTimings(List<FrameTiming> timings) {
     for (final timing in timings) {
+      if (timing.timestampInMicroseconds(FramePhase.buildStart) < _since) {
+        continue;
+      }
       if (_counted.length < 7200) _counted.add(timing);
     }
   }
