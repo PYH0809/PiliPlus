@@ -102,18 +102,28 @@ class UpdateDownloader {
     void Function(int received, int total)? onProgress,
   ) async {
     final target = file;
-    if (target.existsSync() && await verify(target, asset)) return target;
+    if (target.existsSync() && await verify(target, asset)) {
+      return _cancelled ? null : target;
+    }
 
     final folder = Directory(dir);
     await folder.create(recursive: true);
+    // 取消后马上重来时，新的这次可能已经开始写了，旧的这次不要再清理
+    if (_cancelled) return null;
     // 每次下载用自己的临时文件：取消后马上重来时，旧的这次还在校验，
     // 不能动到新的这次正在写的文件
     final part = File(
       '${target.path}.${DateTime.now().microsecondsSinceEpoch}.part',
     );
-    // 以前版本的安装包
+    // 以前版本的安装包，和早先中断留下的临时文件；最近的临时文件可能是
+    // 另一次下载正在写的，留着
+    final stale = DateTime.now().subtract(const Duration(hours: 1));
     for (final i in folder.listSync()) {
-      if (i.path != target.path && i.path != part.path) _delete(File(i.path));
+      if (i.path == target.path || i.path == part.path) continue;
+      if (i.path.endsWith('.part') && i.statSync().modified.isAfter(stale)) {
+        continue;
+      }
+      _delete(File(i.path));
     }
     final failures = <String>[];
     for (final url in sources(UpdateHttp.assetUrl(manifest, asset), mirrors)) {

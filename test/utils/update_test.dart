@@ -361,6 +361,17 @@ void main() {
       expect(fetched, 0);
       expect(file!.readAsBytesSync(), good);
 
+      // another download's recent temporary file stays, an old one goes
+      final recent = File('${dir.path}/p.apk.1.part')..writeAsBytesSync(good);
+      final old = File('${dir.path}/p.apk.0.part')
+        ..writeAsBytesSync(good)
+        ..setLastModifiedSync(DateTime.now().subtract(const Duration(days: 1)));
+      File('${dir.path}/p.apk').writeAsBytesSync([7, 7, 7]);
+      await downloader((url, _) => good).run();
+      expect(recent.existsSync(), isTrue);
+      expect(old.existsSync(), isFalse);
+      recent.deleteSync();
+
       // a stale file of the same name is downloaded again
       File('${dir.path}/p.apk').writeAsBytesSync([7, 7, 7]);
       await downloader((url, _) {

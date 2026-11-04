@@ -356,7 +356,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
         .started => '已打开系统安装程序。如果没有装上，可以点「安装」再试',
         .signature =>
           '安装包的签名和已安装的 PiliPlus 不同（比如现在装的是自己编译的版本），'
-              '系统不允许覆盖安装。需要先卸载当前版本（会清除应用数据）再安装',
+              '系统不允许覆盖安装。需要先卸载当前版本再安装；卸载会清除应用数据，'
+              '也会删掉这里下好的安装包，可以先用「浏览器下载」把它存到手机上',
         .downgrade => '安装包的版本比已安装的低，系统不允许覆盖安装',
         .invalid => '安装包无法解析，已删除，请重新下载',
         .permission => '没有获得安装应用的权限，无法安装',
@@ -427,6 +428,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
         ],
         .install => [
           cancel,
+          // 装不上时的后备，签名不符时也用它把安装包存到应用外面
+          browser,
           if (_file == null)
             FilledButton(
               onPressed: () => setState(_start),
