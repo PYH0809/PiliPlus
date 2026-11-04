@@ -573,14 +573,14 @@ abstract final class PageUtils {
     final colorScheme = theme.colorScheme;
     // The panel draws the player's video again under it, as the bars over
     // the video do, frosted: bending a pane half the screen wide costs a
-    // phone a frame's time, and its thick glass shows little of it.
+    // phone a frame's time, and its frost shows little of it.
     return Padding(
       padding: const .all(8),
       child: VideoGlassSource.overPlayer(
         child: VideoGlass(
           radius: radius,
           refract: false,
-          style: GlassSurfaces.alertStyle(colorScheme),
+          style: LiquidGlassStyle.alert(colorScheme),
           rim: LiquidGlassRim.alert(colorScheme),
           child: ClipRSuperellipse(
             borderRadius: const .all(.circular(radius)),
