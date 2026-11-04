@@ -449,9 +449,9 @@ abstract final class Pref {
   static bool get autoUpdate =>
       _setting.get(SettingBoxKey.autoUpdate, defaultValue: true);
 
-  // 自动检查更新时，这个 versionCode 及更早的版本不再提示
-  static int get skippedUpdate =>
-      _setting.get(SettingBoxKey.skippedUpdate, defaultValue: 0);
+  // 「跳过此版本」跳过的 tag；自动检查更新时它和更早的版本不再提示
+  static String get skippedUpdate =>
+      _setting.get(SettingBoxKey.skippedUpdate, defaultValue: '');
 
   static bool get horizontalPreview =>
       _setting.get(SettingBoxKey.horizontalPreview, defaultValue: false);

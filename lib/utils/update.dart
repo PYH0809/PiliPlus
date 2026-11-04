@@ -27,22 +27,23 @@ abstract final class Update {
     int versionCode = BuildConfig.versionCode,
   }) => manifest.versionCode > versionCode;
 
-  // 发版的序号：tag 的 +N。手动发版能把构建号（versionCode）单独调高，
-  // 跳过的界限要按发版顺序记，不能用它；tag 不是这个格式时才退回构建号
-  static int releaseNumber(UpdateManifest manifest) =>
-      switch (RegExp(r'\+(\d+)$').firstMatch(manifest.tag)) {
-        final match? => int.parse(match[1]!),
-        null => manifest.versionCode,
-      };
+  static final _releaseNumber = RegExp(r'\+(\d+)$');
 
-  // 用户在对话框里点过「跳过此版本」的版本，自动检查时不再提示，比它新的
-  // 照常提示；从「关于」手动检查是用户自己要看，照常提示。skipped 是
-  // 跳过的那一版的 releaseNumber
+  // 用户在对话框里点过「跳过此版本」的版本（存它的 tag），自动检查时不再
+  // 提示，比它新的照常提示；从「关于」手动检查是用户自己要看，照常提示。
+  // 新旧按 tag 的 +N（发版顺序）比，不用构建号：手动发版能把构建号单独
+  // 调高；有一边的 tag 不带 +N 时比不出先后，只跳过同一个 tag
   static bool isSkipped(
     UpdateManifest manifest, {
     required bool isAuto,
-    required int skipped,
-  }) => isAuto && releaseNumber(manifest) <= skipped;
+    required String skipped,
+  }) {
+    if (!isAuto || skipped.isEmpty) return false;
+    final current = _releaseNumber.firstMatch(manifest.tag)?[1];
+    final previous = _releaseNumber.firstMatch(skipped)?[1];
+    if (current == null || previous == null) return manifest.tag == skipped;
+    return int.parse(current) <= int.parse(previous);
+  }
 
   // 这一版的提交：清单带了上一版的 tag 就比较两版，没有就打开这一版的
   // Release 页
@@ -223,10 +224,7 @@ class _UpdateDialog extends StatelessWidget {
     final skip = TextButton(
       onPressed: () {
         SmartDialog.dismiss();
-        GStorage.setting.put(
-          SettingBoxKey.skippedUpdate,
-          Update.releaseNumber(manifest),
-        );
+        GStorage.setting.put(SettingBoxKey.skippedUpdate, manifest.tag);
       },
       child: Text('跳过此版本', style: TextStyle(color: colorScheme.onSurface)),
     );

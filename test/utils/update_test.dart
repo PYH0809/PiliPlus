@@ -142,48 +142,51 @@ void main() {
   test('a skipped version stays quiet only on an auto check', () {
     final m = _manifest([]); // 2.2.0+6120
     // skipped this very version: silent on auto, shown on a manual check
-    expect(Update.isSkipped(m, isAuto: true, skipped: 6120), isTrue);
-    expect(Update.isSkipped(m, isAuto: false, skipped: 6120), isFalse);
+    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6120'), isTrue);
+    expect(Update.isSkipped(m, isAuto: false, skipped: '2.2.0+6120'), isFalse);
     // a newer one than the skipped prompts again
-    expect(Update.isSkipped(m, isAuto: true, skipped: 6119), isFalse);
+    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6119'), isFalse);
     // skipping a later one covers this one too
-    expect(Update.isSkipped(m, isAuto: true, skipped: 6125), isTrue);
+    expect(Update.isSkipped(m, isAuto: true, skipped: '2.2.0+6125'), isTrue);
     // nothing skipped
-    expect(Update.isSkipped(m, isAuto: true, skipped: 0), isFalse);
+    expect(Update.isSkipped(m, isAuto: true, skipped: ''), isFalse);
   });
 
   test('skipping goes by the release order, not a raised build number', () {
-    // a manual build of +6100 with its build number raised to 9000
-    final raised = UpdateManifest.fromJson({
-      'tag': '2.2.0+6100',
-      'versionCode': 9000,
+    UpdateManifest release(String tag, int code) => UpdateManifest.fromJson({
+      'tag': tag,
+      'versionCode': code,
       'assets': [],
     });
-    expect(Update.releaseNumber(raised), 6100);
-    final next = UpdateManifest.fromJson({
-      'tag': '2.2.0+6101',
-      'versionCode': 6101,
-      'assets': [],
-    });
-    // skipping the raised one doesn't hide the next release
+    // +6100 built with its build number raised to 9000, then skipped
     expect(
       Update.isSkipped(
-        next,
+        release('2.2.0+6101', 6101),
         isAuto: true,
-        skipped: Update.releaseNumber(raised),
+        skipped: '2.2.0+6100',
       ),
       isFalse,
     );
-    // a tag without +N falls back to the build number
+    // a tag without +N has no order: only that very tag is skipped
     expect(
-      Update.releaseNumber(
-        UpdateManifest.fromJson({
-          'tag': 'v2',
-          'versionCode': 7,
-          'assets': [],
-        }),
+      Update.isSkipped(release('v2', 9000), isAuto: true, skipped: 'v2'),
+      isTrue,
+    );
+    expect(
+      Update.isSkipped(
+        release('2.2.0+6101', 6101),
+        isAuto: true,
+        skipped: 'v2',
       ),
-      7,
+      isFalse,
+    );
+    expect(
+      Update.isSkipped(
+        release('v3', 9001),
+        isAuto: true,
+        skipped: '2.2.0+6100',
+      ),
+      isFalse,
     );
   });
 
