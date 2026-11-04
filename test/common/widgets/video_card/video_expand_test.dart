@@ -527,6 +527,39 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a card moved since the press takes the page again', (
+    tester,
+  ) async {
+    final top = ValueNotifier(0.0);
+    addTearDown(top.dispose);
+    await _pump(
+      tester,
+      home: ValueListenableBuilder(
+        valueListenable: top,
+        builder: (context, value, child) => Padding(
+          padding: .only(top: value),
+          child: child,
+        ),
+        child: _card0(),
+      ),
+    );
+    final press = await tester.startGesture(
+      tester.getCenter(find.text('卡片')),
+    );
+    await tester.pump(VideoExpandSourceState.pressHold);
+    await tester.pump(const Duration(milliseconds: 16));
+    // As a list scrolled while the card's tap waited for a request.
+    top.value = 3;
+    await tester.pump();
+    await press.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('a quick tap or a press that scrolls takes it at the tap', (
     tester,
   ) async {

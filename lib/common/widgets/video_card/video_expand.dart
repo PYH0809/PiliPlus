@@ -378,7 +378,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       binding: target.binding,
       bindings: target.bindings,
       middlewares: target.middlewares,
-    ).._takeBelow(_takePressed());
+    ).._takeBelow(_takePressedInPlace());
     final opened = navigator.push(route);
     _route = route;
     route.animation!.addStatusListener(_handleRouteStatus);
@@ -425,8 +425,9 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
   /// goes on to scroll has passed the touch slop by then, mostly.
   static const pressHold = Duration(milliseconds: 40);
 
-  /// How long a picture taken on a press waits for its tap.
-  static const _pressedLife = Duration(seconds: 1);
+  /// How long a picture taken on a press waits for its tap, which may wait
+  /// for a request; the page could change by then.
+  static const _pressedLife = Duration(milliseconds: 500);
 
   void _handlePointerDown(PointerDownEvent event) {
     _pressTimer?.cancel();
@@ -468,8 +469,13 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     if (below == null) {
       return;
     }
+    final card = _cardRect;
+    if (card == null) {
+      below.image.dispose();
+      return;
+    }
     _dropPressed();
-    _pressed = (route: route, below: below);
+    _pressed = (route: route, card: card, below: below);
     _pressedExpiry = Timer(_pressedLife, _dropPressed);
     // The picture is drawn as the next frame goes to the GPU, not before:
     // a frame now has it drawn while the finger is still down.
@@ -481,6 +487,17 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     _pressed = null;
     _pressedExpiry?.cancel();
     return pressed;
+  }
+
+  // What the press took, if the card still stands where it did then: a
+  // card that opens after a request may see its list scrolled meanwhile.
+  _Pressed? _takePressedInPlace() {
+    final pressed = _takePressed();
+    if (pressed == null || pressed.card == _cardRect) {
+      return pressed;
+    }
+    pressed.below.image.dispose();
+    return null;
   }
 
   void _dropPressed() {
@@ -853,7 +870,7 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
 typedef _Below = ({ui.Image image, Rect rect, Size screen});
 
 /// A picture of the page a card lies on, taken as a press held on the card.
-typedef _Pressed = ({ModalRoute<dynamic> route, _Below below});
+typedef _Pressed = ({ModalRoute<dynamic> route, Rect card, _Below below});
 
 class _ExpandTransition extends StatefulWidget {
   const _ExpandTransition({
