@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -701,6 +702,37 @@ void main() {
     final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
     expect(route.debugHoldsBelow, isTrue);
     expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a list starting to scroll under the press takes none', (
+    tester,
+  ) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await _pump(
+      tester,
+      home: SizedBox(
+        height: 400,
+        child: ListView(
+          controller: controller,
+          children: [_card0(), const SizedBox(height: 2000)],
+        ),
+      ),
+    );
+    final press = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold ~/ 2);
+    // As a scroll some recognizer won with a slop of its own.
+    unawaited(
+      controller.animateTo(
+        60,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.linear,
+      ),
+    );
+    await tester.pump(VideoExpandSourceState.pressHold);
+    expect(VideoExpandSourceState.debugHoldsPressShot, isFalse);
+    await press.cancel();
     await tester.pumpAndSettle();
   });
 

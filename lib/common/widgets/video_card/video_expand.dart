@@ -9,9 +9,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui show Image, lerpDouble;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart'
+    show touchSlopH;
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show ValueListenable, listEquals;
 import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -434,6 +436,8 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
   static Timer? _pressedExpiry;
   Timer? _pressTimer;
   Offset? _pressAt;
+  double _pressSlop = kTouchSlop;
+  ValueListenable<bool>? _scrolling;
 
   /// How long a press holds still before the page is taken: a finger that
   /// goes on to scroll has passed the touch slop by then, mostly.
@@ -448,6 +452,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     _pressTimer?.cancel();
     _pressTimer = null;
     _pressAt = null;
+    _stopWatchingScroll();
     // Only a press on the cover, which opens the page: the card's own
     // buttons, as a like, lie beside it, and a card that cannot open its
     // page, as in multi-select, takes none.
@@ -458,12 +463,33 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       return;
     }
     _pressAt = event.position;
+    // The smallest slop a gesture around it moves on: the device's, or the
+    // app's for horizontal swipes, as history's.
+    _pressSlop = [
+      kTouchSlop,
+      ?MediaQuery.gestureSettingsOf(context).touchSlop,
+      touchSlopH,
+    ].reduce(math.min);
+    // And should the list around it start to scroll first, it is no tap.
+    _scrolling = Scrollable.maybeOf(context)?.position.isScrollingNotifier
+      ?..addListener(_handleScrolling);
     _pressTimer = Timer(pressHold, _takeOnPress);
+  }
+
+  void _handleScrolling() {
+    if (_scrolling?.value ?? false) {
+      _endPress();
+    }
+  }
+
+  void _stopWatchingScroll() {
+    _scrolling?.removeListener(_handleScrolling);
+    _scrolling = null;
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
     if (_pressAt case final at?
-        when (event.position - at).distance > kTouchSlop) {
+        when (event.position - at).distance > _pressSlop) {
       _endPress();
     }
   }
@@ -473,12 +499,14 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     _pressTimer?.cancel();
     _pressTimer = null;
     _pressAt = null;
+    _stopWatchingScroll();
   }
 
   void _endPress() {
     _pressTimer?.cancel();
     _pressTimer = null;
     _pressAt = null;
+    _stopWatchingScroll();
     if (identical(_pressedBy, this)) {
       _dropPressed();
     }
@@ -548,6 +576,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     _route?.animation?.removeStatusListener(_handleRouteStatus);
     _route = null;
     _pressTimer?.cancel();
+    _stopWatchingScroll();
     if (identical(_pressedBy, this)) {
       _dropPressed();
     }
