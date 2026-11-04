@@ -17,8 +17,9 @@ present times for the app's surface, against its refresh period, as
 With root (`su`) on a Qualcomm GPU, it also prints how busy the GPU was over
 each drag, from kgsl (`/sys/class/kgsl/kgsl-3d0/gpubusy`). That answers the
 busy and total time of the driver's last window, about a second, so it is
-read through the drag and the windows that cover it are summed: they reach
-up to a second past either end of it. The GPU's clock follows its load, so --pin holds it at 427 MHz and
+read through the drag, and a second past its end, and the windows that
+cover it are summed: they reach up to a second past either end of it, which
+dilutes the busy share a little alike for every build. The GPU's clock follows its load, so --pin holds it at 427 MHz and
 the display at 90 Hz while measuring, and puts both back after. Without
 root or kgsl those numbers are left out, and it says so. --surface names the
 app's SurfaceFlinger layer, when the one it finds is not it.
@@ -176,6 +177,8 @@ def drag(app, start, end, root):
     count = frames.get("frames", 0)
     busy = None
     if sampler:
+        # The window holding the last frames comes out up to a second later.
+        time.sleep(1.3)
         sampler.terminate()
         windows = []
         for line in sampler.communicate()[0].split("\n"):
