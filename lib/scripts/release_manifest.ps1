@@ -77,12 +77,14 @@ if ($LASTEXITCODE -ne 0) {
 
 # The newest published release before this one, for the update dialog's link
 # to this version's commits. Android's manifest goes up before publish, the
-# others' after it, so "the latest" won't do: take the highest +N below ours.
+# others' after it, so "the latest" won't do: take the highest +N below this
+# tag's own (a manual build may set a build number above it), never this tag.
 $previousTag = $null
+$tagCode = if ($Tag -match '\+(\d+)$') { [int]$matches[1] } else { $versionCode }
 $tags = gh release list --exclude-drafts --limit 30 --json tagName --jq '.[].tagName'
 if ($LASTEXITCODE -eq 0) {
     $previousTag = $tags |
-        Where-Object { $_ -match '\+(\d+)$' -and [int]$matches[1] -lt $versionCode } |
+        Where-Object { $_ -ne $Tag -and $_ -match '\+(\d+)$' -and [int]$matches[1] -lt $tagCode } |
         Sort-Object { [int]($_ -replace '^.*\+', '') } |
         Select-Object -Last 1
 }
