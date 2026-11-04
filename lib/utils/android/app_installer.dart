@@ -17,11 +17,13 @@ enum InstallResult {
 abstract final class AppInstaller {
   static const _channel = MethodChannel('PiliPlus/installer');
 
-  // 通道出错时按做不到算
+  // 通道出错时按做不到算；Activity 销毁后通道会注销（MissingPluginException）
   static Future<bool> canInstall() async {
     try {
       return await _channel.invokeMethod<bool>('canInstall') ?? false;
     } on PlatformException {
+      return false;
+    } on MissingPluginException {
       return false;
     }
   }
@@ -31,6 +33,8 @@ abstract final class AppInstaller {
     try {
       return await _channel.invokeMethod<bool>('openSettings') ?? false;
     } on PlatformException {
+      return false;
+    } on MissingPluginException {
       return false;
     }
   }
@@ -42,6 +46,8 @@ abstract final class AppInstaller {
       });
       return InstallResult.values.asNameMap()[res] ?? InstallResult.failed;
     } on PlatformException {
+      return InstallResult.failed;
+    } on MissingPluginException {
       return InstallResult.failed;
     }
   }

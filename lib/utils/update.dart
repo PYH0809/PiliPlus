@@ -223,6 +223,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
   File? _file;
   // 签名或版本对不上时再点安装也没用，不给按钮
   bool _canInstall = true;
+  // 正在打开安装程序或者等设置页回来，按钮先不能点
+  bool _installing = false;
   AppLifecycleListener? _lifecycle;
 
   @override
@@ -278,6 +280,17 @@ class _DownloadDialogState extends State<_DownloadDialog> {
   }
 
   Future<void> _install() async {
+    if (_installing) return;
+    _installing = true;
+    try {
+      await _installOnce();
+    } finally {
+      _installing = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _installOnce() async {
     final file = _file!;
     setState(() {
       _stage = .install;
@@ -401,7 +414,10 @@ class _DownloadDialogState extends State<_DownloadDialog> {
               child: const Text('重新下载'),
             )
           else if (_canInstall)
-            FilledButton(onPressed: _install, child: const Text('安装')),
+            FilledButton(
+              onPressed: _installing ? null : _install,
+              child: const Text('安装'),
+            ),
         ],
       },
     );

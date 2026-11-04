@@ -271,6 +271,44 @@ void main() {
       expect(dir.listSync().map((i) => i.path), [file.path]);
     });
 
+    test(
+      'stops a source as soon as it sends more than the manifest says',
+      () async {
+        var sent = 0;
+        final d = UpdateDownloader(
+          manifest: m,
+          asset: m.assets.single,
+          dir: dir.path,
+          mirrors: const [''],
+          fetch: (url, path, {required cancelToken, required onProgress}) {
+            // an endless body, a byte at a time, as dio reports it
+            while (true) {
+              onProgress(++sent);
+              if (cancelToken.isCancelled) {
+                throw DioException.requestCancelled(
+                  requestOptions: RequestOptions(),
+                  reason: null,
+                );
+              }
+              if (sent > 1000) fail('the download was not stopped');
+            }
+          },
+        );
+        await expectLater(
+          d.run(),
+          throwsA(
+            isA<UpdateDownloadException>().having(
+              (e) => e.failures,
+              'failures',
+              ['GitHub：文件比清单里的大'],
+            ),
+          ),
+        );
+        // the manifest says 3 bytes
+        expect(sent, 4);
+      },
+    );
+
     test('reports every source when all fail', () async {
       await expectLater(
         downloader((url, _) => [0]).run(),

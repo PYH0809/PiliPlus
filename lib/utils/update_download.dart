@@ -49,6 +49,7 @@ class UpdateDownloader {
   CancelToken? _token;
   bool _cancelled = false;
   bool _skipping = false;
+  bool _oversize = false;
 
   static List<String> sources(
     String url, [
@@ -116,25 +117,45 @@ class UpdateDownloader {
       final name = sourceName(url);
       onSource?.call(name);
       _skipping = false;
+      _oversize = false;
       final token = _token = CancelToken();
       try {
         await fetch(
           url,
           part.path,
           cancelToken: token,
-          onProgress: (received) => onProgress?.call(received, asset.size),
+          onProgress: (received) {
+            // 比清单里的大就不会是那个包，别等它把缓存写满
+            if (received > asset.size) {
+              _oversize = true;
+              token.cancel();
+            } else {
+              onProgress?.call(received, asset.size);
+            }
+          },
         );
       } on FileSystemException {
         rethrow;
       } catch (e) {
         _delete(part);
         if (_cancelled) break;
-        failures.add('$name：${_skipping ? '已跳过' : _describe(e)}');
+        failures.add(
+          '$name：${_oversize
+              ? '文件比清单里的大'
+              : _skipping
+              ? '已跳过'
+              : _describe(e)}',
+        );
         continue;
       }
       if (_cancelled) {
         _delete(part);
         break;
+      }
+      if (_oversize) {
+        _delete(part);
+        failures.add('$name：文件比清单里的大');
+        continue;
       }
       if (!await verify(part, asset)) {
         _delete(part);
