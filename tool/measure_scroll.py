@@ -48,14 +48,17 @@ NINETY_HZ_CONFIG = "1"
 SERIAL = os.environ.get("ANDROID_SERIAL")
 
 
-def adb_shell(command, timeout=30):
+def adb_shell(command, timeout=30, check=True):
     serial = ["-s", SERIAL] if SERIAL else []
-    return subprocess.run(
+    done = subprocess.run(
         ["adb", *serial, "shell", command],
         capture_output=True,
         text=True,
         timeout=timeout,
-    ).stdout
+    )
+    if check and done.returncode != 0:
+        sys.exit(f"adb shell {command!r} failed: {done.stderr.strip() or done.returncode}")
+    return done.stdout
 
 
 def su(command):
@@ -63,7 +66,8 @@ def su(command):
 
 
 def has_root():
-    return "uid=0" in adb_shell("su -c id 2>/dev/null")
+    # Without su this fails, as expected.
+    return "uid=0" in adb_shell("su -c id 2>/dev/null", check=False)
 
 
 class App:
@@ -96,6 +100,8 @@ def presents():
         parts = line.split()
         if len(parts) == 3 and all(p.isdigit() for p in parts) and 0 < int(parts[1]) < 2**62:
             times.append(int(parts[1]))
+    if not times:
+        sys.exit(f"SurfaceFlinger holds no frames for {SURFACE!r}: is the app in front?")
     return times
 
 
@@ -117,7 +123,14 @@ def drag(app, start, end, root):
         busy = int(out[0]) / 1000
     else:
         adb_shell(swipe)
-    frames = json.loads(app.ext("state"))["frames"] or {}
+    # Frame timings come in batches: wait till the count stops growing.
+    frames, deadline = {}, time.time() + 3
+    while time.time() < deadline:
+        time.sleep(0.4)
+        last = frames.get("frames", 0)
+        frames = json.loads(app.ext("state"))["frames"] or {}
+        if frames.get("frames", 0) == last and last > 0:
+            break
     count = frames.get("frames", 0)
     return {
         "frames": count,
@@ -135,14 +148,16 @@ def temperature():
     return None
 
 
-def pin():
-    """Pins the GPU's clock and the display's rate, answering how to undo it."""
+def pinning():
+    """How to pin the GPU's clock and the display's rate, and to undo it."""
     levels = su(f"cat {KGSL}/min_pwrlevel {KGSL}/max_pwrlevel").split()
-    su(
-        f"echo {PINNED_LEVEL} > {KGSL}/max_pwrlevel; "
-        f"echo {PINNED_LEVEL} > {KGSL}/min_pwrlevel; "
-        f"service call SurfaceFlinger {FORCE_CONFIG} i32 {NINETY_HZ_CONFIG}"
-    )
+
+    def pin():
+        su(
+            f"echo {PINNED_LEVEL} > {KGSL}/max_pwrlevel; "
+            f"echo {PINNED_LEVEL} > {KGSL}/min_pwrlevel; "
+            f"service call SurfaceFlinger {FORCE_CONFIG} i32 {NINETY_HZ_CONFIG}"
+        )
 
     def undo():
         su(
@@ -151,7 +166,7 @@ def pin():
             f"service call SurfaceFlinger {FORCE_CONFIG} i32 -1"
         )
 
-    return undo
+    return pin, undo
 
 
 def main():
@@ -167,8 +182,10 @@ def main():
     root = has_root()
     if not root:
         print("no root: GPU busy time and the pins are left out", flush=True)
-    undo = pin() if root and args.pin else None
+    pin, undo = pinning() if root and args.pin else (None, None)
     try:
+        if pin:
+            pin()
         drags = []
         for _ in range(args.rounds):
             drags.append(("up", drag(app, 2300, 700, root)))
