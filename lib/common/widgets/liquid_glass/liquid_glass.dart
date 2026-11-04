@@ -237,7 +237,11 @@ class LiquidGlassStyle {
     final dark = colorScheme.brightness == Brightness.dark;
     return dark
         ? const LiquidGlassStyle(
-            tint: Color(0x85454545),
+            // PiliPlus: a thicker tint than FlClash's 0x85454545, whose light
+            // labels read at 1.58:1 over white, 1.62 over yellow and 1.79
+            // over light blue; this one at 3.41, 3.44 and 3.70, about a
+            // menu's (edit_menu_contrast_test.dart).
+            tint: Color(0xB0303030),
             contrast: -0.33,
             blur: 0,
             haze: 0.71,
