@@ -127,10 +127,13 @@ def drag(app, start, end, root):
     swipe = subprocess.Popen(
         ["adb", *serial, "shell", f"input swipe 720 {start} 720 {end} 1200"]
     )
-    period, shown = None, set()
+    # The display may change its rate as the drag stops: judge each gap by
+    # the fastest refresh seen, at which the drag ran.
+    periods, shown = set(), set()
     while swipe.poll() is None:
         time.sleep(0.5)
         period, times = presents(required=False)
+        periods.add(period)
         shown.update(times)
     if swipe.returncode != 0:
         sys.exit(f"input swipe failed: {swipe.returncode}")
@@ -141,6 +144,7 @@ def drag(app, start, end, root):
         last = frames.get("frames", 0)
         frames = json.loads(app.ext("state"))["frames"] or {}
         period, times = presents(required=False)
+        periods.add(period)
         shown.update(times)
         if frames.get("frames", 0) == last and last > 0:
             break
@@ -151,7 +155,7 @@ def drag(app, start, end, root):
         "frames": count,
         "fps": frames.get("fps", 0),
         "raster": frames.get("rasterMean", 0),
-        "late": late(period, sorted(shown)) if period else 0,
+        "late": late(min(periods - {None}), sorted(shown)) if periods - {None} else 0,
         "gpu": busy / count if busy is not None and count else None,
     }
 
