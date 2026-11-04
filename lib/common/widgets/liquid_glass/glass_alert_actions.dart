@@ -16,7 +16,9 @@ const double _pressedDarkDefaultShare = 0.5;
 /// both labels fit half the width, any other count stacked with the cancel
 /// action, 取消 or the first, at the bottom. The last one is the default
 /// action and is filled, unless its caller colored it, as a destructive one
-/// is.
+/// is. A caller that marks its default with a [FilledButton] gets it filled
+/// wherever it put it, and at the top of a stack, as iOS's preferred action;
+/// the others keep their order below it.
 class GlassAlertActions extends StatelessWidget {
   const GlassAlertActions({super.key, required this.actions});
 
@@ -92,6 +94,31 @@ class GlassAlertActions extends StatelessWidget {
     // The cancel action ends a stack, or starts a pair, wherever the caller
     // put it.
     final cancel = _cancelIn(actions, colorScheme);
+    final filled = actions.indexWhere((action) => action is FilledButton);
+    if (filled >= 0) {
+      // The first child ends a stack and starts a pair, the rest go top down.
+      final rest = [
+        for (final (index, action) in actions.indexed)
+          if (index != cancel && index != filled) action,
+      ];
+      final ordered = [
+        if (cancel >= 0)
+          actions[cancel]
+        else if (rest.isNotEmpty)
+          rest.removeLast(),
+        actions[filled],
+        ...rest,
+      ];
+      return _AlertActions(
+        children: [
+          for (final action in ordered)
+            _AlertAction(
+              isDefault: action is FilledButton,
+              child: _unmuted(action, colorScheme),
+            ),
+        ],
+      );
+    }
     final ordered = cancel <= 0
         ? actions
         : [
@@ -141,37 +168,40 @@ class _AlertAction extends StatelessWidget {
       letterSpacing: 0,
       fontWeight: isDefault ? FontWeight.w600 : FontWeight.w500,
     );
-    return TextButtonTheme(
-      data: TextButtonThemeData(
-        style:
-            TextButton.styleFrom(
-              foregroundColor: foreground,
-              disabledForegroundColor: colorScheme.onSurface.withValues(
-                alpha: 0.38,
-              ),
-              textStyle: body,
-              minimumSize: const Size(0, _actionHeight),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: const StadiumBorder(),
-              visualDensity: VisualDensity.standard,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              splashFactory: NoSplash.splashFactory,
-            ).copyWith(
-              backgroundColor: WidgetStateProperty<Color?>.fromMap({
-                WidgetState.disabled: fill,
-                WidgetState.pressed: background.withValues(
-                  alpha: background.a * pressedShare,
-                ),
-                WidgetState.any: background,
-              }),
-              overlayColor: WidgetStateProperty<Color?>.fromMap({
-                WidgetState.focused: foreground.withValues(alpha: 0.1),
-                WidgetState.pressed: Colors.transparent,
-                WidgetState.hovered: foreground.withValues(alpha: 0.08),
-              }),
+    final style =
+        TextButton.styleFrom(
+          foregroundColor: foreground,
+          disabledForegroundColor: colorScheme.onSurface.withValues(
+            alpha: 0.38,
+          ),
+          textStyle: body,
+          minimumSize: const Size(0, _actionHeight),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: const StadiumBorder(),
+          visualDensity: VisualDensity.standard,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          splashFactory: NoSplash.splashFactory,
+        ).copyWith(
+          backgroundColor: WidgetStateProperty<Color?>.fromMap({
+            WidgetState.disabled: fill,
+            WidgetState.pressed: background.withValues(
+              alpha: background.a * pressedShare,
             ),
+            WidgetState.any: background,
+          }),
+          overlayColor: WidgetStateProperty<Color?>.fromMap({
+            WidgetState.focused: foreground.withValues(alpha: 0.1),
+            WidgetState.pressed: Colors.transparent,
+            WidgetState.hovered: foreground.withValues(alpha: 0.08),
+          }),
+        );
+    // A FilledButton marks the default; it takes the same capsule.
+    return FilledButtonTheme(
+      data: FilledButtonThemeData(style: style),
+      child: TextButtonTheme(
+        data: TextButtonThemeData(style: style),
+        child: child,
       ),
-      child: child,
     );
   }
 }

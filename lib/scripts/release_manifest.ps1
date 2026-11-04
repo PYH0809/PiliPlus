@@ -75,10 +75,18 @@ if ($LASTEXITCODE -ne 0) {
     throw "can't read release $Tag"
 }
 
+# The release prepare's note was written against ($env:PREVIOUS_TAG), for
+# the update dialog's link to this version's commits. Empty on a manual
+# run; the app then opens this version's release page.
+$previousTag = if ($env:PREVIOUS_TAG) { $env:PREVIOUS_TAG } else { $null }
+
 $manifest = [ordered]@{
     tag         = $Tag
     versionCode = $versionCode
     body        = ($body -join "`n")
+    # When this platform's packages were ready, which the update dialog shows
+    date        = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    previousTag = $previousTag
     assets      = @($assets)
 }
 

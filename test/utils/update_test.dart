@@ -7,6 +7,7 @@ import 'package:PiliPlus/http/update.dart';
 import 'package:PiliPlus/models_new/update/manifest.dart';
 import 'package:PiliPlus/utils/update.dart';
 import 'package:PiliPlus/utils/update_download.dart';
+import 'package:PiliPlus/utils/update_view.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,6 +39,7 @@ void main() {
           "tag": "2.2.0+6120",
           "versionCode": 6120,
           "body": "## 更新\\n- 修复",
+          "date": "2026-11-04T05:38:00Z",
           "assets": [{
             "name": "PiliPlus_android_2.2.0-abc+6120_arm64-v8a.apk",
             "size": 1000,
@@ -49,6 +51,7 @@ void main() {
       expect(m.tag, '2.2.0+6120');
       expect(m.versionCode, 6120);
       expect(m.body, '## 更新\n- 修复');
+      expect(m.date, DateTime.utc(2026, 11, 4, 5, 38).toLocal());
       final a = m.assets.single;
       expect(a.size, 1000);
       expect(a.abi, 'arm64-v8a');
@@ -136,6 +139,73 @@ void main() {
     });
   });
 
+  test('a skipped version stays quiet only on an auto check', () {
+    UpdateManifest release(String tag, int code) => UpdateManifest.fromJson({
+      'tag': tag,
+      'versionCode': code,
+      'assets': [],
+    });
+    final m = release('2.2.0+6120', 6120);
+    final key = Update.skipKey(m);
+    // skipped this very version: silent on auto, shown on a manual check
+    expect(Update.isSkipped(m, isAuto: true, skipped: key), isTrue);
+    expect(Update.isSkipped(m, isAuto: false, skipped: key), isFalse);
+    // the next release prompts again
+    expect(
+      Update.isSkipped(release('2.2.0+6121', 6121), isAuto: true, skipped: key),
+      isFalse,
+    );
+    // nothing skipped
+    expect(Update.isSkipped(m, isAuto: true, skipped: ''), isFalse);
+    // no order is read from tags or build numbers: a manual 2.2.0+9000
+    // built as 6100, once skipped, doesn't hide the next +6101
+    expect(
+      Update.isSkipped(
+        release('2.2.0+6101', 6101),
+        isAuto: true,
+        skipped: Update.skipKey(release('2.2.0+9000', 6100)),
+      ),
+      isFalse,
+    );
+    // the same tag released again with another build number is new
+    final v2 = Update.skipKey(release('v2', 6101));
+    expect(
+      Update.isSkipped(release('v2', 6101), isAuto: true, skipped: v2),
+      isTrue,
+    );
+    expect(
+      Update.isSkipped(release('v2', 6102), isAuto: true, skipped: v2),
+      isFalse,
+    );
+  });
+
+  test('Update.commitsUrl compares with the previous release', () {
+    final m = UpdateManifest.fromJson({
+      'tag': '2.2.0+6140',
+      'versionCode': 6140,
+      'previousTag': '2.2.0+6132',
+      'assets': [],
+    });
+    expect(
+      Update.commitsUrl(m),
+      'https://github.com/PYH0809/PiliPlus/compare/2.2.0%2B6132...2.2.0%2B6140',
+    );
+    // an older manifest without it opens this version's release
+    expect(
+      Update.commitsUrl(_manifest([])),
+      'https://github.com/PYH0809/PiliPlus/releases/tag/2.2.0%2B6120',
+    );
+    expect(
+      UpdateManifest.fromJson({
+        'tag': 't',
+        'versionCode': 1,
+        'previousTag': null,
+        'assets': [],
+      }).previousTag,
+      isNull,
+    );
+  });
+
   test('Update.hasUpdate compares the build number', () {
     final m = _manifest([]);
     expect(Update.hasUpdate(m, versionCode: 6119), isTrue);
@@ -144,41 +214,94 @@ void main() {
   });
 
   group('Update.formatButtons', () {
+    // the primary one marked with a *
     List<String> labels(UpdateManifest m, String os) => [
       for (final w in Update.formatButtons(
         m,
-        (text, {ext}) => Text(text),
+        (text, {ext, primary = false}) => Text(primary ? '*$text' : text),
         os: os,
       ))
         (w as Text).data!,
     ];
 
-    test('offers only the formats in the manifest', () {
+    test('offers only the formats in the manifest, the preferred first', () {
       expect(
         labels(
           _manifest([_asset('w.zip', format: 'zip')]),
           'windows',
         ),
-        ['zip'],
+        ['*便携版'],
       );
       expect(
         labels(
           _manifest([
-            _asset('l.AppImage', format: 'AppImage'),
+            _asset('w.zip', format: 'zip'),
+            _asset('w.exe', format: 'exe'),
+          ]),
+          'windows',
+        ),
+        ['*安装版', '便携版'],
+      );
+      expect(
+        labels(
+          _manifest([
             _asset('l.tar.gz', format: 'tar.gz'),
+            _asset('l.AppImage', format: 'AppImage'),
           ]),
           'linux',
         ),
-        ['targz', 'AppImage'],
+        ['*AppImage', 'tar.gz'],
       );
     });
 
-    test('offers Github when no format matches', () {
-      expect(labels(_manifest([]), 'linux'), ['Github']);
+    test('offers the release page when no format matches', () {
+      expect(labels(_manifest([]), 'linux'), ['*前往下载']);
       expect(labels(_manifest([_asset('m.dmg', format: 'dmg')]), 'macos'), [
-        'Github',
+        '*前往下载',
       ]);
     });
+  });
+
+  group('ReleaseNote.parse', () {
+    test('splits sections, titles and PR numbers', () {
+      final sections = ReleaseNote.parse('''
+外观设置去掉`显示性能浮层`开关 #77
+播放器控制条恢复正常的自动隐藏 #77 #78
+
+修复 bug
+修复共用网络出口下检查更新提示「GitHub接口未返回数据」 #75
+''');
+      expect(sections, hasLength(2));
+      expect(sections.first.title, isNull);
+      expect(sections.first.entries.first.text, '外观设置去掉显示性能浮层开关');
+      expect(sections.first.entries.first.refs, ['#77']);
+      expect(sections.first.entries.last.refs, ['#77', '#78']);
+      expect(sections.last.title, '修复 bug');
+      expect(
+        sections.last.entries.single.text,
+        '修复共用网络出口下检查更新提示「GitHub接口未返回数据」',
+      );
+    });
+
+    test('takes Markdown headings and bullets as they come upstream', () {
+      final sections = ReleaseNote.parse('## 上游\n- 一条改动\n* 另一条');
+      expect(sections.single.title, '上游');
+      expect(sections.single.entries.map((e) => e.text), ['一条改动', '另一条']);
+    });
+
+    test('a lone line or a line with a PR number is no title', () {
+      expect(ReleaseNote.parse('只有一行').single.title, isNull);
+      expect(ReleaseNote.parse('改动 #1\n改动 #2').single.title, isNull);
+      expect(ReleaseNote.parse(''), isEmpty);
+    });
+  });
+
+  test('updateMeta joins what it has', () {
+    expect(updateMeta('2.2.0+1'), '2.2.0+1');
+    expect(
+      updateMeta('2.2.0+1', size: 25722006, date: DateTime(2026, 11, 4)),
+      '2.2.0+1 · 24.5 MB · 11月4日',
+    );
   });
 
   group('Update.pickApk', () {
@@ -473,5 +596,40 @@ void main() {
       expect(tried, hasLength(1));
       expect(dir.listSync(), isEmpty);
     });
+  });
+
+  group('the update dialog', () {
+    final long = UpdateManifest.fromJson({
+      'tag': '2.2.0+6140',
+      'versionCode': 6140,
+      'body': [
+        for (var i = 0; i < 30; i++) '一条改动，说得比较长，会折成两行显示 #$i',
+      ].join('\n'),
+      'assets': [_asset('p_arm64-v8a.apk', abi: 'arm64-v8a')],
+    });
+
+    for (final (name, size) in [
+      ('a phone', const Size(411, 860)),
+      ('a short window', const Size(640, 240)),
+    ]) {
+      testWidgets('fits $name, its buttons on screen', (tester) async {
+        tester.view
+          ..physicalSize = size
+          ..devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (_) => Update.dialogFor(long, apk: long.assets.single),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        for (final label in ['下载并安装', '跳过此版本', '取消']) {
+          final rect = tester.getRect(find.text(label));
+          expect(rect.bottom, lessThanOrEqualTo(size.height), reason: label);
+        }
+      });
+    }
   });
 }

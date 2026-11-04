@@ -5,12 +5,18 @@ class UpdateManifest {
   final int versionCode;
   final String body;
   final List<UpdateAsset> assets;
+  // 发版时间；早先的清单没有
+  final DateTime? date;
+  // 上一个发布的版本的 tag，用来比较这一版的提交；早先的清单没有
+  final String? previousTag;
 
   const UpdateManifest({
     required this.tag,
     required this.versionCode,
     required this.body,
     required this.assets,
+    this.date,
+    this.previousTag,
   });
 
   // 缺字段或类型不对时抛 FormatException
@@ -29,6 +35,14 @@ class UpdateManifest {
       versionCode: versionCode,
       body: json['body'] as String? ?? '',
       assets: [for (final i in assets) UpdateAsset.fromJson(i)],
+      date: switch (json['date']) {
+        final String date => DateTime.tryParse(date)?.toLocal(),
+        _ => null,
+      },
+      previousTag: switch (json['previousTag']) {
+        final String tag when tag.isNotEmpty => tag,
+        _ => null,
+      },
     );
   }
 }

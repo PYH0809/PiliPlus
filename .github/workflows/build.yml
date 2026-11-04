@@ -80,6 +80,9 @@ jobs:
             pull-requests: read
         outputs:
             tag: ${{ steps.draft.outputs.tag }}
+            # The release the note was written against, for the update
+            # dialog's link to this version's commits
+            previous_tag: ${{ steps.note.outputs.base }}
         steps:
             - name: 代码迁出
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,6 +90,7 @@ jobs:
                   fetch-depth: 0
 
             - name: Write the release note
+              id: note
               env:
                   GH_TOKEN: ${{ github.token }}
                   GH_REPO: ${{ github.repository }}
@@ -239,6 +243,7 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
                   GH_REPO: ${{ github.repository }}
+                  PREVIOUS_TAG: ${{ needs.prepare.outputs.previous_tag }}
               run: pwsh lib/scripts/release_manifest.ps1 android "${{ needs.prepare.outputs.tag || github.event.inputs.tag }}" PiliPlus_android_*.apk
 
             - name: 上传
@@ -270,6 +275,7 @@ jobs:
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
             draft_tag: ${{ needs.prepare.outputs.tag }}
+            previous_tag: ${{ needs.prepare.outputs.previous_tag }}
 
     mac:
         needs: [prepare, android]
@@ -279,6 +285,7 @@ jobs:
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
             draft_tag: ${{ needs.prepare.outputs.tag }}
+            previous_tag: ${{ needs.prepare.outputs.previous_tag }}
 
     win_x64:
         needs: [prepare, android]
@@ -288,6 +295,7 @@ jobs:
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
             draft_tag: ${{ needs.prepare.outputs.tag }}
+            previous_tag: ${{ needs.prepare.outputs.previous_tag }}
 
     linux_x64:
         needs: [prepare, android]
@@ -297,6 +305,7 @@ jobs:
         with:
             tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
             draft_tag: ${{ needs.prepare.outputs.tag }}
+            previous_tag: ${{ needs.prepare.outputs.previous_tag }}
 
     # Publishes the draft as soon as Android is in it; the other platforms
     # add their files to the published release as they finish, and one that

@@ -13,6 +13,12 @@ on:
         required: false
         default: ""
         type: string
+      # PiliPlus: the release the note was written against, for the update
+      # dialog's link to this version's commits
+      previous_tag:
+        required: false
+        default: ""
+        type: string
   workflow_dispatch:
 
 jobs:
@@ -93,6 +99,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          PREVIOUS_TAG: ${{ inputs.previous_tag }}
         run: pwsh lib/scripts/release_manifest.ps1 macos "${{ inputs.draft_tag || inputs.tag }}" PiliPlus_macos_*.dmg
 
       - name: Upload macos release

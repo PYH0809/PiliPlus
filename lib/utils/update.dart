@@ -3,6 +3,7 @@ import 'dart:io' show File, Platform;
 
 import 'package:PiliPlus/build_config.dart';
 import 'package:PiliPlus/common/constants.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/update.dart';
 import 'package:PiliPlus/models_new/update/manifest.dart';
@@ -11,9 +12,11 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/update_download.dart';
+import 'package:PiliPlus/utils/update_view.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -23,6 +26,36 @@ abstract final class Update {
     UpdateManifest manifest, {
     int versionCode = BuildConfig.versionCode,
   }) => manifest.versionCode > versionCode;
+
+  // 「跳过此版本」记下的这一版：tag 加构建号，同一个 tag 重新发版（换了
+  // 构建号）也算新的一版
+  static String skipKey(UpdateManifest manifest) =>
+      '${manifest.tag}@${manifest.versionCode}';
+
+  // 用户在对话框里点过「跳过此版本」的版本，自动检查时不再提示；从「关于」
+  // 手动检查是用户自己要看，照常提示。清单总是最新的那一版，再出新版就是
+  // 另一个 tag 或构建号，照常提示。只认完全相同的一版，不按 tag 里的数字
+  // 或构建号比先后：手动发版能把两者都单独定
+  static bool isSkipped(
+    UpdateManifest manifest, {
+    required bool isAuto,
+    required String skipped,
+  }) => isAuto && skipped == skipKey(manifest);
+
+  static String releaseUrl(UpdateManifest manifest) =>
+      '${Constants.sourceCodeUrl}/releases/tag/'
+      '${Uri.encodeComponent(manifest.tag)}';
+
+  // 这一版的提交：清单带了上一版的 tag 就比较两版，没有就打开这一版的
+  // Release 页
+  static String commitsUrl(UpdateManifest manifest) {
+    final tag = Uri.encodeComponent(manifest.tag);
+    if (manifest.previousTag case final previous?) {
+      return '${Constants.sourceCodeUrl}/compare/'
+          '${Uri.encodeComponent(previous)}...$tag';
+    }
+    return releaseUrl(manifest);
+  }
 
   // 按设备的 ABI 顺序挑安装包，supportedAbis 里排前面的是设备首选
   static UpdateAsset? pickApk(
@@ -41,28 +74,33 @@ abstract final class Update {
   static bool hasPackage(UpdateManifest manifest, {String? ext}) =>
       manifest.assets.any((i) => ext == null || i.format == ext);
 
-  // 桌面端按格式给下载按钮，只给清单里有的格式；一个都没有时给 Github
+  // 桌面端按格式给下载按钮，只给清单里有的格式，排在前面的是首选（填充、
+  // 竖排时在最上面）；一个都没有时给「前往下载」，打开 Release 页面
   static List<Widget> formatButtons(
     UpdateManifest manifest,
-    Widget Function(String text, {String? ext}) downloadBtn, {
+    Widget Function(String text, {String? ext, bool primary}) downloadBtn, {
     String os = '',
   }) {
     os = os.isEmpty ? Platform.operatingSystem : os;
     final formats = switch (os) {
-      'windows' => const [('zip', 'zip'), ('exe', 'exe')],
+      'windows' => const [('安装版', 'exe'), ('便携版', 'zip')],
       'linux' => const [
-        ('rpm', 'rpm'),
-        ('deb', 'deb'),
-        ('targz', 'tar.gz'),
         ('AppImage', 'AppImage'),
+        ('deb', 'deb'),
+        ('rpm', 'rpm'),
+        ('tar.gz', 'tar.gz'),
       ],
       _ => const <(String, String)>[],
     };
-    final buttons = [
+    final available = [
       for (final (text, ext) in formats)
-        if (hasPackage(manifest, ext: ext)) downloadBtn(text, ext: ext),
+        if (hasPackage(manifest, ext: ext)) (text, ext),
     ];
-    return buttons.isEmpty ? [downloadBtn('Github')] : buttons;
+    if (available.isEmpty) return [downloadBtn('前往下载', primary: true)];
+    return [
+      for (final (index, (text, ext)) in available.indexed)
+        downloadBtn(text, ext: ext, primary: index == 0),
+    ];
   }
 
   // 检查更新
@@ -88,6 +126,9 @@ abstract final class Update {
         }
         return;
       }
+      if (isSkipped(manifest, isAuto: isAuto, skipped: Pref.skippedUpdate)) {
+        return;
+      }
       final apk = Platform.isAndroid
           ? pickApk(
               manifest.assets,
@@ -96,79 +137,8 @@ abstract final class Update {
           : null;
       SmartDialog.show(
         animationType: SmartAnimationType.centerFade_otherSlide,
-        builder: (context) {
-          final colorScheme = ColorScheme.of(context);
-          Widget downloadBtn(String text, {String? ext}) => TextButton(
-            onPressed: () => onDownload(manifest, ext: ext),
-            child: Text(text),
-          );
-          return AlertDialog(
-            title: const Text('🎉 发现新版本 '),
-            content: SizedBox(
-              height: 280,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      manifest.tag,
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(manifest.body),
-                    TextButton(
-                      onPressed: () => PageUtils.launchURL(
-                        '${Constants.sourceCodeUrl}/commits/main',
-                      ),
-                      child: Text(
-                        "点此查看完整更新(即commit)内容",
-                        style: TextStyle(color: colorScheme.primary),
-                      ),
-                    ),
-                    // 放在这里而不是按钮区：按钮竖排，多一个就挤掉矮屏上的说明
-                    if (apk != null)
-                      TextButton(
-                        onPressed: () => onDownload(manifest),
-                        child: Text(
-                          '用浏览器下载',
-                          style: TextStyle(color: colorScheme.primary),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            // 按钮放不下一行时竖着排，主按钮在最上面
-            actionsOverflowDirection: VerticalDirection.up,
-            actions: [
-              if (isAuto)
-                TextButton(
-                  onPressed: () {
-                    SmartDialog.dismiss();
-                    GStorage.setting.put(SettingBoxKey.autoUpdate, false);
-                  },
-                  child: Text(
-                    '不再提醒',
-                    style: TextStyle(color: colorScheme.outline),
-                  ),
-                ),
-              TextButton(
-                onPressed: SmartDialog.dismiss,
-                child: Text(
-                  '取消',
-                  style: TextStyle(color: colorScheme.outline),
-                ),
-              ),
-              if (apk != null)
-                FilledButton(
-                  onPressed: () => _downloadInApp(manifest, apk),
-                  child: const Text('下载并安装'),
-                )
-              else
-                ...formatButtons(manifest, downloadBtn),
-            ],
-          );
-        },
+        builder: (_) =>
+            _UpdateDialog(manifest: manifest, apk: apk, isAuto: isAuto),
       );
     } catch (e) {
       if (kDebugMode) debugPrint('failed to check update: $e');
@@ -186,10 +156,12 @@ abstract final class Update {
           manifest.assets,
           (await DeviceInfoPlugin().androidInfo).supportedAbis,
         );
+      } else if (ext == null) {
+        // 「前往下载」：没有对得上的格式，打开这一版的 Release 页面
+        PageUtils.launchURL(releaseUrl(manifest));
+        return;
       } else {
-        asset = manifest.assets
-            .where((i) => ext == null || i.format == ext)
-            .firstOrNull;
+        asset = manifest.assets.where((i) => i.format == ext).firstOrNull;
       }
       if (asset == null) throw UnsupportedError('no package');
       PageUtils.launchURL(UpdateHttp.assetUrl(manifest, asset));
@@ -199,11 +171,147 @@ abstract final class Update {
     }
   }
 
+  @visibleForTesting
+  static Widget dialogFor(
+    UpdateManifest manifest, {
+    UpdateAsset? apk,
+    bool isAuto = true,
+  }) => _UpdateDialog(manifest: manifest, apk: apk, isAuto: isAuto);
+
   static void _downloadInApp(UpdateManifest manifest, UpdateAsset apk) {
     SmartDialog.dismiss();
     SmartDialog.show(
       clickMaskDismiss: false,
       builder: (_) => _DownloadDialog(manifest: manifest, apk: apk),
+    );
+  }
+}
+
+// 发现新版本：标题、一行灰色的版本信息、能滚动的发版说明、两个次要的小链接；
+// 按钮竖排时主按钮（填充）在最上面，「稍后」在最下面
+class _UpdateDialog extends StatelessWidget {
+  const _UpdateDialog({
+    required this.manifest,
+    required this.apk,
+    required this.isAuto,
+  });
+
+  final UpdateManifest manifest;
+  // 安卓上匹配设备 ABI 的包；有它才能应用内下载
+  final UpdateAsset? apk;
+  final bool isAuto;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = ColorScheme.of(context);
+    final height = MediaQuery.sizeOf(context).height;
+    Widget downloadBtn(String text, {String? ext, bool primary = false}) =>
+        primary
+        ? FilledButton(
+            onPressed: () => Update.onDownload(manifest, ext: ext),
+            child: Text(text),
+          )
+        // 其他格式是说明下面的灰色小链接，按钮最多三个，矮窗口也放得下
+        : DialogLink(
+            label: text,
+            onTap: () => Update.onDownload(manifest, ext: ext),
+          );
+    final apk = this.apk;
+    final size =
+        apk?.size ??
+        (manifest.assets.length == 1 ? manifest.assets.single.size : null);
+    final cancel = TextButton(
+      onPressed: SmartDialog.dismiss,
+      child: Text('取消', style: TextStyle(color: colorScheme.outline)),
+    );
+    final skip = TextButton(
+      onPressed: () {
+        SmartDialog.dismiss();
+        GStorage.setting.put(
+          SettingBoxKey.skippedUpdate,
+          Update.skipKey(manifest),
+        );
+      },
+      child: Text('跳过此版本', style: TextStyle(color: colorScheme.onSurface)),
+    );
+    final formats = apk == null
+        ? Update.formatButtons(manifest, downloadBtn)
+        : const <Widget>[];
+    // 从上到下：主按钮、跳过此版本、取消
+    final topDown = [
+      if (apk != null)
+        FilledButton(
+          onPressed: () => Update._downloadInApp(manifest, apk),
+          child: const Text('下载并安装'),
+        )
+      else
+        formats.first,
+      skip,
+      cancel,
+    ];
+    final compact = height < 560;
+    final note = Column(
+      crossAxisAlignment: .start,
+      children: [
+        ReleaseNoteView(sections: ReleaseNote.parse(manifest.body)),
+        const SizedBox(height: 8),
+        Transform.translate(
+          offset: const Offset(-4, 0),
+          child: DialogLink(
+            label: '查看这一版的全部提交 ›',
+            onTap: () => PageUtils.launchURL(Update.commitsUrl(manifest)),
+          ),
+        ),
+        // 桌面端的其他格式也在能滚的区域里，不占固定高度
+        if (formats.length > 1)
+          Wrap(
+            crossAxisAlignment: .center,
+            children: [
+              Text(
+                '其他格式',
+                style: TextStyle(fontSize: 13, color: colorScheme.outline),
+              ),
+              const SizedBox(width: 4),
+              ...formats.skip(1),
+            ],
+          ),
+      ],
+    );
+    return AlertDialog(
+      title: const Text('发现新版本'),
+      // 矮视口（横屏、窗口很矮）时整个标题和内容一起滚，按钮留在下面；
+      // 平时只有说明在限高的区域里滚
+      scrollable: compact,
+      content: Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
+        children: [
+          Text(
+            updateMeta(manifest.tag, size: size, date: manifest.date),
+            style: TextStyle(fontSize: 13, color: colorScheme.outline),
+          ),
+          const SizedBox(height: 14),
+          if (compact)
+            note
+          else
+            // 提交链接在说明末尾，看完说明才看得到
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: (height * 0.4).clamp(120.0, 320.0),
+                ),
+                child: FadingScroll(child: note),
+              ),
+            ),
+        ],
+      ),
+      // 玻璃的 GlassAlertActions 把 FilledButton 放最上、取消放最下，
+      // 其余照给的顺序；Material 的 OverflowBar 一行时主按钮在最右，
+      // 竖排时（up）倒过来，主按钮在最上
+      actionsOverflowDirection: VerticalDirection.up,
+      actions: GlassSurfaces.installed
+          ? [cancel, ...topDown.take(topDown.length - 1)]
+          : topDown.reversed.toList(),
     );
   }
 }
@@ -224,7 +332,6 @@ class _DownloadDialog extends StatefulWidget {
 class _DownloadDialogState extends State<_DownloadDialog> {
   UpdateDownloader? _downloader;
   _Stage _stage = .downloading;
-  String _source = '';
   int _sourceIndex = 0;
   int _received = 0;
   String _message = '';
@@ -234,6 +341,12 @@ class _DownloadDialogState extends State<_DownloadDialog> {
   // 正在打开安装程序或者等设置页回来，按钮先不能点
   bool _installing = false;
   AppLifecycleListener? _lifecycle;
+  // 下载速度：每秒按这一秒收到的字节算一次，没收到就是 0，卡住时看得出来
+  Timer? _ticker;
+  int _speedFrom = 0;
+  double? _speed;
+  // 装不上时的标题
+  String _title = '';
 
   @override
   void initState() {
@@ -243,6 +356,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _downloader?.cancel();
     _lifecycle?.dispose();
     super.dispose();
@@ -263,18 +377,29 @@ class _DownloadDialogState extends State<_DownloadDialog> {
     );
     try {
       final file = await downloader.run(
-        onSource: (source) {
+        onSource: (_) {
           if (!mounted) return;
           setState(() {
-            _source = source;
             _sourceIndex++;
             _received = 0;
+            _speedFrom = 0;
+            _speed = null;
+          });
+          _ticker?.cancel();
+          _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+            if (!mounted) return;
+            setState(() {
+              _speed = (_received - _speedFrom).toDouble();
+              _speedFrom = _received;
+            });
           });
         },
         onProgress: (received, _) {
           if (mounted) setState(() => _received = received);
         },
       );
+      _ticker?.cancel();
+      _ticker = null;
       if (file == null || !mounted) return;
       _file = file;
       // 在后台时系统可能拦下打开安装程序和设置页，等回到前台再装
@@ -282,6 +407,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       if (!mounted) return;
       await _install();
     } on UpdateDownloadException catch (e) {
+      _ticker?.cancel();
+      _ticker = null;
       if (!mounted) return;
       setState(() {
         _stage = .failed;
@@ -321,12 +448,16 @@ class _DownloadDialogState extends State<_DownloadDialog> {
     final file = _file!;
     setState(() {
       _stage = .install;
+      _title = '安装新版本';
       _message = '安装包已下载并校验通过，正在打开系统安装程序';
     });
     var res = await AppInstaller.install(file.path);
     if (res == .permission) {
       if (!mounted) return;
-      setState(() => _message = '请在设置里允许 PiliPlus 安装应用，返回后会继续安装');
+      setState(() {
+        _title = '需要安装权限';
+        _message = '请在设置里允许 PiliPlus 安装应用，返回后会继续安装';
+      });
       final resumed = Completer<void>();
       _lifecycle?.dispose();
       _lifecycle = AppLifecycleListener(
@@ -362,17 +493,24 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       } catch (_) {}
       _file = null;
     }
+    _title = switch (res) {
+      .started => '安装新版本',
+      .signature || .downgrade => '无法覆盖安装',
+      .invalid => '安装包已损坏',
+      .permission => '需要安装权限',
+      .failed => '无法打开安装程序',
+    };
     setState(
       () => _message = switch (res) {
         .started => '已打开系统安装程序。如果没有装上，可以点「安装」再试',
         .signature =>
           '安装包的签名和已安装的 PiliPlus 不同（比如现在装的是自己编译的版本），'
               '系统不允许覆盖安装。需要先卸载当前版本再安装；卸载会清除应用数据，'
-              '也会删掉这里下好的安装包，可以先用「浏览器下载」把它存到手机上',
+              '也会删掉这里下好的安装包，卸载后从 GitHub 的 Release 页面下载新版安装',
         .downgrade => '安装包的版本比已安装的低，系统不允许覆盖安装',
         .invalid => '安装包无法解析，已删除，请重新下载',
         .permission => '没有获得安装应用的权限，无法安装',
-        .failed => '无法打开系统安装程序，请用浏览器下载',
+        .failed => '无法打开系统安装程序，可以点「安装」再试一次',
       },
     );
   }
@@ -382,6 +520,11 @@ class _DownloadDialogState extends State<_DownloadDialog> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
+    final muted = TextStyle(
+      fontSize: 13,
+      color: colorScheme.outline,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
     final total = widget.apk.size;
     final cancel = TextButton(
       onPressed: SmartDialog.dismiss,
@@ -392,46 +535,81 @@ class _DownloadDialogState extends State<_DownloadDialog> {
     );
     final browser = TextButton(
       onPressed: () => Update.onDownload(widget.manifest),
-      child: const Text('浏览器下载'),
+      child: Text('浏览器下载', style: TextStyle(color: colorScheme.onSurface)),
     );
+    final failures = _message.split('\n');
     return AlertDialog(
       title: Text(switch (_stage) {
-        .downloading => '正在下载 ${widget.manifest.tag}',
+        .downloading => '正在下载',
         .failed => '下载失败',
-        .install => '安装新版本',
+        .install => _title,
       }),
-      content: switch (_stage) {
-        .downloading => Column(
-          mainAxisSize: .min,
-          crossAxisAlignment: .start,
-          children: [
-            // 还在连下载源时没有进度，给不定进度条
-            LinearProgressIndicator(
-              value: _received > 0 && total > 0 ? _received / total : null,
+      // 和「发现新版本」一样宽，换对话框时不跳
+      content: SizedBox(
+        width: double.maxFinite,
+        child: switch (_stage) {
+          .downloading => Column(
+            mainAxisSize: .min,
+            crossAxisAlignment: .start,
+            children: [
+              const SizedBox(height: 4),
+              // 还在连下载源时没有进度，给不定进度条
+              LinearProgressIndicator(
+                value: _received > 0 && total > 0 ? _received / total : null,
+                minHeight: 6,
+                borderRadius: const .all(.circular(3)),
+              ),
+              const SizedBox(height: 4),
+              // 定高，换下载源的链接没了也不跳
+              SizedBox(
+                height: 32,
+                child: Row(
+                  children: [
+                    // 窄屏、大字号时这段让位给右边的链接
+                    Expanded(
+                      child: Text(
+                        _speed == null
+                            ? '${_mb(_received)} / ${_mb(total)} MB'
+                            : '${_mb(_received)} / ${_mb(total)} MB · '
+                                  '${_mb(_speed!.round())} MB/s',
+                        style: muted,
+                        maxLines: 1,
+                        overflow: .ellipsis,
+                      ),
+                    ),
+                    // 卡住时换一个下载源；已经是最后一个就不给
+                    if (_sourceIndex < updateMirrors.length - 1)
+                      Transform.translate(
+                        offset: const Offset(4, 0),
+                        child: DialogLink(
+                          label: '换下载源',
+                          onTap: () => _downloader?.skip(),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // 长的提示在横屏或大字号下也要看得全
+          .failed => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: .min,
+              crossAxisAlignment: .start,
+              children: [
+                const Text('没能下载安装包，可以重试，或者用浏览器下载。'),
+                const SizedBox(height: 10),
+                for (final line in failures) Text(line, style: muted),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              '${_mb(_received)} / ${_mb(total)} MB · 来自 $_source',
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-        // 长的提示在横屏或大字号下也要看得全
-        .failed => SingleChildScrollView(
-          child: Text('所有下载源都失败了：\n$_message'),
-        ),
-        .install => SingleChildScrollView(child: Text(_message)),
-      },
+          ),
+          .install => SingleChildScrollView(child: Text(_message)),
+        },
+      ),
+      // 一行放得下时主按钮在最右，竖排时在最上
       actionsOverflowDirection: VerticalDirection.up,
       actions: switch (_stage) {
-        .downloading => [
-          cancel,
-          if (_sourceIndex < updateMirrors.length - 1)
-            TextButton(
-              onPressed: _downloader?.skip,
-              child: const Text('换下载源'),
-            ),
-        ],
+        .downloading => [cancel],
         .failed => [
           cancel,
           browser,
@@ -442,8 +620,6 @@ class _DownloadDialogState extends State<_DownloadDialog> {
         ],
         .install => [
           cancel,
-          // 装不上时的后备，签名不符时也用它把安装包存到应用外面
-          browser,
           if (_file == null)
             FilledButton(
               onPressed: () => setState(_start),
