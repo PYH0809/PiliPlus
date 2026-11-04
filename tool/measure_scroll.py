@@ -94,7 +94,7 @@ class App:
         return self.call(f"ext.piliplus.{name}", isolateId=self.isolate)["result"]
 
 
-def presents():
+def presents(required=True):
     """The display's refresh period and the app surface's present times
     SurfaceFlinger holds, in ns."""
     period, times = None, []
@@ -106,7 +106,7 @@ def presents():
             period = int(parts[0])
         elif len(parts) == 3 and 0 < int(parts[1]) < 2**62:
             times.append(int(parts[1]))
-    if not period or not times:
+    if required and (not period or not times):
         sys.exit(f"SurfaceFlinger holds no frames for {SURFACE!r}: is the app in front?")
     return period, times
 
@@ -122,7 +122,18 @@ def drag(app, start, end, root):
     if root:
         # Each read answers the busy time since the last one.
         su(f"cat {KGSL}/gpubusy >/dev/null")
-    adb_shell(f"input swipe 720 {start} 720 {end} 1200")
+    # SurfaceFlinger keeps the last 128 or so: read them as the drag goes.
+    serial = ["-s", SERIAL] if SERIAL else []
+    swipe = subprocess.Popen(
+        ["adb", *serial, "shell", f"input swipe 720 {start} 720 {end} 1200"]
+    )
+    period, shown = None, set()
+    while swipe.poll() is None:
+        time.sleep(0.5)
+        period, times = presents(required=False)
+        shown.update(times)
+    if swipe.returncode != 0:
+        sys.exit(f"input swipe failed: {swipe.returncode}")
     # Frame timings come in batches: wait till the count stops growing.
     frames, deadline = {}, time.time() + 3
     while time.time() < deadline:
@@ -132,13 +143,15 @@ def drag(app, start, end, root):
         if frames.get("frames", 0) == last and last > 0:
             break
     count = frames.get("frames", 0)
+    period, times = presents()
+    shown.update(times)
     # Over the same frames, the fling after the drag's end with them.
     busy = int(su(f"cat {KGSL}/gpubusy").split()[0]) / 1000 if root else None
     return {
         "frames": count,
         "fps": frames.get("fps", 0),
         "raster": frames.get("rasterMean", 0),
-        "late": late(*presents()),
+        "late": late(period, sorted(shown)),
         "gpu": busy / count if busy is not None and count else None,
     }
 
@@ -202,7 +215,11 @@ def main():
         if undo:
             undo()
     for way in ("up", "down"):
-        runs = [d for w, d in drags if w == way]
+        # A drag the page could not follow, at an end of it, drew no frames.
+        runs = [d for w, d in drags if w == way and d["frames"] >= 2]
+        if not runs:
+            print(f"{args.label} {way:4}: no frames drawn; is there room to scroll?")
+            continue
         line = (
             f"{args.label} {way:4}: fps {statistics.median(r['fps'] for r in runs):4.1f}"
             f"  raster {statistics.median(r['raster'] for r in runs):4.1f} ms"
