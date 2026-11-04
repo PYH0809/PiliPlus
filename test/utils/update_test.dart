@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/update.dart';
 import 'package:PiliPlus/models_new/update/manifest.dart';
 import 'package:PiliPlus/utils/update.dart';
+import 'package:PiliPlus/utils/update_download.dart';
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -205,5 +209,168 @@ void main() {
       'https://github.com/PYH0809/PiliPlus/releases/download/2.2.0%2B6120/'
       'PiliPlus_android_2.2.0-abc%2B6120_x86_64.apk',
     );
+  });
+
+  test('downloads go through gh-proxy, then ghfast, then GitHub', () {
+    const url = 'https://github.com/PYH0809/PiliPlus/releases/download/t/a.apk';
+    final sources = UpdateDownloader.sources(url);
+    expect(sources, [
+      'https://gh-proxy.com/$url',
+      'https://ghfast.top/$url',
+      url,
+    ]);
+    expect(sources.map(UpdateDownloader.sourceName), [
+      'gh-proxy.com',
+      'ghfast.top',
+      'GitHub',
+    ]);
+  });
+
+  group('UpdateDownloader.run', () {
+    late Directory dir;
+    final good = [1, 2, 3];
+    final m = _manifest([_asset('p.apk', abi: 'arm64-v8a')]);
+
+    setUp(() => dir = Directory.systemTemp.createTempSync('update_test'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    UpdateDownloader downloader(
+      FutureOr<List<int>> Function(String url, CancelToken token) serve,
+    ) => UpdateDownloader(
+      manifest: m,
+      asset: m.assets.single,
+      dir: dir.path,
+      mirrors: const ['https://a/', 'https://b/', ''],
+      fetch: (url, path, {required cancelToken, required onProgress}) async {
+        final bytes = await serve(url, cancelToken);
+        File(path).writeAsBytesSync(bytes);
+        onProgress(bytes.length);
+      },
+    );
+
+    test('falls back on an error and on a hash mismatch', () async {
+      final tried = <String>[];
+      final sources = <String>[];
+      final file = await downloader((url, _) {
+        tried.add(url);
+        if (url.startsWith('https://a/')) {
+          throw DioException.connectionTimeout(
+            timeout: Duration.zero,
+            requestOptions: RequestOptions(),
+          );
+        }
+        // the mirror hands back something else
+        if (url.startsWith('https://b/')) return [9, 9, 9];
+        return good;
+      }).run(onSource: sources.add);
+      expect(tried, hasLength(3));
+      expect(sources, ['a', 'b', 'GitHub']);
+      expect(file!.path, '${dir.path}/p.apk');
+      expect(file.readAsBytesSync(), good);
+      // nothing left half-written
+      expect(dir.listSync().map((i) => i.path), [file.path]);
+    });
+
+    test('reports every source when all fail', () async {
+      await expectLater(
+        downloader((url, _) => [0]).run(),
+        throwsA(
+          isA<UpdateDownloadException>().having(
+            (e) => e.failures,
+            'failures',
+            ['a：文件校验不通过', 'b：文件校验不通过', 'GitHub：文件校验不通过'],
+          ),
+        ),
+      );
+      expect(dir.listSync(), isEmpty);
+    });
+
+    test('reuses a verified package and drops older ones', () async {
+      File('${dir.path}/p.apk').writeAsBytesSync(good);
+      File('${dir.path}/old.apk').writeAsBytesSync(good);
+      var fetched = 0;
+      final file = await downloader((url, _) {
+        fetched++;
+        return good;
+      }).run();
+      expect(fetched, 0);
+      expect(file!.readAsBytesSync(), good);
+
+      // a stale file of the same name is downloaded again
+      File('${dir.path}/p.apk').writeAsBytesSync([7, 7, 7]);
+      await downloader((url, _) {
+        fetched++;
+        return good;
+      }).run();
+      expect(fetched, 1);
+      expect(dir.listSync().map((i) => i.path), ['${dir.path}/p.apk']);
+    });
+
+    test('turns a cache error into a download error', () async {
+      // the download directory is a file: nothing can be written under it
+      final blocked = File('${dir.path}/blocked')..writeAsStringSync('');
+      final d = UpdateDownloader(
+        manifest: m,
+        asset: m.assets.single,
+        dir: '${blocked.path}/update',
+        mirrors: const [''],
+        fetch: (url, path, {required cancelToken, required onProgress}) async {
+          File(path).writeAsBytesSync(good);
+        },
+      );
+      await expectLater(
+        d.run(),
+        throwsA(
+          isA<UpdateDownloadException>().having(
+            (e) => e.failures.single,
+            'failure',
+            startsWith('缓存目录读写出错'),
+          ),
+        ),
+      );
+
+      // the cache cleared while downloading
+      await expectLater(
+        downloader((url, _) {
+          dir.deleteSync(recursive: true);
+          throw const FileSystemException('gone');
+        }).run(),
+        throwsA(isA<UpdateDownloadException>()),
+      );
+      dir.createSync();
+    });
+
+    Future<List<int>> hang(CancelToken token) async {
+      await token.whenCancel;
+      throw DioException.requestCancelled(
+        requestOptions: RequestOptions(),
+        reason: null,
+      );
+    }
+
+    test('skip moves on to the next source', () async {
+      final started = StreamController<String>();
+      final d = downloader((url, token) {
+        started.add(url);
+        return url.startsWith('https://a/') ? hang(token) : good;
+      });
+      started.stream.first.then((_) => d.skip());
+      final file = await d.run();
+      expect(file!.readAsBytesSync(), good);
+      await started.close();
+    });
+
+    test('cancel stops without an error', () async {
+      final tried = <String>[];
+      late UpdateDownloader d;
+      d = downloader((url, token) {
+        tried.add(url);
+        Future.microtask(d.cancel);
+        return hang(token);
+      });
+      expect(await d.run(), isNull);
+      expect(tried, hasLength(1));
+      expect(dir.listSync(), isEmpty);
+    });
   });
 }

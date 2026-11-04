@@ -5,8 +5,19 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager.LayoutParams
 import com.ryanheise.audioservice.AudioServiceActivity
+import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : AudioServiceActivity() {
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        AppInstaller(this).register(flutterEngine.dartExecutor.binaryMessenger)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        AppInstaller.unregister(flutterEngine.dartExecutor.binaryMessenger)
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         if (AndroidHelper.isFoldable) {
