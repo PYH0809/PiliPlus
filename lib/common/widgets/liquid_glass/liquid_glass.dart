@@ -1426,7 +1426,16 @@ class _LiquidGlassLayer extends Layer {
       if (outline case final outline?) {
         canvas.drawPath(outline, paint);
       } else {
-        canvas.drawRSuperellipse(corners.toRSuperellipse(rect), paint);
+        // PiliPlus: the shader covers the rect under a clip to the shape.
+        // Filled as a superellipse, which Impeller draws as many thin
+        // triangles, it cost a OnePlus 7 Pro 3 ms more a frame under a
+        // scrolling page's action bar, as GPUs shade a thin triangle's edge
+        // pixels in whole 2x2 blocks; the clip only writes the stencil.
+        canvas
+          ..save()
+          ..clipRSuperellipse(corners.toRSuperellipse(rect))
+          ..drawRect(rect, paint)
+          ..restore();
       }
     }
     _hold(recorder.endRecording());
