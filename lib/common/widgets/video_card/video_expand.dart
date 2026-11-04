@@ -8,8 +8,13 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui show Image, lerpDouble;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart'
+    show touchSlopH;
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:flutter/foundation.dart' show ValueListenable, listEquals;
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
@@ -197,7 +202,16 @@ class VideoExpandSource extends StatefulWidget {
     required this.builder,
     this.radius = 12,
     this.coverRadius = BorderRadius.zero,
+    this.takesPressShot = true,
   });
+
+  /// Whether a press on the cover takes the page below before the tap, as
+  /// the opening's first frame would: false while a tap does not open the
+  /// page, as in multi-select. A card whose tap opens something else only
+  /// now and then, as an audio or a bangumi entry, can leave it on: the
+  /// picture is drawn while the finger holds still and the screen with it,
+  /// one for the whole app, let go within half a second.
+  final bool takesPressShot;
 
   /// The card's own fill, which the page's fades in over.
   final Color color;
@@ -377,7 +391,7 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
       binding: target.binding,
       bindings: target.bindings,
       middlewares: target.middlewares,
-    ).._takeBelow();
+    ).._takeBelow(_takePressedInPlace());
     final opened = navigator.push(route);
     _route = route;
     route.animation!.addStatusListener(_handleRouteStatus);
@@ -410,10 +424,162 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     }
   }
 
+  // The page the card lies on, taken as a press holds still on the card:
+  // drawing that picture is the opening's dearest work, a whole screen of
+  // pixels, about 13 ms of a OnePlus 7 Pro's GPU at 427 MHz, which would
+  // otherwise hold its first frame back. A finger stays down for a tenth of
+  // a second or so, time enough to draw it before the tap.
+  // One picture for the whole app, of the last press on a card's cover:
+  // every press drops the one before, so a tap only ever finds its own.
+  static _Pressed? _pressed;
+  static VideoExpandSourceState? _pressedBy;
+  static Timer? _pressedExpiry;
+  Timer? _pressTimer;
+  Offset? _pressAt;
+  double _pressSlop = kTouchSlop;
+  ValueListenable<bool>? _scrolling;
+
+  /// How long a press holds still before the page is taken: a finger that
+  /// goes on to scroll has passed the touch slop by then, mostly.
+  static const pressHold = Duration(milliseconds: 40);
+
+  /// How long a picture taken on a press waits for its tap, which may wait
+  /// for a request; the page could change by then.
+  static const _pressedLife = Duration(milliseconds: 500);
+
+  void _handlePointerDown(PointerDownEvent event) {
+    _dropPressed();
+    _pressTimer?.cancel();
+    _pressTimer = null;
+    _pressAt = null;
+    _stopWatchingScroll();
+    // Only a press on the cover, which opens the page: the card's own
+    // buttons, as a like, lie beside it, and a card that cannot open its
+    // page, as in multi-select, takes none.
+    final cover = _coverRect;
+    if (!widget.takesPressShot ||
+        cover == null ||
+        !cover.contains(event.position)) {
+      return;
+    }
+    _pressAt = event.position;
+    // The smallest slop a gesture around it moves on: the device's, or the
+    // app's for horizontal swipes, as history's.
+    _pressSlop = [
+      kTouchSlop,
+      ?MediaQuery.gestureSettingsOf(context).touchSlop,
+      touchSlopH,
+    ].reduce(math.min);
+    // And should the list around it start to scroll first, it is no tap.
+    _scrolling = Scrollable.maybeOf(context)?.position.isScrollingNotifier
+      ?..addListener(_handleScrolling);
+    _pressTimer = Timer(pressHold, _takeOnPress);
+  }
+
+  void _handleScrolling() {
+    if (_scrolling?.value ?? false) {
+      _endPress();
+    }
+  }
+
+  void _stopWatchingScroll() {
+    _scrolling?.removeListener(_handleScrolling);
+    _scrolling = null;
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_pressAt case final at?
+        when (event.position - at).distance > _pressSlop) {
+      _endPress();
+    }
+  }
+
+  // Lifted, the tap that follows takes what the press took.
+  void _handlePointerUp(PointerUpEvent event) {
+    _pressTimer?.cancel();
+    _pressTimer = null;
+    _pressAt = null;
+    _stopWatchingScroll();
+  }
+
+  void _endPress() {
+    _pressTimer?.cancel();
+    _pressTimer = null;
+    _pressAt = null;
+    _stopWatchingScroll();
+    if (identical(_pressedBy, this)) {
+      _dropPressed();
+    }
+  }
+
+  void _takeOnPress() {
+    _pressTimer = null;
+    final route = ModalRoute.of(context);
+    if (!mounted ||
+        _route != null ||
+        route == null ||
+        !route.isCurrent ||
+        !route.opaque ||
+        !VideoExpand.enabled(context)) {
+      return;
+    }
+    final below = VideoExpandRoute._pictureOf(route);
+    final card = _cardRect;
+    final layers = VideoExpandRoute._layersOf(route, this);
+    if (below == null || card == null || layers == null) {
+      below?.image.dispose();
+      return;
+    }
+    _dropPressed();
+    _pressed = (route: route, card: card, layers: layers, below: below);
+    _pressedBy = this;
+    _pressedExpiry = Timer(_pressedLife, _dropPressed);
+    // The picture is drawn as the next frame goes to the GPU, not before:
+    // a frame now has it drawn while the finger is still down.
+    SchedulerBinding.instance.scheduleForcedFrame();
+  }
+
+  static _Pressed? _takePressed() {
+    final pressed = _pressed;
+    _pressed = null;
+    _pressedBy = null;
+    _pressedExpiry?.cancel();
+    _pressedExpiry = null;
+    return pressed;
+  }
+
+  // What this card's press took, if the card still stands where it did
+  // then: a card that opens after a request may see its list scrolled
+  // meanwhile. Whether the page itself is as it was, the route checks.
+  _Pressed? _takePressedInPlace() {
+    if (!identical(_pressedBy, this)) {
+      return null;
+    }
+    final pressed = _takePressed()!;
+    if (pressed.card == _cardRect) {
+      return pressed;
+    }
+    pressed.below.image.dispose();
+    return null;
+  }
+
+  static void _dropPressed() {
+    _takePressed()?.below.image.dispose();
+  }
+
+  /// Whether a press holds a picture of the page, for tests.
+  @visibleForTesting
+  static bool get debugHoldsPressShot => _pressed != null;
+
   @override
   void dispose() {
     _route?.animation?.removeStatusListener(_handleRouteStatus);
     _route = null;
+    _pressTimer?.cancel();
+    _stopWatchingScroll();
+    if (identical(_pressedBy, this)) {
+      _dropPressed();
+    }
     super.dispose();
   }
 
@@ -423,11 +589,17 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
     // taps through to the page below, which would open it again.
     return IgnorePointer(
       ignoring: _hidden,
-      child: Opacity(
-        opacity: _hidden ? 0 : 1,
-        child: RepaintBoundary(
-          key: _cardKey,
-          child: widget.builder(context, this),
+      child: Listener(
+        onPointerDown: _handlePointerDown,
+        onPointerMove: _handlePointerMove,
+        onPointerUp: _handlePointerUp,
+        onPointerCancel: (_) => _endPress(),
+        child: Opacity(
+          opacity: _hidden ? 0 : 1,
+          child: RepaintBoundary(
+            key: _cardKey,
+            child: widget.builder(context, this),
+          ),
         ),
       ),
     );
@@ -490,6 +662,13 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   /// Whether the route holds a picture of the page below.
   @visibleForTesting
   bool get debugHoldsBelow => _below != null;
+
+  // Whether that picture was taken as the press held on the card.
+  bool _belowTakenOnPress = false;
+
+  /// Whether the picture of the page below was taken as the press held.
+  @visibleForTesting
+  bool get debugBelowTakenOnPress => _belowTakenOnPress;
 
   /// The page's player, where the cover grows into.
   VideoExpandTargetState? _target;
@@ -613,7 +792,7 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
               animation?.status != AnimationStatus.reverse) {
             return;
           }
-          _takeBelow();
+          _takeBelow(null);
           _coverBelow();
         });
       case AnimationStatus.forward:
@@ -634,40 +813,154 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   }
 
   /// Takes the page below, if it is the page right under this one and
-  /// covers the pages under it, before the route is pushed.
-  void _takeBelow() {
+  /// covers the pages under it, before the route is pushed: [pressed], taken
+  /// as the press held on the card, when it still stands as then.
+  void _takeBelow(_Pressed? pressed) {
     final below = belowRoute;
-    final boundary = below?.subtreeContext?.findRenderObject();
-    if (below == null ||
-        boundary is! RenderRepaintBoundary ||
-        !boundary.attached) {
+    if (below == null) {
+      pressed?.below.image.dispose();
       return;
+    }
+    if (pressed != null) {
+      final now = _where(below);
+      // Nothing painted on the page since, or moved: what a frame changed
+      // there, the picture would show as it was.
+      if (identical(pressed.route, below) &&
+          now != null &&
+          now.rect == pressed.below.rect &&
+          now.screen == pressed.below.screen &&
+          listEquals(_layersOf(below, source), pressed.layers)) {
+        _below = pressed.below;
+        _belowTakenOnPress = true;
+        return;
+      }
+      pressed.below.image.dispose();
+    }
+    _below = _pictureOf(below);
+  }
+
+  /// Where [route]'s page lies and the screen's size, if it can be drawn
+  /// from a picture.
+  static ({Rect rect, Size screen, double pixelRatio, OffsetLayer layer})?
+  _where(ModalRoute<dynamic> route) {
+    final boundary = route.subtreeContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.attached) {
+      return null;
     }
     // ignore: invalid_use_of_protected_member
     final layer = boundary.layer;
     if (layer is! OffsetLayer || !layer.supportsRasterization()) {
-      return;
+      return null;
     }
-    final screen = switch (below.navigator?.context.findRenderObject()) {
+    final screen = switch (route.navigator?.context.findRenderObject()) {
       final RenderBox box when box.hasSize => box.size,
       _ => null,
     };
-    final media = below.subtreeContext!
+    final media = route.subtreeContext!
         .getInheritedWidgetOfExactType<MediaQuery>()
         ?.data;
     // A page with the keyboard up is laid out again as it goes: a picture
     // would keep the room it made for the keyboard. It draws as it is.
     if (screen == null || media == null || media.viewInsets != .zero) {
-      return;
+      return null;
     }
-    _below = (
-      // As last composited: the tap's ink marks it to paint again.
-      image: layer.toImageSync(
-        Offset.zero & boundary.size,
-        pixelRatio: media.devicePixelRatio,
-      ),
+    return (
       rect: boundary.localToGlobal(Offset.zero) & boundary.size,
       screen: screen,
+      pixelRatio: media.devicePixelRatio,
+      layer: layer,
+    );
+  }
+
+  /// What [route]'s page composited last, as far as a picture of it shows:
+  /// each layer with what it draws, where it lies and how it clips, but for
+  /// [source]'s card. Painted again, a layer draws a new picture; scrolled,
+  /// it lies elsewhere.
+  static List<Object?>? _layersOf(
+    ModalRoute<dynamic> route,
+    VideoExpandSourceState source,
+  ) {
+    final boundary = route.subtreeContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.attached) {
+      return null;
+    }
+    // ignore: invalid_use_of_protected_member
+    final root = boundary.layer;
+    if (root == null) {
+      return null;
+    }
+    // The card's own layers count as one: its ink is all a press paints
+    // there, and the page covers the card from its first frame.
+    final card = switch (source._cardKey.currentContext?.findRenderObject()) {
+      // ignore: invalid_use_of_protected_member
+      final RenderRepaintBoundary boundary => boundary.layer,
+      _ => null,
+    };
+    final layers = <Object?>[];
+    void visit(Layer layer) {
+      layers.add(layer);
+      if (identical(layer, card)) {
+        layers.add((layer as OffsetLayer).offset);
+        return;
+      }
+      switch (layer) {
+        case PictureLayer(:final picture):
+          layers.add(picture);
+        case TextureLayer(:final textureId, :final rect):
+          layers
+            ..add(textureId)
+            ..add(rect);
+        // Before OffsetLayer, which they extend.
+        case TransformLayer(:final transform, :final offset):
+          layers
+            ..add(transform?.clone())
+            ..add(offset);
+        case OpacityLayer(:final alpha, :final offset):
+          layers
+            ..add(alpha)
+            ..add(offset);
+        case OffsetLayer(:final offset):
+          layers.add(offset);
+        case ClipRectLayer(:final clipRect):
+          layers.add(clipRect);
+        case ClipRRectLayer(:final clipRRect):
+          layers.add(clipRRect);
+        case ClipRSuperellipseLayer(:final clipRSuperellipse):
+          layers.add(clipRSuperellipse);
+        case ClipPathLayer(:final clipPath):
+          layers.add(clipPath);
+        default:
+          // Glass, which its pane sets in place as it paints.
+          if (liquidGlassPaintCount(layer) case final paints?) {
+            layers.add(paints);
+          }
+      }
+      if (layer is ContainerLayer) {
+        for (Layer? child = layer.firstChild; child != null;) {
+          visit(child);
+          child = child.nextSibling;
+        }
+      }
+    }
+
+    visit(root);
+    return layers;
+  }
+
+  /// A picture of [route]'s page, as last composited: a tap's ink marks it
+  /// to paint again.
+  static _Below? _pictureOf(ModalRoute<dynamic> route) {
+    final where = _where(route);
+    if (where == null) {
+      return null;
+    }
+    return (
+      image: where.layer.toImageSync(
+        Offset.zero & where.rect.size,
+        pixelRatio: where.pixelRatio,
+      ),
+      rect: where.rect,
+      screen: where.screen,
     );
   }
 
@@ -723,6 +1016,14 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
 /// A picture of the page under the opening one, and where it stands on
 /// screen. [screen] is the navigator's size as it was taken.
 typedef _Below = ({ui.Image image, Rect rect, Size screen});
+
+/// A picture of the page a card lies on, taken as a press held on the card.
+typedef _Pressed = ({
+  ModalRoute<dynamic> route,
+  Rect card,
+  List<Object?> layers,
+  _Below below,
+});
 
 class _ExpandTransition extends StatefulWidget {
   const _ExpandTransition({

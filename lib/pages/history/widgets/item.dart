@@ -45,6 +45,7 @@ class HistoryItem extends StatelessWidget {
       key: ObjectKey(item),
       color: theme.colorScheme.surface,
       coverRadius: Style.mdRadius,
+      takesPressShot: !enableMultiSelect,
       builder: (context, source) => Material(
         type: MaterialType.transparency,
         child: InkWell(

@@ -42,6 +42,7 @@ class VideoCardHLater extends StatelessWidget {
       key: ObjectKey(videoItem),
       color: theme.colorScheme.surface,
       coverRadius: Style.mdRadius,
+      takesPressShot: !enableMultiSelect,
       builder: (context, source) => Material(
         type: MaterialType.transparency,
         child: InkWell(

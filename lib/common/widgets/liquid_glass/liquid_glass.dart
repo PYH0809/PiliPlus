@@ -1262,7 +1262,9 @@ class LiquidGlassPane {
       ..holdFrost = holdFrost
       ..steadyFrost = steadyFrost
       ..rim = rim
-      ..group = group;
+      ..group = group
+      // PiliPlus: see liquidGlassPaintCount.
+      ..paints += 1;
     context.addLayer(pane);
     if (hold != null && shadows.isNotEmpty) {
       // PiliPlus: as above.
@@ -1364,6 +1366,10 @@ abstract final class _GlassProgram {
 class _LiquidGlassLayer extends Layer {
   static int _skipped = 0;
   static int _capturesHeld = 0;
+
+  // PiliPlus: how often its pane painted it, which sets what it draws in
+  // place; see liquidGlassPaintCount.
+  int paints = 0;
 
   ui.FragmentProgram? program;
   Rect rect = Rect.zero;
@@ -1879,6 +1885,13 @@ List<double> _optics(double saturation, double brightness) {
     0, 0, 0, 1, 0,
   ];
 }
+
+// PiliPlus: added. How often a pane painted [layer], when it is one, or null:
+// a pane sets what its layer draws in place, as its glow and style, so a
+// picture of a page taken earlier shows it as it was if this has changed
+// since (VideoExpandSource's press picture).
+int? liquidGlassPaintCount(Layer layer) =>
+    layer is _LiquidGlassLayer ? layer.paints : null;
 
 // PiliPlus: added, for VideoGlass, glass over a video texture, which the host
 // cannot replay: a backdrop filter runs the same shader over the screen.

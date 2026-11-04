@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_h.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/models/model_hot_video_item.dart';
@@ -8,6 +10,7 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
@@ -112,39 +115,49 @@ var _pagePaints = 0;
 Widget _card0({
   ValueChanged<VideoExpandSourceState>? onSource,
   Color? tint,
+  bool takesPressShot = true,
 }) => VideoExpandSource(
   color: Colors.white,
+  takesPressShot: takesPressShot,
   builder: (context, source) {
     onSource?.call(source);
+    // On a Material of its own, as the app's cards are, which its ink
+    // paints on.
     return SizedBox(
       width: 180,
       height: 200,
-      child: InkWell(
-        onTap: () => PageUtils.toVideoPage(
-          aid: 2,
-          bvid: 'BV1xx411c7mD',
-          cid: 3,
-          title: '标题',
-          expandFrom: source,
-        ),
-        child: Column(
-          children: [
-            source.cover(
-              RawImage(
-                image: _coverImage,
-                width: 180,
-                height: 112.5,
-                color: tint,
-                colorBlendMode: tint == null ? null : BlendMode.modulate,
+      child: Material(
+        type: .transparency,
+        child: InkWell(
+          onTap: () => PageUtils.toVideoPage(
+            aid: 2,
+            bvid: 'BV1xx411c7mD',
+            cid: 3,
+            title: '标题',
+            expandFrom: source,
+          ),
+          child: Column(
+            children: [
+              source.cover(
+                RawImage(
+                  image: _coverImage,
+                  width: 180,
+                  height: 112.5,
+                  color: tint,
+                  colorBlendMode: tint == null ? null : BlendMode.modulate,
+                ),
               ),
-            ),
-            const Text('卡片'),
-          ],
+              const Text('卡片'),
+            ],
+          ),
         ),
       ),
     );
   },
 );
+
+Offset _coverCenter(WidgetTester tester) =>
+    tester.getCenter(find.byType(RawImage).first);
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -505,6 +518,222 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
     expect(await repaintsBelow(), isTrue);
+  });
+
+  testWidgets('a press held on the card takes the page below before the tap', (
+    tester,
+  ) async {
+    await _pump(tester);
+    final press = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold);
+    await tester.pump(const Duration(milliseconds: 40));
+    await press.up();
+    await tester.pump();
+    expect(Get.currentRoute, '/videoV');
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isTrue);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a card moved since the press takes the page again', (
+    tester,
+  ) async {
+    final top = ValueNotifier(0.0);
+    addTearDown(top.dispose);
+    await _pump(
+      tester,
+      home: ValueListenableBuilder(
+        valueListenable: top,
+        builder: (context, value, child) => Padding(
+          padding: .only(top: value),
+          child: child,
+        ),
+        child: _card0(),
+      ),
+    );
+    final press = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold);
+    await tester.pump(const Duration(milliseconds: 16));
+    // As a list scrolled while the card's tap waited for a request.
+    top.value = 3;
+    await tester.pump();
+    await press.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a quick tap or a press that scrolls takes it at the tap', (
+    tester,
+  ) async {
+    await _pump(tester);
+    // Moved past the touch slop before it held still long enough, the press
+    // took nothing; nor does a tap lifted at once.
+    final press = await tester.startGesture(_coverCenter(tester));
+    await press.moveBy(const Offset(0, kTouchSlop + 4));
+    await tester.pump(VideoExpandSourceState.pressHold * 2);
+    await press.cancel();
+    await tester.pump();
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'a press off the cover or on a card that cannot open takes none',
+    (
+      tester,
+    ) async {
+      await _pump(tester);
+      // The card's own buttons lie beside the cover.
+      var press = await tester.startGesture(tester.getCenter(find.text('卡片')));
+      await tester.pump(VideoExpandSourceState.pressHold * 2);
+      expect(VideoExpandSourceState.debugHoldsPressShot, isFalse);
+      await press.cancel();
+
+      await _pump(tester, home: _card0(takesPressShot: false));
+      press = await tester.startGesture(_coverCenter(tester));
+      await tester.pump(VideoExpandSourceState.pressHold * 2);
+      expect(VideoExpandSourceState.debugHoldsPressShot, isFalse);
+      await press.cancel();
+      await tester.pump();
+    },
+  );
+
+  testWidgets('a new press lets the picture of the one before go', (
+    tester,
+  ) async {
+    await _pump(tester);
+    final first = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold * 2);
+    expect(VideoExpandSourceState.debugHoldsPressShot, isTrue);
+    // A second finger, as any next press: only the last press holds one.
+    final second = await tester.startGesture(
+      tester.getCenter(find.text('卡片')),
+      pointer: 2,
+    );
+    await tester.pump();
+    expect(VideoExpandSourceState.debugHoldsPressShot, isFalse);
+    await second.cancel();
+    await first.cancel();
+    await tester.pump();
+  });
+
+  testWidgets('the page painted since the press takes it again', (
+    tester,
+  ) async {
+    final changes = ValueNotifier(0);
+    addTearDown(changes.dispose);
+    await _pump(
+      tester,
+      home: Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
+        children: [
+          CustomPaint(
+            size: const Size.square(40),
+            painter: _CountingPainter(changes, () {}),
+          ),
+          _card0(),
+        ],
+      ),
+    );
+    final press = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold * 2);
+    expect(VideoExpandSourceState.debugHoldsPressShot, isTrue);
+    // As another cover loading in place, the layout as it was.
+    changes.value++;
+    await tester.pump();
+    await press.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('glass changed since the press takes the page again', (
+    tester,
+  ) async {
+    final pressed = ValueNotifier(false);
+    addTearDown(pressed.dispose);
+    await _pump(
+      tester,
+      home: Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
+        children: [
+          // Glass alone in its layer: pressed, it draws differently with no
+          // picture drawn again.
+          RepaintBoundary(
+            child: SizedBox.square(
+              dimension: 40,
+              child: ValueListenableBuilder(
+                valueListenable: pressed,
+                builder: (context, value, _) => LiquidGlass(
+                  style: LiquidGlassStyle.regular(const ColorScheme.light()),
+                  pressed: value,
+                ),
+              ),
+            ),
+          ),
+          _card0(),
+        ],
+      ),
+    );
+    final press = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold * 2);
+    expect(VideoExpandSourceState.debugHoldsPressShot, isTrue);
+    pressed.value = true;
+    await tester.pump();
+    await press.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('a list starting to scroll under the press takes none', (
+    tester,
+  ) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await _pump(
+      tester,
+      home: SizedBox(
+        height: 400,
+        child: ListView(
+          controller: controller,
+          children: [_card0(), const SizedBox(height: 2000)],
+        ),
+      ),
+    );
+    final press = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold ~/ 2);
+    // As a scroll some recognizer won with a slop of its own.
+    unawaited(
+      controller.animateTo(
+        60,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.linear,
+      ),
+    );
+    await tester.pump(VideoExpandSourceState.pressHold);
+    expect(VideoExpandSourceState.debugHoldsPressShot, isFalse);
+    await press.cancel();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('a page opened over it lets the picture below go', (

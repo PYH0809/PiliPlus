@@ -86,6 +86,7 @@ class FavVideoCardH extends StatelessWidget {
       key: ObjectKey(item),
       color: colorScheme.surface,
       coverRadius: Style.mdRadius,
+      takesPressShot: !isSort && !enableMultiSelect,
       builder: (context, source) => Material(
         type: MaterialType.transparency,
         child: InkWell(

@@ -144,6 +144,9 @@ class DetailItem extends StatelessWidget {
       key: ObjectKey(entry),
       color: ColorScheme.of(context).surface,
       coverRadius: Style.mdRadius,
+      // Only where a tap opens the video: else it starts or pauses the
+      // download, or opens the downloads.
+      takesPressShot: canDel && entry.isCompleted && !enableMultiSelect,
       builder: (context, source) => Material(
         type: MaterialType.transparency,
         child: InkWell(
