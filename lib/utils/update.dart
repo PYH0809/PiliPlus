@@ -27,13 +27,22 @@ abstract final class Update {
     int versionCode = BuildConfig.versionCode,
   }) => manifest.versionCode > versionCode;
 
+  // 发版的序号：tag 的 +N。手动发版能把构建号（versionCode）单独调高，
+  // 跳过的界限要按发版顺序记，不能用它；tag 不是这个格式时才退回构建号
+  static int releaseNumber(UpdateManifest manifest) =>
+      switch (RegExp(r'\+(\d+)$').firstMatch(manifest.tag)) {
+        final match? => int.parse(match[1]!),
+        null => manifest.versionCode,
+      };
+
   // 用户在对话框里点过「跳过此版本」的版本，自动检查时不再提示，比它新的
-  // 照常提示；从「关于」手动检查是用户自己要看，照常提示
+  // 照常提示；从「关于」手动检查是用户自己要看，照常提示。skipped 是
+  // 跳过的那一版的 releaseNumber
   static bool isSkipped(
     UpdateManifest manifest, {
     required bool isAuto,
     required int skipped,
-  }) => isAuto && manifest.versionCode <= skipped;
+  }) => isAuto && releaseNumber(manifest) <= skipped;
 
   // 这一版的提交：清单带了上一版的 tag 就比较两版，没有就打开这一版的
   // Release 页
@@ -214,7 +223,10 @@ class _UpdateDialog extends StatelessWidget {
     final skip = TextButton(
       onPressed: () {
         SmartDialog.dismiss();
-        GStorage.setting.put(SettingBoxKey.skippedUpdate, manifest.versionCode);
+        GStorage.setting.put(
+          SettingBoxKey.skippedUpdate,
+          Update.releaseNumber(manifest),
+        );
       },
       child: Text('跳过此版本', style: TextStyle(color: colorScheme.onSurface)),
     );
@@ -325,8 +337,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
   // 正在打开安装程序或者等设置页回来，按钮先不能点
   bool _installing = false;
   AppLifecycleListener? _lifecycle;
-  // 下载速度：每半秒按这段时间收到的字节算一次
-  final _clock = Stopwatch();
+  // 下载速度：每秒按这一秒收到的字节算一次，没收到就是 0，卡住时看得出来
+  Timer? _ticker;
   int _speedFrom = 0;
   double? _speed;
   // 装不上时的标题
@@ -340,6 +352,7 @@ class _DownloadDialogState extends State<_DownloadDialog> {
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _downloader?.cancel();
     _lifecycle?.dispose();
     super.dispose();
@@ -367,26 +380,22 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             _received = 0;
             _speedFrom = 0;
             _speed = null;
-            _clock
-              ..reset()
-              ..start();
+          });
+          _ticker?.cancel();
+          _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+            if (!mounted) return;
+            setState(() {
+              _speed = (_received - _speedFrom).toDouble();
+              _speedFrom = _received;
+            });
           });
         },
         onProgress: (received, _) {
-          if (!mounted) return;
-          setState(() {
-            _received = received;
-            final ms = _clock.elapsedMilliseconds;
-            if (ms >= 500) {
-              _speed = (received - _speedFrom) * 1000 / ms;
-              _speedFrom = received;
-              _clock
-                ..reset()
-                ..start();
-            }
-          });
+          if (mounted) setState(() => _received = received);
         },
       );
+      _ticker?.cancel();
+      _ticker = null;
       if (file == null || !mounted) return;
       _file = file;
       // 在后台时系统可能拦下打开安装程序和设置页，等回到前台再装
@@ -394,6 +403,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       if (!mounted) return;
       await _install();
     } on UpdateDownloadException catch (e) {
+      _ticker?.cancel();
+      _ticker = null;
       if (!mounted) return;
       setState(() {
         _stage = .failed;

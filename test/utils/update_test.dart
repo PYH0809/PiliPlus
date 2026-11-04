@@ -140,7 +140,7 @@ void main() {
   });
 
   test('a skipped version stays quiet only on an auto check', () {
-    final m = _manifest([]); // versionCode 6120
+    final m = _manifest([]); // 2.2.0+6120
     // skipped this very version: silent on auto, shown on a manual check
     expect(Update.isSkipped(m, isAuto: true, skipped: 6120), isTrue);
     expect(Update.isSkipped(m, isAuto: false, skipped: 6120), isFalse);
@@ -150,6 +150,41 @@ void main() {
     expect(Update.isSkipped(m, isAuto: true, skipped: 6125), isTrue);
     // nothing skipped
     expect(Update.isSkipped(m, isAuto: true, skipped: 0), isFalse);
+  });
+
+  test('skipping goes by the release order, not a raised build number', () {
+    // a manual build of +6100 with its build number raised to 9000
+    final raised = UpdateManifest.fromJson({
+      'tag': '2.2.0+6100',
+      'versionCode': 9000,
+      'assets': [],
+    });
+    expect(Update.releaseNumber(raised), 6100);
+    final next = UpdateManifest.fromJson({
+      'tag': '2.2.0+6101',
+      'versionCode': 6101,
+      'assets': [],
+    });
+    // skipping the raised one doesn't hide the next release
+    expect(
+      Update.isSkipped(
+        next,
+        isAuto: true,
+        skipped: Update.releaseNumber(raised),
+      ),
+      isFalse,
+    );
+    // a tag without +N falls back to the build number
+    expect(
+      Update.releaseNumber(
+        UpdateManifest.fromJson({
+          'tag': 'v2',
+          'versionCode': 7,
+          'assets': [],
+        }),
+      ),
+      7,
+    );
   });
 
   test('Update.commitsUrl compares with the previous release', () {
