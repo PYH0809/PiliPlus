@@ -6,29 +6,32 @@ then:
 
     python3 tool/measure_scroll.py run.log [label] [--rounds N] [--pin]
 
-Each round drags the page up and then down, 1.2 s each, in the middle of a
-1440x3120 screen; `input swipe` lets go moving, so a long list may fling on
-a little, and every number below takes that in too. For each drag it prints
-the frames the app drew, their fps and mean UI and raster times
-(FrameStats), and the frames the screen showed a refresh or more late
-(SurfaceFlinger's present times for the app's surface, against its refresh
-period, as `dumpsys gfxinfo` counts none: Flutter draws into a SurfaceView).
-A gap of a quarter second or more is the page standing still, as at an end
-of the list, not counted; and if the display changed its rate within the
-drag, the late count reads ?, as no one period judges it.
+Each round drags the page up and then down, 1.2 s each, through the
+middle of the screen, and measures 1.7 s from the first frame the drag
+draws, the fling after it with it: `input swipe` lets go moving. Frames a
+page draws by itself, as an animated picture's, fall outside that. For each
+drag it prints the frames the app drew, their fps and mean UI and raster
+times (FrameStats' frame log), and the frames the screen showed a refresh
+or more late (SurfaceFlinger's present times for the app's surface, against
+its refresh period, as `dumpsys gfxinfo` counts none: Flutter draws into a
+SurfaceView). A drag that reaches an end of the page stands still for the
+rest of the window, and its gaps count as late: give it room to scroll. If
+the display changed its rate within the drag, the late count reads ?, as no
+one period judges it.
 
 With root (`su`) on a Qualcomm GPU, it also prints how busy the GPU was over
 each drag, from kgsl (`/sys/class/kgsl/kgsl-3d0/gpubusy`). That answers the
 busy and total time of the driver's last window, about a second, so it is
 read through the drag, and the windows from its start to the first that
-comes out after the page stood still are summed: they reach up to a second
-past either end, which dilutes the busy share a little alike for every
-build. The GPU's clock follows its load, so --pin holds it at 427 MHz and
-the display at 90 Hz while measuring, and after puts back the GPU's levels
-and lets go of the display (SurfaceFlinger answers no forced config to put
-back, so it takes none was set). Without root or kgsl those numbers are
-left out, and it says so. --surface names the app's SurfaceFlinger layer,
-when the one it finds is not it.
+comes out after the window ends are summed: they reach up to a second past
+either end, which dilutes the busy share a little alike for every build.
+The GPU's clock follows its load, so --pin holds it at 427 MHz and the
+display at 90 Hz while measuring (a OnePlus 7 Pro's), and after puts back
+the GPU's levels and lets go of the display. SurfaceFlinger answers no
+forced display config to put back, so a config forced before the run is
+lost: it says so as it lets go. Without root or kgsl those numbers are left
+out, and it says so. --surface names the app's SurfaceFlinger layer, when
+the one it finds is not it.
 
 Interleave the builds or switches you compare, a few rounds each, and note
 the temperature it prints: a warm phone slows every one. ANDROID_SERIAL
@@ -137,16 +140,17 @@ def presents(required=True, layer=None):
     return period, times
 
 
-# A gap this long is the page standing still, as at an end of the list, not
-# a frame it missed: a stall that long while it moves shows in fps too.
-IDLE_NS = 250_000_000
+# The drag, and the fling after it, are measured over this long from the
+# first frame it draws: frames a page draws by itself, as an animated
+# picture's, would otherwise keep a measurement going.
+DRAG_S = 1.2
+WINDOW_NS = int((DRAG_S + 0.5) * 1e9)
 
 
 def late(period, times):
-    """Frames shown a refresh or more after the one before them."""
-    return sum(
-        1 for a, b in zip(times, times[1:]) if period * 1.5 < b - a < IDLE_NS
-    )
+    """Frames shown a refresh or more after the one before them, among
+    frames shown while the page moved, every vsync."""
+    return sum(1 for a, b in zip(times, times[1:]) if b - a > period * 1.5)
 
 
 class GpuBusy:
@@ -191,7 +195,17 @@ class GpuBusy:
         return sum(b for b, _ in kept) / max(sum(t for _, t in kept), 1)
 
 
+def screen_size():
+    """The screen's size in pixels, its override's when it has one."""
+    sizes = re.findall(r"(\d+)x(\d+)", adb_shell("wm size"))
+    if not sizes:
+        sys.exit("wm size answered no size")
+    return int(sizes[-1][0]), int(sizes[-1][1])
+
+
 def drag(app, start, end, root):
+    """Drags from [start] to [end], shares of the screen's height."""
+    width, height = screen_size()
     app.ext("resetFrames")
     adb_shell(f'dumpsys SurfaceFlinger --latency-clear "{SURFACE}"')
     gpu = GpuBusy() if root else None
@@ -199,39 +213,43 @@ def drag(app, start, end, root):
     # SurfaceFlinger keeps the last 128 or so: read them as the drag goes.
     serial = ["-s", SERIAL] if SERIAL else []
     swipe = subprocess.Popen(
-        ["adb", *serial, "shell", f"input swipe 720 {start} 720 {end} 1200"]
+        ["adb", *serial, "shell",
+         f"input swipe {width // 2} {int(start * height)} {width // 2} "
+         f"{int(end * height)} {int(DRAG_S * 1000)}"]
     )
     periods, shown = set(), set()
+
+    def read_presents():
+        period, times = presents(required=False)
+        periods.add(period)
+        shown.update(times)
+
     while swipe.poll() is None:
         time.sleep(0.5)
-        period, times = presents(required=False)
-        periods.add(period)
-        shown.update(times)
+        read_presents()
     if swipe.returncode != 0:
         sys.exit(f"input swipe failed: {swipe.returncode}")
-    # Frame timings come in batches: wait till the count stops growing; the
-    # page stood still from the poll before.
-    frames, settled, deadline = {}, time.time(), time.time() + 3
-    while time.time() < deadline:
-        time.sleep(0.4)
-        last = frames.get("frames", 0)
-        frames = json.loads(app.ext("state"))["frames"] or {}
-        period, times = presents(required=False)
-        periods.add(period)
-        shown.update(times)
-        if frames.get("frames", 0) == last and last > 0:
-            break
-        settled = time.time()
+    ended = began + DRAG_S + 0.5
+    time.sleep(max(0.0, ended - time.time()))
+    read_presents()
+    # Frame timings come in batches, at least once a second.
+    time.sleep(1.1)
+    # [raster finish us, raster ms, UI ms] a frame, on SurfaceFlinger's clock.
+    log = json.loads(app.ext("frameLog"))
+    first = log[0][0] * 1000 if log else 0
+    frames = [f for f in log if f[0] * 1000 - first <= WINDOW_NS]
+    shown = sorted(t for t in shown if first <= t <= first + WINDOW_NS)
+    span = (frames[-1][0] - frames[0][0]) / 1e6 if len(frames) > 1 else 0
     periods.discard(None)
     return {
-        "frames": frames.get("frames", 0),
-        "fps": frames.get("fps", 0),
-        "raster": frames.get("rasterMean", 0),
-        "ui": frames.get("uiMean", 0),
+        "frames": len(frames),
+        "fps": (len(frames) - 1) / span if span else 0,
+        "raster": statistics.mean(f[1] for f in frames) if frames else 0,
+        "ui": statistics.mean(f[2] for f in frames) if frames else 0,
         # Unpinned, the display may change its rate within the drag, which
         # leaves no one period to judge the gaps by.
-        "late": late(periods.pop(), sorted(shown)) if len(periods) == 1 else None,
-        "gpu": gpu.share(began, settled) if gpu else None,
+        "late": late(periods.pop(), shown) if len(periods) == 1 else None,
+        "gpu": gpu.share(began, ended) if gpu else None,
     }
 
 
@@ -269,6 +287,11 @@ def pinning():
                 failed.append(step)
         if failed:
             print(f"could not undo: {failed}; put them back by hand", flush=True)
+        print(
+            "let go of the display's forced config: one forced before the run "
+            f"is lost (service call SurfaceFlinger {FORCE_CONFIG} i32 <index> sets it)",
+            flush=True,
+        )
 
     return pin, undo
 
@@ -299,8 +322,8 @@ def main():
             pin()
         drags = []
         for _ in range(args.rounds):
-            drags.append(("up", drag(app, 2300, 700, root)))
-            drags.append(("down", drag(app, 700, 2300, root)))
+            drags.append(("up", drag(app, 0.74, 0.22, root)))
+            drags.append(("down", drag(app, 0.22, 0.74, root)))
     finally:
         if undo:
             undo()
