@@ -140,18 +140,18 @@ def drag(app, start, end, root):
         time.sleep(0.4)
         last = frames.get("frames", 0)
         frames = json.loads(app.ext("state"))["frames"] or {}
+        period, times = presents(required=False)
+        shown.update(times)
         if frames.get("frames", 0) == last and last > 0:
             break
     count = frames.get("frames", 0)
-    period, times = presents()
-    shown.update(times)
     # Over the same frames, the fling after the drag's end with them.
     busy = int(su(f"cat {KGSL}/gpubusy").split()[0]) / 1000 if root else None
     return {
         "frames": count,
         "fps": frames.get("fps", 0),
         "raster": frames.get("rasterMean", 0),
-        "late": late(period, sorted(shown)),
+        "late": late(period, sorted(shown)) if period else 0,
         "gpu": busy / count if busy is not None and count else None,
     }
 
@@ -200,6 +200,8 @@ def main():
     parser.add_argument("--pin", action="store_true", help="root: 427 MHz, 90 Hz")
     args = parser.parse_args()
     app = App(args.log)
+    # The app's surface is there, with frames from before.
+    presents()
     root = has_root()
     if not root:
         print("no root: GPU busy time and the pins are left out", flush=True)
