@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_h.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/models/model_hot_video_item.dart';
@@ -650,6 +651,49 @@ void main() {
     expect(VideoExpandSourceState.debugHoldsPressShot, isTrue);
     // As another cover loading in place, the layout as it was.
     changes.value++;
+    await tester.pump();
+    await press.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final route = VideoExpandRoute.of(tester.element(find.byType(_Page)))!;
+    expect(route.debugHoldsBelow, isTrue);
+    expect(route.debugBelowTakenOnPress, isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('glass changed since the press takes the page again', (
+    tester,
+  ) async {
+    final pressed = ValueNotifier(false);
+    addTearDown(pressed.dispose);
+    await _pump(
+      tester,
+      home: Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
+        children: [
+          // Glass alone in its layer: pressed, it draws differently with no
+          // picture drawn again.
+          RepaintBoundary(
+            child: SizedBox.square(
+              dimension: 40,
+              child: ValueListenableBuilder(
+                valueListenable: pressed,
+                builder: (context, value, _) => LiquidGlass(
+                  style: LiquidGlassStyle.regular(const ColorScheme.light()),
+                  pressed: value,
+                ),
+              ),
+            ),
+          ),
+          _card0(),
+        ],
+      ),
+    );
+    final press = await tester.startGesture(_coverCenter(tester));
+    await tester.pump(VideoExpandSourceState.pressHold * 2);
+    expect(VideoExpandSourceState.debugHoldsPressShot, isTrue);
+    pressed.value = true;
     await tester.pump();
     await press.up();
     await tester.pump();

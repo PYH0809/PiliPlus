@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui show Image, lerpDouble;
 
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:flutter/foundation.dart' show listEquals;
@@ -900,6 +901,10 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
         case ClipPathLayer(:final clipPath):
           layers.add(clipPath);
         default:
+          // Glass, which its pane sets in place as it paints.
+          if (liquidGlassPaintCount(layer) case final paints?) {
+            layers.add(paints);
+          }
       }
       if (layer is ContainerLayer) {
         for (Layer? child = layer.firstChild; child != null;) {
