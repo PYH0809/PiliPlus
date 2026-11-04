@@ -4,7 +4,7 @@ Run the app in profile mode, its output to a file:
 
     flutter run --profile -d <device> > run.log
 
-turn on 显示性能浮层 in the app once, then:
+then:
 
     python3 tool/measure_glass.py run.log [true|false] <case> [<case> ...]
 
@@ -272,7 +272,7 @@ def measure(case):
         call("ext.flutter.profileRenderObjectLayouts", enabled="true")
     ext("resetFrames")
     # Every vsync, as the video's every new frame redraws the screen, which
-    # the overlay does not count by itself.
+    # the count does not see by itself.
     # Taking the timeline as it goes costs the phone frames of its own:
     # only builds, whose events overflow the VM's buffer, does.
     taker = TimelineTaker() if builds else None
@@ -326,6 +326,8 @@ def main():
     danmaku = args.pop(0) if args[0] in ("true", "false") else "false"
     ext("setting", key="autoPlayEnable", value="true")
     ext("setting", key="enableShowDanmaku", value=danmaku)
+    # The controls stay as each case shows or hides them.
+    ext("controlsStay", on="true")
     for case in args:
         try:
             s = measure(case)
