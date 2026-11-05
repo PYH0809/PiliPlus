@@ -6,23 +6,24 @@ void main() {
   Future<bool> barrierTapCloses(WidgetTester tester, bool barrierCloses) async {
     var heldBack = 0;
     await tester.pumpWidget(const MaterialApp(home: Scaffold()));
-    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-    navigator.push(
-      PublishRoute<void>(
-        barrierCloses: barrierCloses,
-        transitionDuration: const Duration(milliseconds: 100),
-        pageBuilder: (context, _, _) => Align(
-          alignment: Alignment.bottomCenter,
-          child: PopScope(
-            canPop: false,
-            onPopInvokedWithResult: (didPop, _) {
-              if (!didPop) heldBack++;
-            },
-            child: const SizedBox(height: 200, child: Text('面板')),
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .push(
+          PublishRoute<void>(
+            barrierCloses: barrierCloses,
+            transitionDuration: const Duration(milliseconds: 100),
+            pageBuilder: (context, _, _) => Align(
+              alignment: Alignment.bottomCenter,
+              child: PopScope(
+                canPop: false,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (!didPop) heldBack++;
+                },
+                child: const SizedBox(height: 200, child: Text('面板')),
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
     await tester.pumpAndSettle();
     await tester.tapAt(const Offset(20, 20));
     await tester.pumpAndSettle();
