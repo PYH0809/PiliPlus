@@ -39,7 +39,9 @@ turns on every glass part. It only takes effect after a restart.
   shrinks back as its menu with no button to return into does (`glassMenuShrink`), from where it stood, its rows
   fading with it rather than leaving first. While it moves, the controls' frosted panes over the video hold their
   glass still (`VideoGlass.frostHeld`): drawn from an image taken as it set off, their content live. Bent glass,
-  clear, stays live.
+  clear, stays live. While the video page's tabs swipe or its lists scroll (`VideoGlassScrollHold`), every one of
+  those panes, bent ones too, lays only its tint, a grey veil and a fainter rim over the live video
+  (`VideoGlass.held`): an image of clear bent glass would show the video as it stood after a cut.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `banner`, `menu`, `editMenu` (the text selection
   toolbar, clearer than a menu), `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of
