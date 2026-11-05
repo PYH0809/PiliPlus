@@ -514,6 +514,36 @@ void main() {
     expect(find.text('dark'), findsOneWidget);
   });
 
+  testWidgets('a route over the page builds nothing that looked it up', (
+    tester,
+  ) async {
+    var builds = 0;
+    await _pump(
+      tester,
+      page: () => Scaffold(
+        body: Builder(
+          builder: (context) {
+            builds++;
+            return Text('${VideoExpandRoute.of(context) != null}');
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    expect(find.text('true'), findsOneWidget);
+    final before = builds;
+    // A sheet over the page, as the player's ⋮ opens, and its return.
+    showModalBottomSheet<void>(
+      context: tester.element(find.text('true')),
+      builder: (context) => const SizedBox(height: 100),
+    );
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.text('true'))).pop();
+    await tester.pumpAndSettle();
+    expect(builds, before);
+  });
+
   testWidgets('the route tells when its page has landed', (tester) async {
     await _pump(tester);
     await tester.tap(find.text('卡片'));

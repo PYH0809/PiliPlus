@@ -618,6 +618,16 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
   }
 }
 
+class _VideoExpandScope extends InheritedWidget {
+  const _VideoExpandScope({required this.route, required super.child});
+
+  final VideoExpandRoute<dynamic> route;
+
+  @override
+  bool updateShouldNotify(_VideoExpandScope oldWidget) =>
+      !identical(route, oldWidget.route);
+}
+
 class _SourceCard extends StatelessWidget {
   const _SourceCard(this.source);
 
@@ -733,12 +743,16 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
     _coverOpacity.reverse().whenComplete(() => _coverShowing.value = false);
   }
 
-  /// The route [context] is in, if a card opened it.
+  /// The route [context] is in, if a card opened it. Unlike
+  /// [ModalRoute.of], it builds nothing again as a route opens over the page
+  /// or leaves it: a sheet opened over the video page rebuilt what had looked
+  /// its route up, as the related list, in the sheet's first frame.
   static VideoExpandRoute<dynamic>? of(BuildContext context) =>
-      switch (ModalRoute.of(context)) {
-        final VideoExpandRoute<dynamic> route => route,
-        _ => null,
-      };
+      context.dependOnInheritedWidgetOfExactType<_VideoExpandScope>()?.route;
+
+  @override
+  Widget buildContent(BuildContext context) =>
+      _VideoExpandScope(route: this, child: super.buildContent(context));
 
   @override
   void install() {
