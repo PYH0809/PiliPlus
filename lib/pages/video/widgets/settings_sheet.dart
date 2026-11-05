@@ -209,6 +209,13 @@ class _GroupedSettingsState extends State<GroupedSettings>
     _push.value -= details.primaryDelta! / width;
   }
 
+  // The system took the drag away: the group comes in again.
+  void _onDragCancel() {
+    if (!_dragging) return;
+    _dragging = false;
+    _go(1);
+  }
+
   void _onDragEnd(DragEndDetails details, double width) {
     if (!_dragging) return;
     _dragging = false;
@@ -245,6 +252,7 @@ class _GroupedSettingsState extends State<GroupedSettings>
             onHorizontalDragEnd: open == null
                 ? null
                 : (details) => _onDragEnd(details, width),
+            onHorizontalDragCancel: open == null ? null : _onDragCancel,
             child: AnimatedBuilder(
               animation: _push,
               builder: (context, _) {

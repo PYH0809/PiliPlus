@@ -207,6 +207,40 @@ void main() {
     expect(find.text('选择画质'), findsOneWidget);
   });
 
+  testWidgets('an edge drag the system cancels is never left halfway', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.pump();
+    await tester.tap(find.text('画面'));
+    await tester.pumpAndSettle();
+    final left = tester.getTopLeft(find.byType(GroupedSettings));
+    final y = tester.getCenter(find.text('选择画质')).dy;
+    final settled = tester.getTopLeft(find.text('选择画质')).dx;
+
+    for (final steps in [8, 25]) {
+      if (find.text('选择画质').evaluate().isEmpty) {
+        await tester.tap(find.text('画面'));
+        await tester.pumpAndSettle();
+      }
+      final drag = await tester.startGesture(Offset(left.dx + 8, y));
+      for (var i = 0; i < steps; i++) {
+        await drag.moveBy(const Offset(10, 0));
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      expect(tester.getTopLeft(find.text('选择画质')).dx, greaterThan(settled));
+      // Taken away: it settles one way or the other, by how far it went.
+      await drag.cancel();
+      await tester.pumpAndSettle();
+      if (steps < 20) {
+        expect(tester.getTopLeft(find.text('选择画质')).dx, settled);
+      } else {
+        expect(find.text('选择画质'), findsNothing);
+        expect(find.text('定时关闭'), findsOneWidget);
+      }
+    }
+  });
+
   testWidgets('with animations off it jumps', (tester) async {
     await pump(tester, disableAnimations: true);
     await tester.pump();
