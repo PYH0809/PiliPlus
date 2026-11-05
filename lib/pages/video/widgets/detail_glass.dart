@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_header.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
+import 'package:PiliPlus/pages/video/widgets/after_landing.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
@@ -187,7 +188,11 @@ class GlassTabsOverlay extends StatelessWidget {
             top: 0,
             left: 0,
             right: 0,
-            child: LiquidGlassHeader(child: tabBar),
+            // A frame after the page lands, a frame before its intro.
+            child: AfterLanding(
+              placeholder: const SizedBox(height: GlassDetailTabRow.extent),
+              child: LiquidGlassHeader(child: tabBar),
+            ),
           ),
         ],
       ),
