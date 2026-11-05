@@ -83,13 +83,13 @@ class StaticFrostPicture {
     _image = null;
   }
 
-  /// Texels a logical pixel the page is taken at: the blur hides more.
-  static const _texelsPerDp = 0.5;
+  /// Texels a logical pixel the page is taken at, and its frost drawn from.
+  static const _texelsPerDp = 1.5;
 
-  /// The page under [below] as it last composited, at a few texels a dp,
-  /// blurred and its colors livened as the menus' glass livens them, into an
+  /// The page under [below] as it last composited, at a texel and a half a
+  /// dp, blurred and its colors livened as the menus' glass livens them, into an
   /// image of its own. Taken in the tap that opens the sheet, outside any
-  /// frame; both pictures are drawn on the raster thread, ahead of the
+  /// frame; its pictures are drawn on the raster thread, ahead of the
   /// sheet's first frame, which shows it offstage.
   static StaticFrostPicture? take(
     ModalRoute<dynamic>? below,
@@ -113,31 +113,46 @@ class StaticFrostPicture {
       Offset.zero & size,
       pixelRatio: _texelsPerDp,
     );
-    final sigma = style.blur * _texelsPerDp;
-    final recorder = ui.PictureRecorder();
-    final texels =
-        Offset.zero & Size(page.width.toDouble(), page.height.toDouble());
-    // Filtered through a layer: a filter on the image's own paint went
-    // unheeded on Impeller.
-    Canvas(recorder)
-      ..saveLayer(
-        texels,
-        Paint()
-          ..imageFilter = ui.ImageFilter.compose(
-            outer: ui.ColorFilter.matrix(_livelier(style.saturation)),
-            inner: ui.ImageFilter.blur(
-              sigmaX: sigma,
-              sigmaY: sigma,
-              tileMode: TileMode.clamp,
-            ),
-          ),
-      )
-      ..drawImage(page, Offset.zero, Paint())
-      ..restore();
-    final picture = recorder.endRecording();
-    final image = picture.toImageSync(page.width, page.height);
-    picture.dispose();
-    page.dispose();
+    // Halved again and again, each texel the mean of four, till a texel is
+    // about as wide as the menus' frost, then doubled back up, each step
+    // read between texels: a smooth blur, a pass a step, each smaller than
+    // the last. Impeller's own blur of a sigma this wide draws a few
+    // texels' squares, which the screen's scale-up showed as steps.
+    final levels = <ui.Image>[page];
+    var texelsPerDp = _texelsPerDp;
+    while (1 / texelsPerDp < style.blur * 1.6 &&
+        levels.last.width > 8 &&
+        levels.last.height > 8) {
+      final last = levels.last;
+      levels.add(_scaled(last, last.width ~/ 2, last.height ~/ 2));
+      texelsPerDp /= 2;
+    }
+    var image = levels.removeLast();
+    while (levels.length > 1) {
+      final next = levels.removeLast();
+      final up = _scaled(image, next.width, next.height);
+      image.dispose();
+      next.dispose();
+      image = up;
+    }
+    // The last step livens the colors, at the size it is drawn from, as the
+    // menus' glass does; a low-resolution image livened would show its
+    // steps the more. It brightens as live glass does, and darkens again by
+    // as much as a dark tint thickens over light content (a negative
+    // contrast), so that white text still reads over a bright picture:
+    // the frost under the tint then comes out as live glass's over white,
+    // and as it over black.
+    final full = levels.single;
+    final livened = _scaled(
+      image,
+      full.width,
+      full.height,
+      saturation: style.saturation,
+      gain: style.brightness * (style.contrast < 0 ? 1 + style.contrast : 1),
+    );
+    if (!identical(image, full)) image.dispose();
+    full.dispose();
+    image = livened;
     return StaticFrostPicture._(
       image,
       boundary.localToGlobal(Offset.zero) & size,
@@ -147,23 +162,49 @@ class StaticFrostPicture {
   }
 }
 
-// Saturation as a matrix that keeps luminance.
-List<double> _livelier(double s) {
+// [image] drawn into an image of [width] by [height], read between its
+// texels, its colors livened by [saturation] and scaled by [gain] if given.
+ui.Image _scaled(
+  ui.Image image,
+  int width,
+  int height, {
+  double? saturation,
+  double gain = 1,
+}) {
+  final recorder = ui.PictureRecorder();
+  final paint = Paint()..filterQuality = FilterQuality.low;
+  if (saturation != null) {
+    paint.colorFilter = ColorFilter.matrix(_livelier(saturation, gain));
+  }
+  Canvas(recorder).drawImageRect(
+    image,
+    Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+    Offset.zero & Size(width.toDouble(), height.toDouble()),
+    paint,
+  );
+  final picture = recorder.endRecording();
+  final scaled = picture.toImageSync(width, height);
+  picture.dispose();
+  return scaled;
+}
+
+// Saturation as a matrix that keeps luminance, then a gain.
+List<double> _livelier(double s, double k) {
   const r = 0.2126, g = 0.7152, b = 0.0722;
   return [
-    r + (1 - r) * s,
-    g * (1 - s),
-    b * (1 - s),
+    k * (r + (1 - r) * s),
+    k * g * (1 - s),
+    k * b * (1 - s),
     0,
     0,
-    r * (1 - s),
-    g + (1 - g) * s,
-    b * (1 - s),
+    k * r * (1 - s),
+    k * (g + (1 - g) * s),
+    k * b * (1 - s),
     0,
     0,
-    r * (1 - s),
-    g * (1 - s),
-    b + (1 - b) * s,
+    k * r * (1 - s),
+    k * g * (1 - s),
+    k * (b + (1 - b) * s),
     0,
     0,
     0,
@@ -307,7 +348,7 @@ class _RenderStaticFrost extends RenderProxyBox {
             image,
             Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
             rect.shift(offset - global),
-            Paint()..filterQuality = FilterQuality.low,
+            Paint()..filterQuality = FilterQuality.medium,
           );
         }
         canvas.drawRect(offset & size, Paint()..color = _tint);

@@ -24,8 +24,8 @@ void main() {
     expect(picture!.rect, Offset.zero & screen);
     expect(picture.screen, screen);
     expect(picture.brightness, Brightness.light);
-    // A few texels a dp: the blur hides the rest.
-    expect(picture.image!.width, 400);
+    // A texel and a half a dp, as the frost is drawn from.
+    expect(picture.image!.width, 1200);
     picture.drop();
     expect(picture.image, isNull);
 
