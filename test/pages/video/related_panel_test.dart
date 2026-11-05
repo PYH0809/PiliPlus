@@ -111,4 +111,27 @@ void main() {
     expect(find.text('视频 1'), findsNothing);
     expect(find.text('视频 2'), findsOneWidget);
   });
+
+  testWidgets('another video\'s list comes a couple a frame again', (
+    tester,
+  ) async {
+    final controller = await pump(tester);
+    controller.loadingState.value = Success([
+      for (var i = 0; i < 6; i++) _item(i + 1),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.byType(VideoCardH), findsNWidgets(6));
+
+    // As the page switches to another video in place.
+    controller.loadingState.value = Success([
+      for (var i = 0; i < 6; i++) _item(i + 11),
+    ]);
+    await tester.pump();
+    expect(find.byType(VideoCardH), findsNothing);
+    await tester.pump();
+    expect(find.byType(VideoCardH), findsNWidgets(2));
+    expect(find.text('视频 11'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byType(VideoCardH), findsNWidgets(6));
+  });
 }

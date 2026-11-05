@@ -99,6 +99,9 @@ class _RelatedVideoPanelState extends State<RelatedVideoPanel> with GridMixin {
   Widget _cards(List<HotVideoItemModel> response) {
     _showMore(response);
     return SliverGrid.builder(
+      // Another video's list comes a couple a frame again: its cards start
+      // over, while a card removed from this one leaves the rest as they are.
+      key: ObjectKey(response),
       gridDelegate: gridDelegate,
       itemBuilder: (context, index) => _Staged(
         index: index,
