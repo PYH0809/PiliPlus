@@ -543,81 +543,88 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     );
                   },
                 ),
-          body: ExtendedNestedScrollView(
-            onlyOneScrollInBody: true,
-            physics: platformClampingPhysics,
-            key: videoDetailController.scrollKey,
-            controller: videoDetailController.scrollCtr,
-            scrollBehavior: const NoOverscrollIndicator(),
-            pinnedHeaderSliverHeightBuilder: () {
-              double pinnedHeight = this.isFullScreen || !isPortrait
-                  ? maxHeight - (isWindowMode && !isPortrait ? 0 : padding.top)
-                  : videoDetailController.isExpanding ||
-                        videoDetailController.isCollapsing
-                  ? videoDetailController.animHeight
-                  : videoDetailController.isCollapsing ||
-                        (plPlayerController?.playerStatus.isPlaying ?? false)
-                  ? videoDetailController.minVideoHeight
-                  : kToolbarHeight;
-              if (videoDetailController.isExpanding &&
-                  videoDetailController.animationController.value == 1) {
-                videoDetailController.isExpanding = false;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  videoDetailController.scrollRatio.value = 0;
-                  videoDetailController.refreshPage();
-                });
-              } else if (videoDetailController.isCollapsing &&
-                  videoDetailController.animationController.value == 1) {
-                videoDetailController.isCollapsing = false;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  videoDetailController.refreshPage();
-                });
-              }
-              return pinnedHeight;
-            },
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              final height = isFullScreen || !isPortrait
-                  ? maxHeight - (isWindowMode && !isPortrait ? 0 : padding.top)
-                  : videoDetailController.isExpanding ||
-                        videoDetailController.isCollapsing
-                  ? videoDetailController.animHeight
-                  : videoDetailController.videoHeight;
-              return [
-                VideoHeader(
-                  minExtent: kToolbarHeight,
-                  maxExtent: height,
-                  minVideoHeight: videoDetailController.minVideoHeight,
-                  onScrollRatioChanged: videoDetailController.scrollRatio.call,
-                  child: Stack(
-                    clipBehavior: .none,
+          // The page's own scroll, collapsing the player, holds its glass
+          // too, as its tabs' lists do.
+          body: VideoGlassScrollHold(
+            child: ExtendedNestedScrollView(
+              onlyOneScrollInBody: true,
+              physics: platformClampingPhysics,
+              key: videoDetailController.scrollKey,
+              controller: videoDetailController.scrollCtr,
+              scrollBehavior: const NoOverscrollIndicator(),
+              pinnedHeaderSliverHeightBuilder: () {
+                double pinnedHeight = this.isFullScreen || !isPortrait
+                    ? maxHeight -
+                          (isWindowMode && !isPortrait ? 0 : padding.top)
+                    : videoDetailController.isExpanding ||
+                          videoDetailController.isCollapsing
+                    ? videoDetailController.animHeight
+                    : videoDetailController.isCollapsing ||
+                          (plPlayerController?.playerStatus.isPlaying ?? false)
+                    ? videoDetailController.minVideoHeight
+                    : kToolbarHeight;
+                if (videoDetailController.isExpanding &&
+                    videoDetailController.animationController.value == 1) {
+                  videoDetailController.isExpanding = false;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    videoDetailController.scrollRatio.value = 0;
+                    videoDetailController.refreshPage();
+                  });
+                } else if (videoDetailController.isCollapsing &&
+                    videoDetailController.animationController.value == 1) {
+                  videoDetailController.isCollapsing = false;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    videoDetailController.refreshPage();
+                  });
+                }
+                return pinnedHeight;
+              },
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                final height = isFullScreen || !isPortrait
+                    ? maxHeight -
+                          (isWindowMode && !isPortrait ? 0 : padding.top)
+                    : videoDetailController.isExpanding ||
+                          videoDetailController.isCollapsing
+                    ? videoDetailController.animHeight
+                    : videoDetailController.videoHeight;
+                return [
+                  VideoHeader(
+                    minExtent: kToolbarHeight,
+                    maxExtent: height,
+                    minVideoHeight: videoDetailController.minVideoHeight,
+                    onScrollRatioChanged:
+                        videoDetailController.scrollRatio.call,
+                    child: Stack(
+                      clipBehavior: .none,
+                      children: [
+                        SizedBox(
+                          width: maxWidth,
+                          height: height,
+                          child: videoPlayer(width: maxWidth, height: height),
+                        ),
+                        _buildHeaderOverlay(),
+                      ],
+                    ),
+                  ),
+                ];
+              },
+              body: MiniScaffold(
+                key: videoDetailController.childKey,
+                body: _tabsAndPages(
+                  buildTabBar(
+                    width: maxWidth,
+                    onTap: videoDetailController.animToTop,
+                  ),
+                  tabBarView(
+                    hitTestBehavior: .translucent,
+                    controller: videoDetailController.tabCtr,
                     children: [
-                      SizedBox(
-                        width: maxWidth,
-                        height: height,
-                        child: videoPlayer(width: maxWidth, height: height),
-                      ),
-                      _buildHeaderOverlay(),
+                      videoIntro(isHorizontal: false, needCtr: false),
+                      if (videoDetailController.showReply)
+                        videoReplyPanel(isNested: true),
+                      if (_shouldShowSeasonPanel) seasonPanel,
                     ],
                   ),
-                ),
-              ];
-            },
-            body: MiniScaffold(
-              key: videoDetailController.childKey,
-              body: _tabsAndPages(
-                buildTabBar(
-                  width: maxWidth,
-                  onTap: videoDetailController.animToTop,
-                ),
-                tabBarView(
-                  hitTestBehavior: .translucent,
-                  controller: videoDetailController.tabCtr,
-                  children: [
-                    videoIntro(isHorizontal: false, needCtr: false),
-                    if (videoDetailController.showReply)
-                      videoReplyPanel(isNested: true),
-                    if (_shouldShowSeasonPanel) seasonPanel,
-                  ],
                 ),
               ),
             ),

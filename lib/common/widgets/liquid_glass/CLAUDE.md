@@ -40,8 +40,10 @@ turns on every glass part. It only takes effect after a restart.
   fading with it rather than leaving first. While it moves, the controls' frosted panes over the video hold their
   glass still (`VideoGlass.frostHeld`): drawn from an image taken as it set off, their content live. Bent glass,
   clear, stays live. While the video page's tabs swipe or its lists scroll (`VideoGlassScrollHold`), every one of
-  those panes, bent ones too, lays only its tint, a grey veil and a fainter rim over the live video
-  (`VideoGlass.held`): an image of clear bent glass would show the video as it stood after a cut.
+  those panes, bent ones too, draws the video again unfiltered, which keeps the danmaku under the controls out
+  from under it, then its tint, a grey veil and a fainter rim (`VideoGlass.held`): an image of clear bent glass
+  would show the video as it stood after a cut. Holds within holds, as the page's own scroll around its tabs', let
+  go once all are still.
 - A pane's look is a `LiquidGlassStyle`: `regular`, `pill`, `banner`, `menu`, `editMenu` (the text selection
   toolbar, clearer than a menu), `alert`, `tinted`, `lens`, `lensContent`.
   `scale(t)` fades a style in, and `lerp` blends two. Menus and alerts also take a `LiquidGlassRim`, iOS's line of

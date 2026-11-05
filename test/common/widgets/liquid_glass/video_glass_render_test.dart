@@ -302,7 +302,7 @@ void main() {
     );
   });
 
-  testWidgets('while a page beside it scrolls, a pane copies no video', (
+  testWidgets('while a page beside it scrolls, a pane filters nothing', (
     tester,
   ) async {
     final video = GlobalKey();
@@ -355,8 +355,11 @@ void main() {
     );
     await tester.pump();
     int textures() => tester.layers.whereType<TextureLayer>().length;
-    // Live, the video's own texture and the pane's copy of it.
+    int filters() => tester.layers.whereType<ImageFilterLayer>().length;
+    // Live, the video's own texture and the pane's copy of it, filtered.
     expect(textures(), 2);
+    final live = filters();
+    expect(live, greaterThan(0));
 
     final drag = await tester.startGesture(tester.getCenter(find.text('3')));
     for (var i = 0; i < 5; i++) {
@@ -364,9 +367,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
     }
     expect(VideoGlass.held.value, isTrue);
-    // Held, the pane lays its tint over the video itself.
-    expect(textures(), 1);
-    expect(tester.layers.whereType<ImageFilterLayer>(), isEmpty);
+    // Held, the pane draws the video again as it is, which keeps what lies
+    // between the video and the controls, as danmaku, out from under it,
+    // and filters none of it.
+    expect(textures(), 2);
+    expect(filters(), 0);
 
     // Still for a moment, it is live glass again.
     await drag.up();
@@ -375,6 +380,58 @@ void main() {
     await tester.pump();
     expect(VideoGlass.held.value, isFalse);
     expect(textures(), 2);
+    expect(filters(), live);
+  });
+
+  testWidgets('a hold within a hold lets go once both are still', (
+    tester,
+  ) async {
+    final outer = ScrollController();
+    addTearDown(outer.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: VideoGlassScrollHold(
+          child: Column(
+            children: [
+              SizedBox(
+                height: 100,
+                child: ListView(
+                  controller: outer,
+                  children: [
+                    for (var i = 0; i < 20; i++)
+                      SizedBox(height: 50, child: Text('outer $i')),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: VideoGlassScrollHold(
+                  child: ListView(
+                    children: [
+                      for (var i = 0; i < 40; i++)
+                        SizedBox(height: 50, child: Text('$i')),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    // The inner list moves, then only the outer one, as the page's own
+    // scroll collapsing the player goes on after its list.
+    final inner = await tester.startGesture(tester.getCenter(find.text('3')));
+    await inner.moveBy(const Offset(0, -40));
+    await tester.pump();
+    await inner.up();
+    for (var i = 0; i < 12; i++) {
+      outer.jumpTo(outer.offset + 5);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(VideoGlass.held.value, isTrue, reason: 'frame $i');
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(VideoGlass.held.value, isFalse);
   });
 
   testWidgets('a hold let go of by its page leaving lets the glass go', (
