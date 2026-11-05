@@ -143,6 +143,13 @@ void main() {
     await tester.pumpAndSettle();
     // Hidden, its rows are out of the keyboard's reach.
     expect(excluded(), isTrue);
+    // Neither level's list takes the primary scroll controller, which one
+    // position each for both at once would break.
+    for (final list in tester.widgetList<ListView>(
+      find.byType(ListView, skipOffstage: false),
+    )) {
+      expect(list.primary, isFalse);
+    }
     await tester.tap(find.byIcon(Icons.arrow_back));
     await tester.pumpAndSettle();
     expect(excluded(), isFalse);
@@ -239,6 +246,45 @@ void main() {
         expect(find.text('定时关闭'), findsOneWidget);
       }
     }
+  });
+
+  testWidgets('an edge drag to the far side can still come back', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.pump();
+    await tester.tap(find.text('画面'));
+    await tester.pumpAndSettle();
+    final left = tester.getTopLeft(find.byType(GroupedSettings));
+    final y = tester.getCenter(find.text('选择画质')).dy;
+    final settled = tester.getTopLeft(find.text('选择画质')).dx;
+
+    final drag = await tester.startGesture(Offset(left.dx + 8, y));
+    // All the way across and past it: the group stays, off to the side.
+    for (var i = 0; i < 50; i++) {
+      await drag.moveBy(const Offset(10, 0));
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(find.text('选择画质', skipOffstage: false), findsOneWidget);
+    // Back again before letting go: it comes in again.
+    for (var i = 0; i < 50; i++) {
+      await drag.moveBy(const Offset(-10, 0));
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('选择画质')).dx, settled);
+
+    // Across and let go there: it goes back.
+    final again = await tester.startGesture(Offset(left.dx + 8, y));
+    for (var i = 0; i < 50; i++) {
+      await again.moveBy(const Offset(10, 0));
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    await again.up();
+    await tester.pumpAndSettle();
+    expect(find.text('选择画质', skipOffstage: false), findsNothing);
+    expect(find.text('定时关闭'), findsOneWidget);
   });
 
   testWidgets('with animations off it jumps', (tester) async {

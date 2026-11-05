@@ -111,7 +111,9 @@ class _GroupedSettingsState extends State<GroupedSettings>
   void initState() {
     super.initState();
     _push.addStatusListener((status) {
-      if (status.isDismissed && _open != null) {
+      // Not under a finger still: a drag that reached the edge may yet
+      // come back, and lets the group go only once let go of.
+      if (status.isDismissed && _open != null && !_dragging) {
         setState(() => _open = null);
       }
     });
@@ -135,6 +137,12 @@ class _GroupedSettingsState extends State<GroupedSettings>
 
   // With animations turned off, it jumps.
   void _go(double target) {
+    if (target == 0 && _push.value == 0) {
+      // There already, as a drag let go of at the edge: nothing moves to
+      // say so.
+      if (_open != null) setState(() => _open = null);
+      return;
+    }
     if (MediaQuery.disableAnimationsOf(context)) {
       _push.value = target;
     } else if (target == 0) {
@@ -159,7 +167,10 @@ class _GroupedSettingsState extends State<GroupedSettings>
     return [for (final (_, _, row) in rows) row];
   }
 
+  // Neither level takes the route's primary scroll controller: both are
+  // built at once as a group opens, which one controller cannot serve.
   Widget _topLevel() => ListView(
+    primary: false,
     shrinkWrap: true,
     padding: const EdgeInsets.symmetric(vertical: 14),
     children: [
@@ -191,6 +202,7 @@ class _GroupedSettingsState extends State<GroupedSettings>
       const Divider(height: 1, indent: 16, endIndent: 16),
       Flexible(
         child: ListView(
+          primary: false,
           shrinkWrap: true,
           padding: const EdgeInsets.only(top: 6, bottom: 14),
           children: _of(group),
