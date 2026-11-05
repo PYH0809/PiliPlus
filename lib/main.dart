@@ -249,12 +249,11 @@ void _onBack() {
     return;
   }
 
+  // Any route, as a sheet that goes back a level of its own first.
   final route = Get.routing.route;
-  if (route is GetPageRoute) {
-    if (route.popDisposition == .doNotPop) {
-      route.onPopInvokedWithResult(false, null);
-      return;
-    }
+  if (route != null && route.popDisposition == .doNotPop) {
+    route.onPopInvokedWithResult(false, null);
+    return;
   }
 
   final navigator = Get.key.currentState!;

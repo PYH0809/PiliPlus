@@ -7,6 +7,7 @@ class PublishRoute<T> extends PopupRoute<T> {
     this.barrierDismissible = true,
     this.barrierLabel,
     this.barrierColor = const Color(0x80000000),
+    this.barrierCloses = false,
     Duration? transitionDuration,
     this._transitionBuilder,
     super.settings,
@@ -29,6 +30,39 @@ class PublishRoute<T> extends PopupRoute<T> {
 
   @override
   final Duration transitionDuration;
+
+  /// Whether a tap on the barrier closes the route outright, past a
+  /// [PopScope] in it that keeps the back key for itself, as a sheet with
+  /// levels of its own does.
+  final bool barrierCloses;
+
+  @override
+  Widget buildModalBarrier() {
+    if (!barrierCloses || !barrierDismissible) return super.buildModalBarrier();
+    void close() {
+      if (isCurrent) navigator?.pop();
+    }
+
+    final color = barrierColor;
+    if (color.a == 0 || offstage) {
+      return ModalBarrier(
+        semanticsLabel: barrierLabel,
+        barrierSemanticsDismissible: semanticsDismissible,
+        onDismiss: close,
+      );
+    }
+    return AnimatedModalBarrier(
+      color: animation!.drive(
+        ColorTween(
+          begin: color.withValues(alpha: 0),
+          end: color,
+        ).chain(CurveTween(curve: barrierCurve)),
+      ),
+      semanticsLabel: barrierLabel,
+      barrierSemanticsDismissible: semanticsDismissible,
+      onDismiss: close,
+    );
+  }
 
   final RouteTransitionsBuilder? _transitionBuilder;
 

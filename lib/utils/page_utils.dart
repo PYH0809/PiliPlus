@@ -508,6 +508,8 @@ abstract final class PageUtils {
     double maxWidth = 500,
     ThemeData? theme,
     bool overVideo = false,
+    bool fitContent = false,
+    bool barrierCloses = false,
   }) {
     if (!context.mounted) {
       return null;
@@ -521,6 +523,7 @@ abstract final class PageUtils {
     }
     return Get.key.currentState!.push(
       PublishRoute(
+        barrierCloses: barrierCloses,
         barrierColor: glass && !context.isPortrait
             ? (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
                   const Color(0x80000000)
@@ -535,6 +538,11 @@ abstract final class PageUtils {
             content = _onVideoGlass(theme ?? Theme.of(context), content);
           } else if (theme != null) {
             content = Theme(data: theme, child: content);
+          }
+          // A sheet as tall as its content, up to the room it is given,
+          // stands at the bottom of that room.
+          if (fitContent && isPortrait) {
+            content = Align(alignment: .bottomCenter, child: content);
           }
           return SafeArea(
             child: CustomFractionallySizedBox(
