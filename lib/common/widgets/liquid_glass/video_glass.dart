@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -220,6 +221,16 @@ class VideoGlass extends StatelessWidget {
   /// or out.
   static final frostHeld = ValueNotifier(false);
 
+  /// While true, as the page beside or under the player scrolls, every
+  /// pane [frostHeld] would hold, bent ones too, draws the video again
+  /// unfiltered under its tint and rim: a page moving each frame
+  /// redraws the whole screen, each pane's glass with it, which with the
+  /// portrait controls shown pushed half a 120 Hz swipe's frames past their
+  /// time. Held as an image, as [frostHeld] holds, the clear bent glass
+  /// showed the video as it stood, a scene the video had cut away from, for
+  /// as long as the swipe lasted. [VideoGlassScrollHold] sets it.
+  static final held = ValueNotifier(false);
+
   /// What the widest pane over the video last drew, for the debug commands
   /// to report while measuring on a device.
   static final debugInfo = ValueNotifier<String>('');
@@ -251,6 +262,63 @@ class VideoGlass extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// Holds the player's glass ([VideoGlass.held]) while anything in [child]
+/// scrolls, and lets it go once none has moved for a moment: a scroll's end
+/// can go unheard, as when its list leaves the tree. Holds within holds, as
+/// a tab's list inside the page's own scroll, let go only once all are
+/// still.
+class VideoGlassScrollHold extends StatefulWidget {
+  const VideoGlassScrollHold({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<VideoGlassScrollHold> createState() => _VideoGlassScrollHoldState();
+}
+
+class _VideoGlassScrollHoldState extends State<VideoGlassScrollHold> {
+  static final _holding = <_VideoGlassScrollHoldState>{};
+
+  Timer? _release;
+
+  // Longer than a frame or two, so that a fling, which moves every frame,
+  // holds on throughout.
+  static const _quiet = Duration(milliseconds: 120);
+
+  bool _onScroll(ScrollNotification notification) {
+    if (notification is ScrollStartNotification ||
+        notification is ScrollUpdateNotification ||
+        notification is OverscrollNotification) {
+      _holding.add(this);
+      VideoGlass.held.value = true;
+      _release?.cancel();
+      _release = Timer(_quiet, _letGo);
+    }
+    return false;
+  }
+
+  void _letGo() {
+    _release = null;
+    _holding.remove(this);
+    VideoGlass.held.value = _holding.isNotEmpty;
+  }
+
+  @override
+  void dispose() {
+    if (_release != null) {
+      _release!.cancel();
+      _letGo();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => NotificationListener(
+    onNotification: _onScroll,
+    child: widget.child,
+  );
 }
 
 /// Where the video under the [VideoGlass] below lies: [video] keys a box
@@ -607,6 +675,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     _program = liquidGlassProgram(_onProgram);
     _changes?.addListener(_onVideoChanged);
     VideoGlass.frostHeld.addListener(_onFrostHeld);
+    VideoGlass.held.addListener(_onFrostHeld);
     _track();
   }
 
@@ -615,6 +684,7 @@ class _RenderVideoGlass extends RenderProxyBox {
     forgetLiquidGlassProgram(_onProgram);
     _changes?.removeListener(_onVideoChanged);
     VideoGlass.frostHeld.removeListener(_onFrostHeld);
+    VideoGlass.held.removeListener(_onFrostHeld);
     _dropHeld();
     _tracked.remove(this);
     super.detach();
@@ -686,6 +756,11 @@ class _RenderVideoGlass extends RenderProxyBox {
     // Held only standing whole: a note easing in or out, as the volume's
     // as a swipe sets it while a menu closes, frosts live, lest it hold at
     // where it set off and then jump.
+    if (video != null && _holds && _t >= 1 && VideoGlass.held.value) {
+      _paintHeld(context, offset, corners, video);
+      super.paint(context, offset);
+      return;
+    }
     if (video != null &&
         _holds &&
         _t >= 1 &&
@@ -779,6 +854,86 @@ class _RenderVideoGlass extends RenderProxyBox {
         ..backdropKey = null;
       context.pushLayer(bend, (_, _) {}, offset);
     }, offset);
+  }
+
+  // Held: the video drawn again as it is, unfiltered, so that the danmaku
+  // and subtitles the player lays between it and the controls stay out from
+  // under the pane as they do under its glass, then its tint and rim. The
+  // bent glass lifts the video's darks as it lowers its contrast, and its
+  // rim catches light along an edge or two: a grey veil over the video and
+  // a fainter rim keep the pane from changing much as it holds.
+  void _paintHeld(
+    PaintingContext context,
+    Offset offset,
+    BorderRadius corners,
+    TextureBox video,
+  ) {
+    _backdrop.layer = null;
+    _frost.layer = null;
+    _blur.layer = null;
+    _bend.layer = null;
+    _bareFade.layer = null;
+    _drawUp.layer = null;
+    _drawDown.layer = null;
+    _placed = null;
+    final toPane = _fromVideo(video);
+    _videoAt = toPane;
+    _videoTexture = video.textureId;
+    _videoSize = video.size;
+    _awaitingPaint = false;
+    final bounds = Offset.zero & size;
+    _clip.layer = context.pushClipRSuperellipse(
+      needsCompositing,
+      offset,
+      bounds,
+      corners.toRSuperellipse(bounds),
+      (context, offset) {
+        // A glass host, as a tab bar's beside it or a menu's over the
+        // player, replays what lies behind it but never sees the texture: it
+        // leaves all of this out, as the glass's own copy.
+        final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
+        context.pushLayer(unseen, (context, offset) {
+          // Black first, as the glass's own copy lies on: past the edges of
+          // a video narrower than the player, the danmaku would show through.
+          context.canvas.drawRect(
+            offset & size,
+            Paint()..color = const Color(0xFF000000),
+          );
+          _videoTransform.layer = context.pushTransform(
+            true,
+            offset,
+            toPane,
+            (context, offset) => context.addLayer(
+              TextureLayer(
+                rect: offset & video.size,
+                textureId: video.textureId,
+              ),
+            ),
+            oldLayer: _videoTransform.layer,
+          );
+          if (_bends) {
+            context.canvas.drawRect(
+              MatrixUtils.transformRect(
+                toPane,
+                Offset.zero & video.size,
+              ).shift(offset),
+              Paint()
+                ..color = const Color(0xFF808080).withValues(
+                  alpha: -_style.contrast * 0.4,
+                ),
+            );
+          }
+        }, offset);
+        final canvas = context.canvas;
+        _paintFrost(
+          canvas,
+          offset & size,
+          corners,
+          rimScale: _bends ? 0.25 : 1,
+        );
+      },
+      oldLayer: _clip.layer,
+    );
   }
 
   void _paintOverVideo(
@@ -1047,10 +1202,11 @@ class _RenderVideoGlass extends RenderProxyBox {
     Rect rect,
     BorderRadius corners, {
     double thicken = 0,
+    double rimScale = 1,
   }) {
     final style = _style.scale(_t);
     final shape = corners.toRSuperellipse(rect);
-    final rim = style.rim;
+    final rim = style.rim * rimScale;
     final tint = style.tint;
     canvas
       ..drawRSuperellipse(

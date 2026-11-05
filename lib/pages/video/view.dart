@@ -11,6 +11,7 @@ import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_theme.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_button.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -1282,6 +1283,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     } else {
       child = childWhenDisabledAlmostSquare;
     }
+    // The player's glass holds still while anything on the page scrolls, in
+    // whichever layout: its tabs' pages swiping, their lists, the page's own
+    // scroll collapsing the player, an intro or comments beside it.
+    child = VideoGlassScrollHold(child: child);
     if (videoDetailController.plPlayerController.keyboardControl) {
       child = PlayerFocus(
         plPlayerController: videoDetailController.plPlayerController,

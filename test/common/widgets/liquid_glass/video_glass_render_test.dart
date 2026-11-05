@@ -302,6 +302,181 @@ void main() {
     );
   });
 
+  testWidgets('while a page beside it scrolls, a pane filters nothing', (
+    tester,
+  ) async {
+    final video = GlobalKey();
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: VideoGlassSource(
+          video: video,
+          child: Column(
+            children: [
+              SizedBox(
+                height: 200,
+                child: Stack(
+                  children: [
+                    RepaintBoundary(
+                      key: video,
+                      child: const SizedBox(
+                        width: 300,
+                        height: 200,
+                        child: Texture(textureId: 7),
+                      ),
+                    ),
+                    const Positioned(
+                      left: 40,
+                      top: 140,
+                      width: 220,
+                      height: 48,
+                      child: VideoGlass(radius: 20),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: VideoGlassScrollHold(
+                  child: ListView(
+                    children: [
+                      for (var i = 0; i < 40; i++)
+                        SizedBox(height: 50, child: Text('$i')),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump();
+    int textures() => tester.layers.whereType<TextureLayer>().length;
+    int filters() => tester.layers.whereType<ImageFilterLayer>().length;
+    // Live, the video's own texture and the pane's copy of it, filtered.
+    expect(textures(), 2);
+    final live = filters();
+    expect(live, greaterThan(0));
+
+    final drag = await tester.startGesture(tester.getCenter(find.text('3')));
+    for (var i = 0; i < 5; i++) {
+      await drag.moveBy(const Offset(0, -20));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(VideoGlass.held.value, isTrue);
+    // Held, the pane draws the video again as it is, which keeps what lies
+    // between the video and the controls, as danmaku, out from under it,
+    // and filters none of it.
+    expect(textures(), 2);
+    expect(filters(), 0);
+    // A glass host replaying what lies behind it leaves the copy, its black
+    // and its veil out, as it does the glass's own copy.
+    final unseen = tester.layers.whereType<LiquidGlassUnseenLayer>().single;
+    final hidden = <Layer>[];
+    void walk(Layer layer) {
+      hidden.add(layer);
+      if (layer is ContainerLayer) {
+        for (var child = layer.firstChild; child != null;) {
+          walk(child);
+          child = child.nextSibling;
+        }
+      }
+    }
+
+    walk(unseen);
+    expect(hidden.whereType<TextureLayer>(), hasLength(1));
+    expect(hidden.whereType<PictureLayer>(), isNotEmpty);
+
+    // Still for a moment, it is live glass again.
+    await drag.up();
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump();
+    expect(VideoGlass.held.value, isFalse);
+    expect(textures(), 2);
+    expect(filters(), live);
+  });
+
+  testWidgets('a hold within a hold lets go once both are still', (
+    tester,
+  ) async {
+    final outer = ScrollController();
+    addTearDown(outer.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: VideoGlassScrollHold(
+          child: Column(
+            children: [
+              SizedBox(
+                height: 100,
+                child: ListView(
+                  controller: outer,
+                  children: [
+                    for (var i = 0; i < 20; i++)
+                      SizedBox(height: 50, child: Text('outer $i')),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: VideoGlassScrollHold(
+                  child: ListView(
+                    children: [
+                      for (var i = 0; i < 40; i++)
+                        SizedBox(height: 50, child: Text('$i')),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    // The inner list moves, then only the outer one, as the page's own
+    // scroll collapsing the player goes on after its list.
+    final inner = await tester.startGesture(tester.getCenter(find.text('3')));
+    await inner.moveBy(const Offset(0, -40));
+    await tester.pump();
+    await inner.up();
+    for (var i = 0; i < 12; i++) {
+      outer.jumpTo(outer.offset + 5);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(VideoGlass.held.value, isTrue, reason: 'frame $i');
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(VideoGlass.held.value, isFalse);
+  });
+
+  testWidgets('a hold let go of by its page leaving lets the glass go', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: VideoGlassScrollHold(
+          child: ListView(
+            children: [
+              for (var i = 0; i < 40; i++)
+                SizedBox(height: 50, child: Text('$i')),
+            ],
+          ),
+        ),
+      ),
+    );
+    final drag = await tester.startGesture(tester.getCenter(find.text('3')));
+    await drag.moveBy(const Offset(0, -40));
+    await tester.pump();
+    expect(VideoGlass.held.value, isTrue);
+    // The page goes mid-scroll, its scroll's end unheard.
+    await tester.pumpWidget(const SizedBox());
+    expect(VideoGlass.held.value, isFalse);
+    await drag.cancel();
+  });
+
   testWidgets('a pane follows the video to a new texture', (tester) async {
     final video = GlobalKey();
     final changes = ValueNotifier(7);
