@@ -543,88 +543,81 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
                     );
                   },
                 ),
-          // The page's own scroll, collapsing the player, holds its glass
-          // too, as its tabs' lists do.
-          body: VideoGlassScrollHold(
-            child: ExtendedNestedScrollView(
-              onlyOneScrollInBody: true,
-              physics: platformClampingPhysics,
-              key: videoDetailController.scrollKey,
-              controller: videoDetailController.scrollCtr,
-              scrollBehavior: const NoOverscrollIndicator(),
-              pinnedHeaderSliverHeightBuilder: () {
-                double pinnedHeight = this.isFullScreen || !isPortrait
-                    ? maxHeight -
-                          (isWindowMode && !isPortrait ? 0 : padding.top)
-                    : videoDetailController.isExpanding ||
-                          videoDetailController.isCollapsing
-                    ? videoDetailController.animHeight
-                    : videoDetailController.isCollapsing ||
-                          (plPlayerController?.playerStatus.isPlaying ?? false)
-                    ? videoDetailController.minVideoHeight
-                    : kToolbarHeight;
-                if (videoDetailController.isExpanding &&
-                    videoDetailController.animationController.value == 1) {
-                  videoDetailController.isExpanding = false;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    videoDetailController.scrollRatio.value = 0;
-                    videoDetailController.refreshPage();
-                  });
-                } else if (videoDetailController.isCollapsing &&
-                    videoDetailController.animationController.value == 1) {
-                  videoDetailController.isCollapsing = false;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    videoDetailController.refreshPage();
-                  });
-                }
-                return pinnedHeight;
-              },
-              headerSliverBuilder: (context, innerBoxIsScrolled) {
-                final height = isFullScreen || !isPortrait
-                    ? maxHeight -
-                          (isWindowMode && !isPortrait ? 0 : padding.top)
-                    : videoDetailController.isExpanding ||
-                          videoDetailController.isCollapsing
-                    ? videoDetailController.animHeight
-                    : videoDetailController.videoHeight;
-                return [
-                  VideoHeader(
-                    minExtent: kToolbarHeight,
-                    maxExtent: height,
-                    minVideoHeight: videoDetailController.minVideoHeight,
-                    onScrollRatioChanged:
-                        videoDetailController.scrollRatio.call,
-                    child: Stack(
-                      clipBehavior: .none,
-                      children: [
-                        SizedBox(
-                          width: maxWidth,
-                          height: height,
-                          child: videoPlayer(width: maxWidth, height: height),
-                        ),
-                        _buildHeaderOverlay(),
-                      ],
-                    ),
-                  ),
-                ];
-              },
-              body: MiniScaffold(
-                key: videoDetailController.childKey,
-                body: _tabsAndPages(
-                  buildTabBar(
-                    width: maxWidth,
-                    onTap: videoDetailController.animToTop,
-                  ),
-                  tabBarView(
-                    hitTestBehavior: .translucent,
-                    controller: videoDetailController.tabCtr,
+          body: ExtendedNestedScrollView(
+            onlyOneScrollInBody: true,
+            physics: platformClampingPhysics,
+            key: videoDetailController.scrollKey,
+            controller: videoDetailController.scrollCtr,
+            scrollBehavior: const NoOverscrollIndicator(),
+            pinnedHeaderSliverHeightBuilder: () {
+              double pinnedHeight = this.isFullScreen || !isPortrait
+                  ? maxHeight - (isWindowMode && !isPortrait ? 0 : padding.top)
+                  : videoDetailController.isExpanding ||
+                        videoDetailController.isCollapsing
+                  ? videoDetailController.animHeight
+                  : videoDetailController.isCollapsing ||
+                        (plPlayerController?.playerStatus.isPlaying ?? false)
+                  ? videoDetailController.minVideoHeight
+                  : kToolbarHeight;
+              if (videoDetailController.isExpanding &&
+                  videoDetailController.animationController.value == 1) {
+                videoDetailController.isExpanding = false;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  videoDetailController.scrollRatio.value = 0;
+                  videoDetailController.refreshPage();
+                });
+              } else if (videoDetailController.isCollapsing &&
+                  videoDetailController.animationController.value == 1) {
+                videoDetailController.isCollapsing = false;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  videoDetailController.refreshPage();
+                });
+              }
+              return pinnedHeight;
+            },
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              final height = isFullScreen || !isPortrait
+                  ? maxHeight - (isWindowMode && !isPortrait ? 0 : padding.top)
+                  : videoDetailController.isExpanding ||
+                        videoDetailController.isCollapsing
+                  ? videoDetailController.animHeight
+                  : videoDetailController.videoHeight;
+              return [
+                VideoHeader(
+                  minExtent: kToolbarHeight,
+                  maxExtent: height,
+                  minVideoHeight: videoDetailController.minVideoHeight,
+                  onScrollRatioChanged: videoDetailController.scrollRatio.call,
+                  child: Stack(
+                    clipBehavior: .none,
                     children: [
-                      videoIntro(isHorizontal: false, needCtr: false),
-                      if (videoDetailController.showReply)
-                        videoReplyPanel(isNested: true),
-                      if (_shouldShowSeasonPanel) seasonPanel,
+                      SizedBox(
+                        width: maxWidth,
+                        height: height,
+                        child: videoPlayer(width: maxWidth, height: height),
+                      ),
+                      _buildHeaderOverlay(),
                     ],
                   ),
+                ),
+              ];
+            },
+            body: MiniScaffold(
+              key: videoDetailController.childKey,
+              body: _tabsAndPages(
+                buildTabBar(
+                  width: maxWidth,
+                  onTap: videoDetailController.animToTop,
+                ),
+                tabBarView(
+                  hitTestBehavior: .translucent,
+                  controller: videoDetailController.tabCtr,
+                  children: [
+                    videoIntro(isHorizontal: false, needCtr: false),
+                    if (videoDetailController.showReply)
+                      videoReplyPanel(isNested: true),
+                    if (_shouldShowSeasonPanel) seasonPanel,
+                  ],
                 ),
               ),
             ),
@@ -1290,6 +1283,10 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     } else {
       child = childWhenDisabledAlmostSquare;
     }
+    // The player's glass holds still while anything on the page scrolls, in
+    // whichever layout: its tabs' pages swiping, their lists, the page's own
+    // scroll collapsing the player, an intro or comments beside it.
+    child = VideoGlassScrollHold(child: child);
     if (videoDetailController.plPlayerController.keyboardControl) {
       child = PlayerFocus(
         plPlayerController: videoDetailController.plPlayerController,
@@ -1319,8 +1316,6 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     Widget pages, {
     CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
   }) {
-    // The player's glass holds still while the pages swipe or scroll.
-    pages = VideoGlassScrollHold(child: pages);
     if (!_glass) {
       return Column(
         crossAxisAlignment: crossAxisAlignment,
