@@ -872,7 +872,6 @@ class _RenderVideoGlass extends RenderProxyBox {
     _frost.layer = null;
     _blur.layer = null;
     _bend.layer = null;
-    _unseen.layer = null;
     _bareFade.layer = null;
     _drawUp.layer = null;
     _drawDown.layer = null;
@@ -889,37 +888,43 @@ class _RenderVideoGlass extends RenderProxyBox {
       bounds,
       corners.toRSuperellipse(bounds),
       (context, offset) {
-        // Black first, as the glass's own copy lies on: past the edges of a
-        // video narrower than the player, the danmaku would show through.
-        context.canvas.drawRect(
-          offset & size,
-          Paint()..color = const Color(0xFF000000),
-        );
-        _videoTransform.layer = context.pushTransform(
-          true,
-          offset,
-          toPane,
-          (context, offset) => context.addLayer(
-            TextureLayer(
-              rect: offset & video.size,
-              textureId: video.textureId,
-            ),
-          ),
-          oldLayer: _videoTransform.layer,
-        );
-        final canvas = context.canvas;
-        if (_bends) {
-          canvas.drawRect(
-            MatrixUtils.transformRect(
-              toPane,
-              Offset.zero & video.size,
-            ).shift(offset),
-            Paint()
-              ..color = const Color(0xFF808080).withValues(
-                alpha: -_style.contrast * 0.4,
-              ),
+        // A glass host, as a tab bar's beside it or a menu's over the
+        // player, replays what lies behind it but never sees the texture: it
+        // leaves all of this out, as the glass's own copy.
+        final unseen = _unseen.layer ??= LiquidGlassUnseenLayer();
+        context.pushLayer(unseen, (context, offset) {
+          // Black first, as the glass's own copy lies on: past the edges of
+          // a video narrower than the player, the danmaku would show through.
+          context.canvas.drawRect(
+            offset & size,
+            Paint()..color = const Color(0xFF000000),
           );
-        }
+          _videoTransform.layer = context.pushTransform(
+            true,
+            offset,
+            toPane,
+            (context, offset) => context.addLayer(
+              TextureLayer(
+                rect: offset & video.size,
+                textureId: video.textureId,
+              ),
+            ),
+            oldLayer: _videoTransform.layer,
+          );
+          if (_bends) {
+            context.canvas.drawRect(
+              MatrixUtils.transformRect(
+                toPane,
+                Offset.zero & video.size,
+              ).shift(offset),
+              Paint()
+                ..color = const Color(0xFF808080).withValues(
+                  alpha: -_style.contrast * 0.4,
+                ),
+            );
+          }
+        }, offset);
+        final canvas = context.canvas;
         _paintFrost(
           canvas,
           offset & size,

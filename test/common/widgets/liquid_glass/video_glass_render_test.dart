@@ -372,6 +372,23 @@ void main() {
     // and filters none of it.
     expect(textures(), 2);
     expect(filters(), 0);
+    // A glass host replaying what lies behind it leaves the copy, its black
+    // and its veil out, as it does the glass's own copy.
+    final unseen = tester.layers.whereType<LiquidGlassUnseenLayer>().single;
+    final hidden = <Layer>[];
+    void walk(Layer layer) {
+      hidden.add(layer);
+      if (layer is ContainerLayer) {
+        for (var child = layer.firstChild; child != null;) {
+          walk(child);
+          child = child.nextSibling;
+        }
+      }
+    }
+
+    walk(unseen);
+    expect(hidden.whereType<TextureLayer>(), hasLength(1));
+    expect(hidden.whereType<PictureLayer>(), isNotEmpty);
 
     // Still for a moment, it is live glass again.
     await drag.up();
