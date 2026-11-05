@@ -571,6 +571,18 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
   @visibleForTesting
   static bool get debugHoldsPressShot => _pressed != null;
 
+  // The card as built, kept over the rebuilds that only the route or the
+  // hiding cause: the route stopping being current rebuilds this, which
+  // looked it up, and would build the card again as its page opens. The
+  // card's own lookups go through its own element, which still rebuilds it.
+  late Widget _card = _SourceCard(this);
+
+  @override
+  void didUpdateWidget(VideoExpandSource oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _card = _SourceCard(this);
+  }
+
   @override
   void dispose() {
     _route?.animation?.removeStatusListener(_handleRouteStatus);
@@ -598,12 +610,21 @@ class VideoExpandSourceState extends State<VideoExpandSource> {
           opacity: _hidden ? 0 : 1,
           child: RepaintBoundary(
             key: _cardKey,
-            child: widget.builder(context, this),
+            child: _card,
           ),
         ),
       ),
     );
   }
+}
+
+class _SourceCard extends StatelessWidget {
+  const _SourceCard(this.source);
+
+  final VideoExpandSourceState source;
+
+  @override
+  Widget build(BuildContext context) => source.widget.builder(context, source);
 }
 
 /// The video page's route, opened out of a [VideoExpandSource]: the page
@@ -626,6 +647,11 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
   });
 
   final VideoExpandSourceState source;
+
+  /// Whether the page has landed, its opening done. What it builds late
+  /// waits for this, so that the opening's frames stay light.
+  ValueListenable<bool> get landed => _landed;
+  final _landed = ValueNotifier(false);
 
   /// A picture of the card and its cover, taken as it opened. The route
   /// owns them.
@@ -720,6 +746,13 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
     // After TransitionRoute's own, which lets the page below show as the
     // route animates.
     animation!.addStatusListener(_keepBelowCovered);
+    // The controller's own, not [animation]'s: as the route first builds,
+    // offstage for the heroes to measure, [animation] stands completed.
+    controller!.addStatusListener(_handleLanded);
+  }
+
+  void _handleLanded(AnimationStatus status) {
+    _landed.value = status.isCompleted;
   }
 
   @override
@@ -740,6 +773,7 @@ class VideoExpandRoute<T> extends GetPageRoute<T> {
     cover?.dispose();
     _coverTimer?.cancel();
     _coverShowing.dispose();
+    _landed.dispose();
     _coverOpacityController?.dispose();
     _below?.image.dispose();
     _below = null;

@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/widgets/video_card/video_card_h.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/model_hot_video_item.dart';
 import 'package:PiliPlus/pages/video/related/controller.dart';
+import 'package:PiliPlus/pages/video/widgets/after_landing.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/grid.dart';
 import 'package:flutter/foundation.dart';
@@ -18,7 +19,14 @@ class RelatedVideoPanel extends StatefulWidget {
   State<RelatedVideoPanel> createState() => _RelatedVideoPanelState();
 }
 
-class _RelatedVideoPanelState extends State<RelatedVideoPanel> with GridMixin {
+class _RelatedVideoPanelState extends State<RelatedVideoPanel>
+    with GridMixin, AfterLandingMixin {
+  // Opening out of a card, the cards wait with the intro, whose boxes would
+  // otherwise move them as it builds: they start as it does, two frames after
+  // the page lands, plain boxes till then.
+  @override
+  int get revealFrames => 2;
+
   late final RelatedController _relatedController;
 
   // The list the cards are shown for, and how many of them are built: the
@@ -97,6 +105,13 @@ class _RelatedVideoPanelState extends State<RelatedVideoPanel> with GridMixin {
   }
 
   Widget _cards(List<HotVideoItemModel> response) {
+    if (!revealed) {
+      return SliverGrid.builder(
+        gridDelegate: gridDelegate,
+        itemBuilder: (context, index) => const _CardPlaceholder(),
+        itemCount: response.length,
+      );
+    }
     _showMore(response);
     return SliverGrid.builder(
       // Another video's list comes a couple a frame again: its cards start

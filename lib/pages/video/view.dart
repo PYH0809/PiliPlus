@@ -49,6 +49,7 @@ import 'package:PiliPlus/pages/video/related/view.dart';
 import 'package:PiliPlus/pages/video/reply/controller.dart';
 import 'package:PiliPlus/pages/video/reply/view.dart';
 import 'package:PiliPlus/pages/video/view_point/view.dart';
+import 'package:PiliPlus/pages/video/widgets/after_landing.dart';
 import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
 import 'package:PiliPlus/pages/video/widgets/first_frame.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart';
@@ -1737,14 +1738,21 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
         slivers: [
           if (_glass) HeaderOverlayInset.sliver(context),
           if (videoDetailController.isUgc) ...[
-            UgcIntroPanel(
-              key: videoIntroKey,
-              heroTag: heroTag,
-              showAiBottomSheet: showAiBottomSheet,
-              showEpisodes: showEpisodes,
-              onShowMemberPage: onShowMemberPage,
-              isPortrait: isPortrait,
-              isHorizontal: isHorizontal ?? width! / height! >= kScreenRatio,
+            // Boxes while the page grows out of a card, a frame after the tab
+            // header: built in the opening's frames, the intro would make
+            // them late.
+            AfterLanding(
+              frames: 2,
+              placeholder: const SliverToBoxAdapter(child: _IntroPlaceholder()),
+              child: UgcIntroPanel(
+                key: videoIntroKey,
+                heroTag: heroTag,
+                showAiBottomSheet: showAiBottomSheet,
+                showEpisodes: showEpisodes,
+                onShowMemberPage: onShowMemberPage,
+                isPortrait: isPortrait,
+                isHorizontal: isHorizontal ?? width! / height! >= kScreenRatio,
+              ),
             ),
             if (needRelated && videoDetailController.showRelatedVideo) ...[
               SliverToBoxAdapter(
@@ -2134,6 +2142,38 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           ugcIntroController: ugcIntroController,
         );
       },
+    );
+  }
+}
+
+/// The intro's place before it builds: plain boxes.
+class _IntroPlaceholder extends StatelessWidget {
+  const _IntroPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ColorScheme.of(context).onInverseSurface;
+    Widget box(double width, double height) => Container(
+      width: width,
+      height: height,
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: const BorderRadius.all(Radius.circular(6)),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          box(220, 36),
+          box(300, 20),
+          box(160, 16),
+          box(double.infinity, 60),
+          box(double.infinity, 48),
+        ],
+      ),
     );
   }
 }

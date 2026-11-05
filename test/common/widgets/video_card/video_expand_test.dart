@@ -5,7 +5,12 @@ import 'dart:ui' as ui;
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_h.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
+import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/model_hot_video_item.dart';
+import 'package:PiliPlus/pages/video/related/controller.dart';
+import 'package:PiliPlus/pages/video/related/view.dart';
+import 'package:PiliPlus/pages/video/widgets/after_landing.dart';
+import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
@@ -164,6 +169,7 @@ Future<void> _pump(
   Widget? home,
   bool disableAnimations = false,
   VoidCallback Function(VoidCallback shown)? watchVideo,
+  Widget Function()? page,
 }) async {
   await tester.pumpWidget(
     GetMaterialApp(
@@ -176,7 +182,7 @@ Future<void> _pump(
       getPages: [
         GetPage(
           name: '/videoV',
-          page: () => _Page(watchVideo: watchVideo),
+          page: page ?? () => _Page(watchVideo: watchVideo),
         ),
       ],
       home: Scaffold(
@@ -467,6 +473,223 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('视频页 3'), findsNothing);
     expect(_cardOpacity(tester), 1);
+  });
+
+  testWidgets('the card builds once as its page opens and returns', (
+    tester,
+  ) async {
+    var builds = 0;
+    await _pump(tester, home: _card0(onSource: (_) => builds++));
+    expect(builds, 1);
+    // The card hides, its route stops being current, and both come back:
+    // none builds the card again.
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    expect(_cardOpacity(tester), 0);
+    Get.back<void>();
+    await tester.pumpAndSettle();
+    expect(_cardOpacity(tester), 1);
+    expect(builds, 1);
+  });
+
+  testWidgets('the card kept still follows what it reads', (tester) async {
+    final dark = ValueNotifier(false);
+    addTearDown(dark.dispose);
+    // One card all along, under a theme that changes.
+    final card = VideoExpandSource(
+      color: Colors.white,
+      builder: (context, source) => Text(Theme.of(context).brightness.name),
+    );
+    await _pump(
+      tester,
+      home: ValueListenableBuilder(
+        valueListenable: dark,
+        builder: (context, dark, _) =>
+            Theme(data: dark ? _darkPage : ThemeData(), child: card),
+      ),
+    );
+    expect(find.text('light'), findsOneWidget);
+    dark.value = true;
+    await tester.pump();
+    expect(find.text('dark'), findsOneWidget);
+  });
+
+  testWidgets('the route tells when its page has landed', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.text('卡片'));
+    await tester.pump();
+    final route = VideoExpandRoute.of(
+      tester.element(find.byType(_Page, skipOffstage: false)),
+    )!;
+    expect(route.landed.value, isFalse);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(route.landed.value, isFalse);
+    await tester.pumpAndSettle();
+    expect(route.landed.value, isTrue);
+    Get.back<void>();
+    await tester.pump();
+    expect(route.landed.value, isFalse);
+    await tester.pumpAndSettle();
+  });
+
+  group('built after landing', () {
+    Widget page() => const Scaffold(
+      body: GlassTabsOverlay(
+        tabBar: SizedBox(height: GlassDetailTabRow.extent, child: Text('标签')),
+        pages: CustomScrollView(
+          slivers: [
+            AfterLanding(
+              frames: 2,
+              placeholder: SliverToBoxAdapter(child: Text('骨架')),
+              child: SliverToBoxAdapter(child: Text('简介')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    testWidgets('boxes while the page grows, the tabs then the intro after', (
+      tester,
+    ) async {
+      // Drawn from a picture while it moves, the page itself is offstage.
+      Finder text(String text) => find.text(text, skipOffstage: false);
+      await _pump(tester, page: page);
+      await tester.tap(find.text('卡片'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(text('骨架'), findsOneWidget);
+      expect(text('简介'), findsNothing);
+      expect(text('标签'), findsNothing);
+
+      // Landed: the tabs a frame on, the intro a frame after them.
+      while (!VideoExpandRoute.of(
+        tester.element(text('骨架')),
+      )!.landed.value) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(text('标签'), findsNothing);
+      await tester.pump();
+      expect(text('标签'), findsOneWidget);
+      expect(text('简介'), findsNothing);
+      await tester.pump();
+      expect(text('简介'), findsOneWidget);
+      expect(text('骨架'), findsNothing);
+      // They show as they are, under no fade: an Opacity would draw the
+      // glass through a layer of its own.
+      for (final label in ['标签', '简介']) {
+        expect(
+          find.ancestor(
+            of: text(label),
+            matching: find.descendant(
+              of: find.byType(GlassTabsOverlay),
+              matching: find.byType(Opacity),
+            ),
+          ),
+          findsNothing,
+        );
+      }
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('the related cards start with the intro, and stay put', (
+      tester,
+    ) async {
+      tester.view
+        ..physicalSize = const Size(400, 1600)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      Finder text(String text) => find.text(text, skipOffstage: false);
+      final cards = find.byType(VideoCardH, skipOffstage: false);
+      await _pump(
+        tester,
+        page: () {
+          // The list arrived as the page opened, before it landed.
+          if (!Get.isRegistered<RelatedController>(tag: 'related')) {
+            Get.put(
+              RelatedController(autoQuery: false),
+              tag: 'related',
+            ).loadingState.value = Success([
+              for (var aid = 10; aid < 14; aid++)
+                HotVideoItemModel.fromJson({
+                  'aid': aid,
+                  'cid': aid,
+                  'bvid': 'BV1xx411c7mD',
+                  'title': '相关 $aid',
+                  'pubdate': 0,
+                  'duration': 60,
+                  'owner': {'mid': 1, 'name': 'UP'},
+                  'stat': {'view': 1, 'danmaku': 1},
+                }),
+            ]);
+          }
+          return const Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                AfterLanding(
+                  frames: 2,
+                  placeholder: SliverToBoxAdapter(
+                    child: SizedBox(height: 100, child: Text('骨架')),
+                  ),
+                  child: SliverToBoxAdapter(
+                    child: SizedBox(height: 300, child: Text('简介')),
+                  ),
+                ),
+                RelatedVideoPanel(heroTag: 'related'),
+              ],
+            ),
+          );
+        },
+      );
+      await tester.tap(find.text('卡片'));
+      await tester.pump();
+      while (text('骨架').evaluate().isNotEmpty) {
+        // No card before the intro: its building would move them.
+        expect(cards, findsNothing);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      // The cards start with the intro, over their boxes, as they would
+      // in a page opened at once: the first two a frame on.
+      expect(text('简介'), findsOneWidget);
+      expect(cards, findsNothing);
+      await tester.pump();
+      expect(cards, findsNWidgets(2));
+      final first = tester.getTopLeft(text('相关 10'));
+      expect(first.dy, greaterThan(300));
+      await tester.pumpAndSettle();
+      expect(cards, findsNWidgets(4));
+      expect(tester.getTopLeft(text('相关 10')), first);
+    });
+
+    testWidgets('all at once in a page opened another way', (tester) async {
+      await _pump(tester, page: page);
+      Get.toNamed<void>('/videoV', arguments: {'cid': 3});
+      await tester.pump();
+      expect(find.text('简介', skipOffstage: false), findsOneWidget);
+      expect(find.text('标签', skipOffstage: false), findsOneWidget);
+      expect(find.text('骨架', skipOffstage: false), findsNothing);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('all at once when built again once landed', (tester) async {
+      final key = ValueNotifier(0);
+      addTearDown(key.dispose);
+      await _pump(
+        tester,
+        page: () => ValueListenableBuilder(
+          valueListenable: key,
+          builder: (context, value, _) =>
+              KeyedSubtree(key: ValueKey(value), child: page()),
+        ),
+      );
+      await tester.tap(find.text('卡片'));
+      await tester.pumpAndSettle();
+      expect(find.text('简介'), findsOneWidget);
+      // Another video in the same page builds its intro anew.
+      key.value++;
+      await tester.pump();
+      expect(find.text('简介'), findsOneWidget);
+      expect(find.text('骨架'), findsNothing);
+    });
   });
 
   testWidgets('the page under the card is drawn from a picture of it', (
