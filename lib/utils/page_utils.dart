@@ -526,6 +526,9 @@ abstract final class PageUtils {
             Get.routing.route as ModalRoute<dynamic>?,
             (theme ?? Theme.of(context)).colorScheme,
             MediaQuery.sizeOf(context),
+            scrim:
+                (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
+                const Color(0x80000000),
           )
         : null;
     // The panel's glass draws the video again under all of it; with the
@@ -591,7 +594,8 @@ abstract final class PageUtils {
     );
     final opened = Get.key.currentState!.push(route);
     // The route owns the picture, which the sheet's glass draws from for as
-    // long as it shows, its return included.
+    // long as it shows, its return included; a route taken out with no
+    // return, as one replaced, lets it go a moment after it completes.
     if (frost != null) {
       void onStatus(AnimationStatus status) {
         if (status.isDismissed) {
@@ -601,6 +605,12 @@ abstract final class PageUtils {
       }
 
       route.animation?.addStatusListener(onStatus);
+      route.completed.whenComplete(
+        () => Future<void>.delayed(
+          route.reverseTransitionDuration + const Duration(seconds: 1),
+          frost.drop,
+        ),
+      );
     }
     return opened;
   }
@@ -656,8 +666,16 @@ abstract final class PageUtils {
           picture: frost,
           radius: radius,
           child: Theme(
+            // White text when dark, as the glass dialogs': the pure black
+            // theme's dimmed onSurface reads poorly over a bright frost.
             data: GlassSurfaces.withoutRipples(theme).copyWith(
-              colorScheme: colorScheme.copyWith(surface: Colors.transparent),
+              colorScheme: colorScheme.brightness == Brightness.dark
+                  ? colorScheme.copyWith(
+                      surface: Colors.transparent,
+                      onSurface: Colors.white,
+                      onSurfaceVariant: const Color(0xD9FFFFFF),
+                    )
+                  : colorScheme.copyWith(surface: Colors.transparent),
               canvasColor: Colors.transparent,
             ),
             child: child,

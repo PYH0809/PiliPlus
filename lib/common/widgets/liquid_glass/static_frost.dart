@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
@@ -15,7 +16,8 @@ import 'package:material_ui/material_ui.dart';
 /// the screen tall slid up over its fading scrim: the pane moved, the scrim
 /// changed, and the host blurred the whole of it again each frame. The page
 /// under a sheet holds still behind its scrim, so one picture of it serves
-/// the sheet's whole time open; its glass reads no scrim and bends nothing.
+/// the sheet's whole time open, the scrim baked in as it will stand; its
+/// glass bends nothing.
 /// A page the picture no longer shows, as the screen turned or the theme
 /// changed, leaves only the tint.
 class StaticFrost extends StatelessWidget {
@@ -52,11 +54,15 @@ class StaticFrost extends StatelessWidget {
       radius: radius,
       // Without the picture the tint thickens, as glass's does with no
       // backdrop to read.
+      // Without the picture the tint thickens, as glass's does with no
+      // backdrop to read; dark, a little in any case, for its white text.
       tint: switch (LiquidGlassStyle.menu(colorScheme).tint) {
-        final tint when image == null => tint.withValues(
-          alpha: (tint.a + 0.3).clamp(0.0, 1.0),
+        final tint => tint.withValues(
+          alpha: (tint.a + (image == null ? 0.3 : 0) + (dark ? 0.08 : 0)).clamp(
+            0.0,
+            1.0,
+          ),
         ),
-        final tint => tint,
       },
       rim: Colors.white.withValues(alpha: dark ? 0.16 : 0.5),
       // Its content paints apart from it, once.
@@ -94,8 +100,9 @@ class StaticFrostPicture {
   static StaticFrostPicture? take(
     ModalRoute<dynamic>? below,
     ColorScheme colorScheme,
-    Size screen,
-  ) {
+    Size screen, {
+    Color scrim = const Color(0x00000000),
+  }) {
     final style = LiquidGlassStyle.menu(colorScheme);
     final boundary = below?.subtreeContext?.findRenderObject();
     if (boundary is! RenderRepaintBoundary ||
@@ -120,7 +127,7 @@ class StaticFrostPicture {
     // texels' squares, which the screen's scale-up showed as steps.
     final levels = <ui.Image>[page];
     var texelsPerDp = _texelsPerDp;
-    while (1 / texelsPerDp < style.blur * 1.6 &&
+    while (1 / texelsPerDp < style.blur * 3.2 &&
         levels.last.width > 8 &&
         levels.last.height > 8) {
       final last = levels.last;
@@ -143,12 +150,31 @@ class StaticFrostPicture {
     // the frost under the tint then comes out as live glass's over white,
     // and as it over black.
     final full = levels.single;
+    // Live glass reads the sheet's scrim over the page, which it then
+    // livens and brightens, and its tint thickens over what reads lighter
+    // than it by as far as the style's contrast says: the picture, taken
+    // before the scrim showed, takes it in here, and the gain darkens it by
+    // as much as live glass's tint thickens over white under the scrim.
+    final tint = style.tint;
+    double luma(Color c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    final behind = 1 - scrim.a * (1 - luma(scrim));
+    final clash = ((style.contrast.sign * (luma(tint) - behind) - 0.3) / 0.5)
+        .clamp(
+          0.0,
+          1.0,
+        );
+    final cover = tint.a + (1 - tint.a) * clash * style.contrast.abs();
     final livened = _scaled(
       image,
       full.width,
       full.height,
-      saturation: style.saturation,
-      gain: style.brightness * (style.contrast < 0 ? 1 + style.contrast : 1),
+      // Lighter than live glass's in light, which over a bright cover,
+      // free of the bend and rim that break it up, read as a garish patch.
+      saturation: colorScheme.brightness == Brightness.light
+          ? math.min(style.saturation, 1.4)
+          : style.saturation,
+      gain: style.brightness * (1 - cover) / (1 - tint.a),
+      scrim: scrim,
     );
     if (!identical(image, full)) image.dispose();
     full.dispose();
@@ -170,11 +196,14 @@ ui.Image _scaled(
   int height, {
   double? saturation,
   double gain = 1,
+  Color scrim = const Color(0x00000000),
 }) {
   final recorder = ui.PictureRecorder();
   final paint = Paint()..filterQuality = FilterQuality.low;
   if (saturation != null) {
-    paint.colorFilter = ColorFilter.matrix(_livelier(saturation, gain));
+    paint.colorFilter = ColorFilter.matrix(
+      _livelier(saturation, gain, scrim),
+    );
   }
   Canvas(recorder).drawImageRect(
     image,
@@ -188,25 +217,28 @@ ui.Image _scaled(
   return scaled;
 }
 
-// Saturation as a matrix that keeps luminance, then a gain.
-List<double> _livelier(double s, double k) {
+// Saturation as a matrix that keeps luminance, under [scrim] laid over it,
+// then a gain.
+List<double> _livelier(double s, double gain, Color scrim) {
   const r = 0.2126, g = 0.7152, b = 0.0722;
+  final k = gain * (1 - scrim.a);
+  final lift = gain * scrim.a * 255;
   return [
     k * (r + (1 - r) * s),
     k * g * (1 - s),
     k * b * (1 - s),
     0,
-    0,
+    lift * scrim.r,
     k * r * (1 - s),
     k * (g + (1 - g) * s),
     k * b * (1 - s),
     0,
-    0,
+    lift * scrim.g,
     k * r * (1 - s),
     k * g * (1 - s),
     k * (b + (1 - b) * s),
     0,
-    0,
+    lift * scrim.b,
     0,
     0,
     0,
