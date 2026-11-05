@@ -63,6 +63,11 @@ turns on every glass part. It only takes effect after a restart.
   droplet as it returns, so the button shows again just where the droplet lands. Call `arm()` right before opening
   the menu; one opened another way, from the keyboard or for assistive technology, finds the source standing where it
   opens from. A pick that changes the button waits for `landed`, so the value changes in place.
+- **A sheet over the page that slides in** draws its glass from one picture (`StaticFrost`), not the host: sliding over
+  its fading scrim, live glass had the host capture and blur half the screen again every frame. `StaticFrost.take`
+  pictures the page below in the tap that opens it; the pane repaints with the route's animation to stay aligned with
+  the screen, its content on a boundary of its own. The portrait player's ⋮ sheet uses it (`pageGlass`), as the
+  landscape one sits on `VideoGlass`.
 - **Call sites with surfaces of their own** (popovers, banners, a framed screenshot) check `GlassSurfaces.installed`
   and draw on `GlassSurfaces.panel` or `GlassSurfaces.pill` instead. Controls that fill themselves, as `iconButton`
   does, ask `GlassSurfaces.onGlass(context)` and fill with `glassFillOf` there.
@@ -178,6 +183,7 @@ lays it over the body. The two are as tall, so the content stays put as they swa
 | `glass_alert_actions.dart` | An alert's buttons as iOS lays them out: capsules, the last one filled, 取消 at the bottom | Yes |
 | `glass_switch.dart` | `GlassSwitch`, iOS 26's switch (a 63×28 track, a white capsule thumb) with FlClash's motion: a press lifts the thumb into a lens over the track. A `Switch`'s own `thumbIcon` (a lock) stays on the thumb; the theme's tick doesn't | Yes |
 | `glass_surfaces.dart` | Fills the material_ui hooks: alerts (34 dp, FlClash's `alert` glass and rim, grow in, swell on press), menus (24 dp, rows inset 8), the selection toolbar and switches; `panel`, `pill`, `onGlass` for call sites | Yes |
+| `static_frost.dart` | `StaticFrost`: a sheet's glass from one picture of the page under it, blurred once as the sheet opens, laid where the page lies; the portrait player's ⋮ sheet | Yes |
 | `video_glass.dart` | `VideoGlass`: a backdrop filter pane over the video, which the host cannot replay; the player's and live room's controls, notes and full-screen panels | Yes |
 | `glass_droplet.dart` | The return into a button as a drop of glass, shared by menus and pages: where the platter and droplet stand at a time, their shadows | Yes |
 | `glass_menu_morph.dart` | A menu growing out of its button's capsule into the card; a press slid on into it lights and picks a row; it returns into the button as a drop of glass. `GlassMenuSource`, the button it takes in and gives back | Yes |
