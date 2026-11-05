@@ -26,17 +26,33 @@ class AfterLanding extends StatefulWidget {
   State<AfterLanding> createState() => _AfterLandingState();
 }
 
-class _AfterLandingState extends State<AfterLanding> {
-  bool _ready = false;
+class _AfterLandingState extends State<AfterLanding> with AfterLandingMixin {
+  @override
+  int get revealFrames => widget.frames;
+
+  @override
+  Widget build(BuildContext context) =>
+      revealed ? widget.child : widget.placeholder;
+}
+
+/// What [AfterLanding] does, for a [State] that builds something else than
+/// a placeholder meanwhile: [revealed] turns true [revealFrames] frames after
+/// the page has landed, at once in a page opened any other way.
+mixin AfterLandingMixin<T extends StatefulWidget> on State<T> {
+  /// How many frames after landing [revealed] turns true.
+  int get revealFrames;
+
+  bool get revealed => _revealed;
+  bool _revealed = false;
   ValueListenable<bool>? _landed;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_ready || _landed != null) return;
+    if (_revealed || _landed != null) return;
     final landed = VideoExpandRoute.of(context)?.landed;
     if (landed == null || landed.value) {
-      _ready = true;
+      _revealed = true;
       return;
     }
     _landed = landed..addListener(_handleLanded);
@@ -52,11 +68,11 @@ class _AfterLandingState extends State<AfterLanding> {
   void _reveal(int frame) {
     SchedulerBinding.instance
       ..addPostFrameCallback((_) {
-        if (!mounted || _ready) return;
-        if (frame < widget.frames) {
+        if (!mounted || _revealed) return;
+        if (frame < revealFrames) {
           _reveal(frame + 1);
         } else {
-          setState(() => _ready = true);
+          setState(() => _revealed = true);
         }
       })
       ..scheduleFrame();
@@ -67,8 +83,4 @@ class _AfterLandingState extends State<AfterLanding> {
     _landed?.removeListener(_handleLanded);
     super.dispose();
   }
-
-  @override
-  Widget build(BuildContext context) =>
-      _ready ? widget.child : widget.placeholder;
 }

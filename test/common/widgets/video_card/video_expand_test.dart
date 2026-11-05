@@ -5,7 +5,10 @@ import 'dart:ui' as ui;
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_card_h.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
+import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/model_hot_video_item.dart';
+import 'package:PiliPlus/pages/video/related/controller.dart';
+import 'package:PiliPlus/pages/video/related/view.dart';
 import 'package:PiliPlus/pages/video/widgets/after_landing.dart';
 import 'package:PiliPlus/pages/video/widgets/detail_glass.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
@@ -586,6 +589,75 @@ void main() {
         );
       }
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('the related cards start with the intro, and stay put', (
+      tester,
+    ) async {
+      tester.view
+        ..physicalSize = const Size(400, 1600)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      Finder text(String text) => find.text(text, skipOffstage: false);
+      final cards = find.byType(VideoCardH, skipOffstage: false);
+      await _pump(
+        tester,
+        page: () {
+          // The list arrived as the page opened, before it landed.
+          if (!Get.isRegistered<RelatedController>(tag: 'related')) {
+            Get.put(
+              RelatedController(autoQuery: false),
+              tag: 'related',
+            ).loadingState.value = Success([
+              for (var aid = 10; aid < 14; aid++)
+                HotVideoItemModel.fromJson({
+                  'aid': aid,
+                  'cid': aid,
+                  'bvid': 'BV1xx411c7mD',
+                  'title': '相关 $aid',
+                  'pubdate': 0,
+                  'duration': 60,
+                  'owner': {'mid': 1, 'name': 'UP'},
+                  'stat': {'view': 1, 'danmaku': 1},
+                }),
+            ]);
+          }
+          return const Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                AfterLanding(
+                  frames: 2,
+                  placeholder: SliverToBoxAdapter(
+                    child: SizedBox(height: 100, child: Text('骨架')),
+                  ),
+                  child: SliverToBoxAdapter(
+                    child: SizedBox(height: 300, child: Text('简介')),
+                  ),
+                ),
+                RelatedVideoPanel(heroTag: 'related'),
+              ],
+            ),
+          );
+        },
+      );
+      await tester.tap(find.text('卡片'));
+      await tester.pump();
+      while (text('骨架').evaluate().isNotEmpty) {
+        // No card before the intro: its building would move them.
+        expect(cards, findsNothing);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      // The cards start with the intro, over their boxes, as they would
+      // in a page opened at once: the first two a frame on.
+      expect(text('简介'), findsOneWidget);
+      expect(cards, findsNothing);
+      await tester.pump();
+      expect(cards, findsNWidgets(2));
+      final first = tester.getTopLeft(text('相关 10'));
+      expect(first.dy, greaterThan(300));
+      await tester.pumpAndSettle();
+      expect(cards, findsNWidgets(4));
+      expect(tester.getTopLeft(text('相关 10')), first);
     });
 
     testWidgets('all at once in a page opened another way', (tester) async {
