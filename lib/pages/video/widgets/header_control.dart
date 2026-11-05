@@ -35,8 +35,8 @@ import 'package:PiliPlus/pages/video/introduction/local/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/action_item.dart';
-import 'package:PiliPlus/pages/video/introduction/ugc/widgets/menu_row.dart';
 import 'package:PiliPlus/pages/video/widgets/header_mixin.dart';
+import 'package:PiliPlus/pages/video/widgets/settings_sheet.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/data_source.dart';
 import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
@@ -379,8 +379,7 @@ class HeaderControlState extends State<HeaderControl>
             clipBehavior: Clip.hardEdge,
             color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.all(Radius.circular(12)),
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+            child: GroupedSettings(
               children: [
                 ListTile(
                   dense: true,
@@ -498,18 +497,22 @@ class HeaderControlState extends State<HeaderControl>
                 if (PlatformUtils.isMobile)
                   if (plPlayerController.videoPlayerController
                       case final player?)
-                    Builder(
-                      builder: (context) => ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.volume_up, size: 20),
-                        title: const Text('播放器音量'),
-                        subtitle: Text(
-                          '当前: ${Pref.playerVolume.toStringAsFixed(0)}%',
-                        ),
-                        onTap: () => showPlayerVolumeDialog(
-                          context,
-                          () => (context as Element).markNeedsBuild(),
-                          onChanged: player.setVolume,
+                    SettingsEntry(
+                      group: .sound,
+                      order: 1,
+                      child: Builder(
+                        builder: (context) => ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.volume_up, size: 20),
+                          title: const Text('播放器音量'),
+                          subtitle: Text(
+                            '当前: ${Pref.playerVolume.toStringAsFixed(0)}%',
+                          ),
+                          onTap: () => showPlayerVolumeDialog(
+                            context,
+                            () => (context as Element).markNeedsBuild(),
+                            onChanged: player.setVolume,
+                          ),
                         ),
                       ),
                     ),
@@ -538,88 +541,102 @@ class HeaderControlState extends State<HeaderControl>
                       }
                     },
                   ),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    spacing: 10,
-                    children: [
-                      if (PlatformUtils.isDesktop) ...[
-                        ActionIconItem(
-                          tooltip: '向左旋转',
-                          onTap: () => videoDetailCtr.rotate = videoDetailCtr
-                              .calcRotate(-90),
-                          iconData: Icons.rotate_left,
-                        ),
-                        ActionIconItem(
-                          tooltip: '向右旋转',
-                          onTap: () => videoDetailCtr.rotate = videoDetailCtr
-                              .calcRotate(90),
-                          iconData: Icons.rotate_right,
-                        ),
-                      ],
-                      Obx(
-                        () => ActionRowLineItem(
-                          text: " 左右翻转 ",
-                          iconData: Icons.flip,
-                          onTap: plPlayerController.flipX.toggle,
-                          selectStatus: plPlayerController.flipX.value,
-                        ),
-                      ),
-                      Obx(
-                        () => ActionRowLineItem(
-                          text: " 上下翻转 ",
-                          iconData: CustomIcons.flip_rotate_90,
-                          onTap: plPlayerController.flipY.toggle,
-                          selectStatus: plPlayerController.flipY.value,
-                        ),
-                      ),
-                      if ((isFileSource &&
-                              !(plPlayerController.dataSource as FileSource)
-                                  .isMp4) ||
-                          (!isFileSource &&
-                              videoDetailCtr.audioUrl?.isNotEmpty == true))
-                        Obx(
-                          () {
-                            final onlyPlayAudio =
-                                plPlayerController.onlyPlayAudio.value;
-                            return ActionRowLineItem(
-                              iconData: Icons.headphones,
-                              onTap: () {
-                                plPlayerController.onlyPlayAudio.value =
-                                    !onlyPlayAudio;
-                                final player =
-                                    plPlayerController.videoPlayerController!;
-                                if (onlyPlayAudio &&
-                                    player.state.tracks.video.length <= 2) {
-                                  videoDetailCtr.playerInit();
-                                } else {
-                                  player.setProperty(
-                                    'file-local-options/vid',
-                                    onlyPlayAudio ? 'auto' : 'no',
-                                  );
-                                }
-                              },
-                              text: " 听视频 ",
-                              selectStatus: onlyPlayAudio,
-                            );
-                          },
-                        ),
-                      if (PlatformUtils.isMobile)
-                        Obx(
-                          () => ActionRowLineItem(
-                            iconData: Icons.play_circle_outline,
-                            onTap:
-                                plPlayerController.setContinuePlayInBackground,
-                            text: " 后台播放 ",
-                            selectStatus: plPlayerController
-                                .continuePlayInBackground
-                                .value,
-                          ),
-                        ),
-                    ],
+                // On and off, in the groups they belong to.
+                if (PlatformUtils.isDesktop) ...[
+                  SettingsEntry(
+                    group: .picture,
+                    order: 5,
+                    child: ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.rotate_left, size: 20),
+                      title: const Text('向左旋转', style: titleStyle),
+                      onTap: () => videoDetailCtr.rotate = videoDetailCtr
+                          .calcRotate(-90),
+                    ),
+                  ),
+                  SettingsEntry(
+                    group: .picture,
+                    order: 6,
+                    child: ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.rotate_right, size: 20),
+                      title: const Text('向右旋转', style: titleStyle),
+                      onTap: () =>
+                          videoDetailCtr.rotate = videoDetailCtr.calcRotate(90),
+                    ),
+                  ),
+                ],
+                SettingsEntry(
+                  group: .picture,
+                  order: 3,
+                  child: Obx(
+                    () => SettingsSwitchRow(
+                      icon: Icons.flip,
+                      title: '左右翻转',
+                      value: plPlayerController.flipX.value,
+                      onChanged: (_) => plPlayerController.flipX.toggle(),
+                    ),
                   ),
                 ),
+                SettingsEntry(
+                  group: .picture,
+                  order: 4,
+                  child: Obx(
+                    () => SettingsSwitchRow(
+                      icon: CustomIcons.flip_rotate_90,
+                      title: '上下翻转',
+                      value: plPlayerController.flipY.value,
+                      onChanged: (_) => plPlayerController.flipY.toggle(),
+                    ),
+                  ),
+                ),
+                if ((isFileSource &&
+                        !(plPlayerController.dataSource as FileSource).isMp4) ||
+                    (!isFileSource &&
+                        videoDetailCtr.audioUrl?.isNotEmpty == true))
+                  SettingsEntry(
+                    group: .sound,
+                    order: 2,
+                    child: Obx(() {
+                      final onlyPlayAudio =
+                          plPlayerController.onlyPlayAudio.value;
+                      return SettingsSwitchRow(
+                        icon: Icons.headphones,
+                        title: '听视频',
+                        value: onlyPlayAudio,
+                        onChanged: (_) {
+                          plPlayerController.onlyPlayAudio.value =
+                              !onlyPlayAudio;
+                          final player =
+                              plPlayerController.videoPlayerController!;
+                          if (onlyPlayAudio &&
+                              player.state.tracks.video.length <= 2) {
+                            videoDetailCtr.playerInit();
+                          } else {
+                            player.setProperty(
+                              'file-local-options/vid',
+                              onlyPlayAudio ? 'auto' : 'no',
+                            );
+                          }
+                        },
+                      );
+                    }),
+                  ),
+                if (PlatformUtils.isMobile)
+                  SettingsEntry(
+                    group: .sound,
+                    order: 3,
+                    child: Obx(
+                      () => SettingsSwitchRow(
+                        icon: Icons.play_circle_outline,
+                        title: '后台播放',
+                        value:
+                            plPlayerController.continuePlayInBackground.value,
+                        onChanged: (_) =>
+                            plPlayerController.setContinuePlayInBackground(),
+                      ),
+                    ),
+                  ),
                 if (!isFileSource) ...[
                   ListTile(
                     dense: true,
@@ -804,6 +821,8 @@ class HeaderControlState extends State<HeaderControl>
           ),
         );
       },
+      // As tall as the level it shows, in portrait.
+      fitContent: true,
     );
   }
 
