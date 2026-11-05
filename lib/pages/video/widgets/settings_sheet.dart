@@ -139,7 +139,9 @@ class _GroupedSettingsState extends State<GroupedSettings>
   void _go(double target) {
     if (target == 0 && _push.value == 0) {
       // There already, as a drag let go of at the edge: nothing moves to
-      // say so.
+      // say so. A push just set off and yet to move stops here too, or it
+      // would carry the first level aside with no group beside it.
+      _push.stop();
       if (_open != null) setState(() => _open = null);
       return;
     }

@@ -172,6 +172,22 @@ void main() {
     expect(find.text('选择画质'), findsNothing);
   });
 
+  testWidgets('back before the push has moved leaves the first level put', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.pump();
+    final at = tester.getTopLeft(find.text('定时关闭'));
+    await tester.tap(find.text('画面'));
+    // The push has set off, but not yet moved.
+    await tester.pump();
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    expect(await navigator.maybePop(), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.text('选择画质'), findsNothing);
+    expect(tester.getTopLeft(find.text('定时关闭')), at);
+  });
+
   testWidgets('a drag from the left edge goes back, or comes in again', (
     tester,
   ) async {
