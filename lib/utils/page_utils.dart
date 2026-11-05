@@ -5,6 +5,7 @@ import 'package:PiliPlus/common/widgets/image_viewer/gallery_viewer.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero_dialog_route.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_surfaces.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/static_frost.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/video_glass.dart';
 import 'package:PiliPlus/common/widgets/video_card/video_expand.dart';
 import 'package:PiliPlus/grpc/im.dart';
@@ -510,68 +511,108 @@ abstract final class PageUtils {
     bool overVideo = false,
     bool fitContent = false,
     bool barrierCloses = false,
+    bool pageGlass = false,
   }) {
     if (!context.mounted) {
       return null;
     }
     final glass = overVideo && GlassSurfaces.installed;
+    // In portrait, under the player rather than over its video, the sheet
+    // can be the page's glass, reading what the host captured below it.
+    final onPage = pageGlass && !glass && GlassSurfaces.installed;
+    // The page the sheet opens over, its glass drawn from a picture of it.
+    final frost = onPage && context.isPortrait
+        ? StaticFrostPicture.take(
+            Get.routing.route as ModalRoute<dynamic>?,
+            (theme ?? Theme.of(context)).colorScheme,
+            MediaQuery.sizeOf(context),
+            scrim:
+                (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
+                const Color(0x80000000),
+          )
+        : null;
     // The panel's glass draws the video again under all of it; with the
     // controls' glass left behind the barrier as well, a 90 Hz phone drew
     // 80 frames a second. They go as the panel comes, as they would soon.
     if (glass && !context.isPortrait) {
       PlPlayerController.instance?.controls = false;
     }
-    return Get.key.currentState!.push(
-      PublishRoute(
-        barrierCloses: barrierCloses,
-        barrierColor: glass && !context.isPortrait
-            ? (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
-                  const Color(0x80000000)
-            : const Color(0x80000000),
-        pageBuilder: (context, animation, secondaryAnimation) {
-          final isPortrait = context.isPortrait;
-          Widget content = Padding(
-            padding: isPortrait ? padding?.call() ?? .zero : .zero,
-            child: child,
-          );
-          if (glass && !isPortrait) {
-            content = _onVideoGlass(theme ?? Theme.of(context), content);
-          } else if (theme != null) {
-            content = Theme(data: theme, child: content);
-          }
-          // A sheet as tall as its content, up to the room it is given,
-          // stands at the bottom of that room.
-          if (fitContent && isPortrait) {
-            content = Align(alignment: .bottomCenter, child: content);
-          }
-          return SafeArea(
-            child: CustomFractionallySizedBox(
-              maxWidth: maxWidth,
-              widthFactor: isPortrait ? 1.0 : 0.5,
-              heightFactor: isPortrait ? 0.7 : 1.0,
-              alignment: isPortrait ? .bottomCenter : .centerRight,
-              child: content,
-            ),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 350),
-        transitionBuilder: (context, animation, secondaryAnimation, child) {
-          final begin = context.isPortrait
-              ? const Offset(0.0, 1.0)
-              : const Offset(1.0, 0.0);
-          return SlideTransition(
-            position: animation.drive(
-              Tween<Offset>(
-                begin: begin,
-                end: Offset.zero,
-              ).chain(CurveTween(curve: Curves.easeInOut)),
-            ),
-            child: child,
-          );
-        },
-        settings: RouteSettings(arguments: Get.arguments),
-      ),
+    final route = PublishRoute<void>(
+      barrierCloses: barrierCloses,
+      barrierColor:
+          (glass && !context.isPortrait) || (onPage && context.isPortrait)
+          ? (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
+                const Color(0x80000000)
+          : const Color(0x80000000),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final isPortrait = context.isPortrait;
+        Widget content = Padding(
+          padding: isPortrait ? padding?.call() ?? .zero : .zero,
+          child: child,
+        );
+        // Turned, the page under it is laid out anew: the picture of it no
+        // longer shows it.
+        if (!isPortrait) frost?.drop();
+        if (glass && !isPortrait) {
+          content = _onVideoGlass(theme ?? Theme.of(context), content);
+        } else if (onPage && isPortrait) {
+          content = _onPageGlass(theme ?? Theme.of(context), frost, content);
+        } else if (theme != null) {
+          content = Theme(data: theme, child: content);
+        }
+        // A sheet as tall as its content, up to the room it is given,
+        // stands at the bottom of that room.
+        if (fitContent && isPortrait) {
+          content = Align(alignment: .bottomCenter, child: content);
+        }
+        return SafeArea(
+          child: CustomFractionallySizedBox(
+            maxWidth: maxWidth,
+            widthFactor: isPortrait ? 1.0 : 0.5,
+            heightFactor: isPortrait ? 0.7 : 1.0,
+            alignment: isPortrait ? .bottomCenter : .centerRight,
+            child: content,
+          ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 350),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final begin = context.isPortrait
+            ? const Offset(0.0, 1.0)
+            : const Offset(1.0, 0.0);
+        return SlideTransition(
+          position: animation.drive(
+            Tween<Offset>(
+              begin: begin,
+              end: Offset.zero,
+            ).chain(CurveTween(curve: Curves.easeInOut)),
+          ),
+          child: child,
+        );
+      },
+      settings: RouteSettings(arguments: Get.arguments),
     );
+    final opened = Get.key.currentState!.push(route);
+    // The route owns the picture, which the sheet's glass draws from for as
+    // long as it shows, its return included; a route taken out with no
+    // return, as one replaced, lets it go a moment after it completes.
+    if (frost != null) {
+      void onStatus(AnimationStatus status) {
+        if (status.isDismissed) {
+          route.animation?.removeStatusListener(onStatus);
+          frost.drop();
+        }
+      }
+
+      route.animation?.addStatusListener(onStatus);
+      route.completed.whenComplete(
+        () => Future<void>.delayed(
+          route.reverseTransitionDuration + const Duration(seconds: 1),
+          frost.drop,
+        ),
+      );
+    }
+    return opened;
   }
 
   // An alert's glass, which reads the video under it, with the panel's own
@@ -599,6 +640,45 @@ abstract final class PageUtils {
               ),
               child: child,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // The page's glass, as the side panel's over the video in landscape: the
+  // same radius and inset, the panel's own surfaces cleared to let it show,
+  // a pressed row on a platter rather than a ripple. A frost of a picture of
+  // the page under it, as live glass sliding over the fading scrim cost a
+  // phone's raster thread most of each frame.
+  static Widget _onPageGlass(
+    ThemeData theme,
+    StaticFrostPicture? frost,
+    Widget child,
+  ) {
+    const radius = 24.0;
+    final colorScheme = theme.colorScheme;
+    return Padding(
+      padding: const .all(8),
+      child: Theme(
+        data: theme,
+        child: StaticFrost(
+          picture: frost,
+          radius: radius,
+          child: Theme(
+            // White text when dark, as the glass dialogs': the pure black
+            // theme's dimmed onSurface reads poorly over a bright frost.
+            data: GlassSurfaces.withoutRipples(theme).copyWith(
+              colorScheme: colorScheme.brightness == Brightness.dark
+                  ? colorScheme.copyWith(
+                      surface: Colors.transparent,
+                      onSurface: Colors.white,
+                      onSurfaceVariant: const Color(0xD9FFFFFF),
+                    )
+                  : colorScheme.copyWith(surface: Colors.transparent),
+              canvasColor: Colors.transparent,
+            ),
+            child: child,
           ),
         ),
       ),

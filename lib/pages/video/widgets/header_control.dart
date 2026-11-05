@@ -826,6 +826,9 @@ class HeaderControlState extends State<HeaderControl>
       // A tap beside it closes it from any level, as the back key goes up
       // a level first.
       barrierCloses: true,
+      // In portrait, the page's glass, as the side panel over the video
+      // is in landscape.
+      pageGlass: true,
     );
   }
 
