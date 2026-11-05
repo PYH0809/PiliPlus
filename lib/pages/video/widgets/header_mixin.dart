@@ -24,6 +24,7 @@ mixin HeaderMixin<T extends StatefulWidget> on State<T> {
     StatefulWidgetBuilder builder, {
     ValueGetter<EdgeInsets>? padding,
     bool fitContent = false,
+    bool barrierCloses = false,
   }) {
     final theme = this.theme;
     return PageUtils.showVideoBottomSheet(
@@ -33,6 +34,7 @@ mixin HeaderMixin<T extends StatefulWidget> on State<T> {
       theme: theme,
       overVideo: plPlayerController.isFullScreen.value,
       fitContent: fitContent,
+      barrierCloses: barrierCloses,
       child: StatefulBuilder(builder: builder),
     );
   }

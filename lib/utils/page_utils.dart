@@ -509,6 +509,7 @@ abstract final class PageUtils {
     ThemeData? theme,
     bool overVideo = false,
     bool fitContent = false,
+    bool barrierCloses = false,
   }) {
     if (!context.mounted) {
       return null;
@@ -522,6 +523,7 @@ abstract final class PageUtils {
     }
     return Get.key.currentState!.push(
       PublishRoute(
+        barrierCloses: barrierCloses,
         barrierColor: glass && !context.isPortrait
             ? (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
                   const Color(0x80000000)

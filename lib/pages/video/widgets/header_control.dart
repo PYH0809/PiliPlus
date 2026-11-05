@@ -823,6 +823,9 @@ class HeaderControlState extends State<HeaderControl>
       },
       // As tall as the level it shows, in portrait.
       fitContent: true,
+      // A tap beside it closes it from any level, as the back key goes up
+      // a level first.
+      barrierCloses: true,
     );
   }
 
