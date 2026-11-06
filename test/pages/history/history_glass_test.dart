@@ -77,7 +77,7 @@ void main() {
     }
   }
 
-  testWidgets('the title bar and tabs float on glass over the list', (
+  testWidgets('the tabs take the title\'s place on the glass bar', (
     tester,
   ) async {
     putControllers();
@@ -85,7 +85,17 @@ void main() {
     await tester.pump();
 
     expect(find.byType(GlassAppBar), findsOneWidget);
-    expect(find.text('观看记录'), findsOneWidget);
+    // One row: the tabs stand where the title would, beside the buttons.
+    expect(find.text('观看记录'), findsNothing);
+    final bar = tester.widget<GlassAppBar>(find.byType(GlassAppBar));
+    expect(bar.tabs, isNull);
+    expect(bar.preferredSize.height, kToolbarHeight);
+    final pill = tester.getRect(find.byType(LiquidGlassTabBar));
+    expect(
+      pill.center.dy,
+      moreOrLessEquals(tester.getCenter(find.byTooltip('搜索')).dy),
+    );
+    expect(pill.right, lessThan(tester.getRect(find.byTooltip('搜索')).left));
     final tabs = tester.widget<LiquidGlassTabBar>(
       find.byType(LiquidGlassTabBar),
     );
@@ -101,7 +111,6 @@ void main() {
 
     // The 全部 list leaves room for the bar at its top, so its first rows
     // start under the bar and scroll under it.
-    final bar = tester.widget<GlassAppBar>(find.byType(GlassAppBar));
     final space = find.descendant(
       of: find.byType(SliverHeaderOverlaySpace).first,
       matching: find.byType(SizedBox),
@@ -110,13 +119,14 @@ void main() {
     await dispose(tester);
   });
 
-  testWidgets('without tabs the bar has no tab pill', (tester) async {
+  testWidgets('without tabs the bar shows the title', (tester) async {
     putControllers(withTabs: false);
     await tester.pumpWidget(const GetMaterialApp(home: HistoryPage()));
     await tester.pump();
 
     expect(find.byType(GlassAppBar), findsOneWidget);
     expect(find.byType(LiquidGlassTabBar), findsNothing);
+    expect(find.text('观看记录'), findsOneWidget);
     await dispose(tester);
   });
 
@@ -134,11 +144,86 @@ void main() {
     expect(find.text('已选: 0'), findsOneWidget);
     expect(find.text('全选'), findsOneWidget);
     expect(find.text('移除'), findsOneWidget);
-    expect(find.byType(LiquidGlassTabBar), findsOneWidget);
+    // As tall as before, so the list doesn't move.
+    expect(
+      tester.widget<GlassAppBar>(find.byType(GlassAppBar)).preferredSize,
+      const Size.fromHeight(kToolbarHeight),
+    );
 
     await tester.tap(find.byTooltip('取消'));
     await tester.pump();
+    expect(find.byType(LiquidGlassTabBar), findsOneWidget);
+    await dispose(tester);
+  });
+
+  testWidgets('on a 360 dp phone every tab shows without scrolling', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(360, 780)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    putControllers();
+    // Opened over another page, so it has its back button, as in the app.
+    await tester.pumpWidget(const GetMaterialApp(home: SizedBox()));
+    Get.to<void>(() => const HistoryPage());
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back'), findsOneWidget);
+
+    final pill = tester.getRect(find.byType(LiquidGlassTabBar));
+    for (final label in ['全部', '视频', '直播', '专栏']) {
+      final tab = tester.getRect(find.text(label));
+      expect(tab.left, greaterThanOrEqualTo(pill.left), reason: label);
+      expect(tab.right, lessThanOrEqualTo(pill.right), reason: label);
+    }
+    await dispose(tester);
+  });
+
+  testWidgets('the tabs still name the page to a screen reader', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    putControllers();
+    await tester.pumpWidget(const GetMaterialApp(home: HistoryPage()));
+    await tester.pump();
+
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('观看记录')),
+      isSemantics(label: '观看记录', isHeader: true, namesRoute: true),
+    );
+    semantics.dispose();
+    await dispose(tester);
+  });
+
+  testWidgets('too narrow for the row, the tabs go under the title', (
+    tester,
+  ) async {
+    // A 360 dp phone with the display scaled to 2.
+    tester.view
+      ..physicalSize = const Size(180, 400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    putControllers();
+    await tester.pumpWidget(const GetMaterialApp(home: SizedBox()));
+    Get.to<void>(() => const HistoryPage());
+    await tester.pumpAndSettle();
+
+    final bar = tester.widget<GlassAppBar>(find.byType(GlassAppBar));
+    expect(bar.tabs, isNotNull);
     expect(find.text('观看记录'), findsOneWidget);
+    expect(
+      tester.getRect(find.byType(LiquidGlassTabBar)).top,
+      greaterThan(tester.getRect(find.byTooltip('搜索')).bottom),
+    );
+
+    // Picking keeps them there, so the bar stays as tall.
+    final height = bar.preferredSize.height;
+    Get.find<HistoryController>(tag: 'all').enableMultiSelect.value = true;
+    await tester.pump();
+    expect(
+      tester.widget<GlassAppBar>(find.byType(GlassAppBar)).preferredSize.height,
+      height,
+    );
     await dispose(tester);
   });
 }
