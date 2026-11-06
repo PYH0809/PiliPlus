@@ -179,16 +179,12 @@ class _HistoryPageState extends State<HistoryPage>
     );
   }
 
-  /// The title bar on glass, floating over the list with the tabs on a pill
-  /// under it; while picking, the same bar turns into the multi-select one.
+  /// The title bar on glass, one row floating over the list: the tabs on a
+  /// pill take the title's place between the back button and the actions,
+  /// and the title shows only while there are no tabs. While picking, the
+  /// same row turns into the multi-select one, as tall, so the list keeps
+  /// its place; the tabs can't be switched then anyway.
   GlassAppBar _buildGlassAppBar(bool enableMultiSelect) {
-    final tabs = _historyController.tabs.isEmpty
-        ? null
-        : LiquidGlassTabBar(
-            controller: _historyController.tabController!,
-            labels: _tabLabels,
-            onTap: (index) => _onTabTap(index, enableMultiSelect),
-          );
     if (enableMultiSelect) {
       final ctr = currCtr();
       return GlassAppBar(
@@ -214,11 +210,23 @@ class _HistoryPageState extends State<HistoryPage>
             ),
           ),
         ],
-        tabs: tabs,
       );
     }
+    final hasTabs = _historyController.tabs.isNotEmpty;
     return GlassAppBar(
-      title: const Text('观看记录'),
+      expandTitle: hasTabs,
+      title: hasTabs
+          ? Semantics(
+              label: '观看记录',
+              child: LiquidGlassTabBar(
+                controller: _historyController.tabController!,
+                labels: _tabLabels,
+                height: GlassAppBar.buttonSize,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+                onTap: (index) => _onTabTap(index, enableMultiSelect),
+              ),
+            )
+          : const Text('观看记录'),
       actions: [
         GlassMorphSource(
           builder: (context, source) => IconButton(
@@ -229,7 +237,6 @@ class _HistoryPageState extends State<HistoryPage>
         ),
         _buildMenu,
       ],
-      tabs: tabs,
     );
   }
 
