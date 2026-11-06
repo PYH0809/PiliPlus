@@ -186,6 +186,18 @@ class _HistoryPageState extends State<HistoryPage>
   /// same row turns into the multi-select one, as tall, so the list keeps
   /// its place; the tabs can't be switched then anyway.
   GlassAppBar _buildGlassAppBar(bool enableMultiSelect) {
+    final hasTabs = _historyController.tabs.isNotEmpty;
+    // Too narrow for the tabs beside the buttons, as with the display
+    // scaled up: they go back to a row of their own under the title.
+    final tabsInRow =
+        hasTabs && _GlassTitleTabs.fitTitleRow(context, _tabLabels);
+    final tabsBelow = hasTabs && !tabsInRow
+        ? LiquidGlassTabBar(
+            controller: _historyController.tabController!,
+            labels: _tabLabels,
+            onTap: (index) => _onTabTap(index, enableMultiSelect),
+          )
+        : null;
     if (enableMultiSelect) {
       final ctr = currCtr();
       return GlassAppBar(
@@ -211,12 +223,12 @@ class _HistoryPageState extends State<HistoryPage>
             ),
           ),
         ],
+        tabs: tabsBelow,
       );
     }
-    final hasTabs = _historyController.tabs.isNotEmpty;
     return GlassAppBar(
-      expandTitle: hasTabs,
-      title: hasTabs
+      expandTitle: tabsInRow,
+      title: tabsInRow
           ? _GlassTitleTabs(
               controller: _historyController.tabController!,
               labels: _tabLabels,
@@ -233,6 +245,7 @@ class _HistoryPageState extends State<HistoryPage>
         ),
         _buildMenu,
       ],
+      tabs: tabsBelow,
     );
   }
 
@@ -377,7 +390,8 @@ class _HistoryPageState extends State<HistoryPage>
 /// The tabs on the glass title row, standing in for the title: their room
 /// between the back button and the actions is tight, about 184 dp on a
 /// 360 dp phone, so the space around each label shrinks to fit them all,
-/// down to 6 dp a side, before the pill scrolls. To a screen reader they
+/// down to 6 dp a side. Where even that is too wide, [fitTitleRow] says so
+/// and the page puts them in a row of their own. To a screen reader they
 /// still name the page, as the title would.
 class _GlassTitleTabs extends StatelessWidget {
   const _GlassTitleTabs({
@@ -395,12 +409,48 @@ class _GlassTitleTabs extends StatelessWidget {
   static const double _minPadding = 6;
   static const double _maxPadding = 12;
 
+  static TextStyle? _labelStyle(BuildContext context) =>
+      TabBarTheme.of(context).labelStyle ??
+      Theme.of(context).textTheme.titleSmall;
+
+  static double _labelsWidth(BuildContext context, List<String> labels) {
+    final style = _labelStyle(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    var width = 0.0;
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      width += painter.width;
+      painter.dispose();
+    }
+    return width;
+  }
+
+  /// Whether [labels] fit, at the least space around each, between the back
+  /// button and the two actions, as GlassAppBar lays its row out: 14 dp in
+  /// from each side, 8 dp from each pane beside them.
+  static bool fitTitleRow(BuildContext context, List<String> labels) {
+    const sideInset = 14.0;
+    const paneGap = 8.0;
+    const button = GlassAppBar.buttonSize;
+    final width =
+        MediaQuery.sizeOf(context).width -
+        MediaQuery.paddingOf(context).horizontal;
+    final room = width - 2 * sideInset - button - 2 * paneGap - 2 * button;
+    final needed =
+        _labelsWidth(context, labels) +
+        _pillInset +
+        2 * _minPadding * labels.length;
+    return needed <= room;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final style =
-        TabBarTheme.of(context).labelStyle ??
-        Theme.of(context).textTheme.titleSmall;
-    final textScaler = MediaQuery.textScalerOf(context);
+    final style = _labelStyle(context);
     return Semantics(
       label: '观看记录',
       header: true,
@@ -411,17 +461,7 @@ class _GlassTitleTabs extends StatelessWidget {
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
-          var textWidth = 0.0;
-          for (final label in labels) {
-            final painter = TextPainter(
-              text: TextSpan(text: label, style: style),
-              textDirection: Directionality.of(context),
-              textScaler: textScaler,
-              maxLines: 1,
-            )..layout();
-            textWidth += painter.width;
-            painter.dispose();
-          }
+          final textWidth = _labelsWidth(context, labels);
           final padding =
               ((constraints.maxWidth - _pillInset - textWidth) /
                       (2 * labels.length))

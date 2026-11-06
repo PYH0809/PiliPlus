@@ -194,4 +194,36 @@ void main() {
     semantics.dispose();
     await dispose(tester);
   });
+
+  testWidgets('too narrow for the row, the tabs go under the title', (
+    tester,
+  ) async {
+    // A 360 dp phone with the display scaled to 2.
+    tester.view
+      ..physicalSize = const Size(180, 400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    putControllers();
+    await tester.pumpWidget(const GetMaterialApp(home: SizedBox()));
+    Get.to<void>(() => const HistoryPage());
+    await tester.pumpAndSettle();
+
+    final bar = tester.widget<GlassAppBar>(find.byType(GlassAppBar));
+    expect(bar.tabs, isNotNull);
+    expect(find.text('观看记录'), findsOneWidget);
+    expect(
+      tester.getRect(find.byType(LiquidGlassTabBar)).top,
+      greaterThan(tester.getRect(find.byTooltip('搜索')).bottom),
+    );
+
+    // Picking keeps them there, so the bar stays as tall.
+    final height = bar.preferredSize.height;
+    Get.find<HistoryController>(tag: 'all').enableMultiSelect.value = true;
+    await tester.pump();
+    expect(
+      tester.widget<GlassAppBar>(find.byType(GlassAppBar)).preferredSize.height,
+      height,
+    );
+    await dispose(tester);
+  });
 }
