@@ -17,6 +17,7 @@ import 'package:PiliPlus/pages/history/controller.dart';
 import 'package:PiliPlus/pages/history/widgets/item.dart';
 import 'package:PiliPlus/utils/extension/scroll_controller_ext.dart';
 import 'package:PiliPlus/utils/grid.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -216,15 +217,10 @@ class _HistoryPageState extends State<HistoryPage>
     return GlassAppBar(
       expandTitle: hasTabs,
       title: hasTabs
-          ? Semantics(
-              label: '观看记录',
-              child: LiquidGlassTabBar(
-                controller: _historyController.tabController!,
-                labels: _tabLabels,
-                height: GlassAppBar.buttonSize,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-                onTap: (index) => _onTabTap(index, enableMultiSelect),
-              ),
+          ? _GlassTitleTabs(
+              controller: _historyController.tabController!,
+              labels: _tabLabels,
+              onTap: (index) => _onTabTap(index, enableMultiSelect),
             )
           : const Text('观看记录'),
       actions: [
@@ -376,4 +372,71 @@ class _HistoryPageState extends State<HistoryPage>
 
   @override
   bool get wantKeepAlive => widget.type != null;
+}
+
+/// The tabs on the glass title row, standing in for the title: their room
+/// between the back button and the actions is tight, about 184 dp on a
+/// 360 dp phone, so the space around each label shrinks to fit them all,
+/// down to 6 dp a side, before the pill scrolls. To a screen reader they
+/// still name the page, as the title would.
+class _GlassTitleTabs extends StatelessWidget {
+  const _GlassTitleTabs({
+    required this.controller,
+    required this.labels,
+    required this.onTap,
+  });
+
+  final TabController controller;
+  final List<String> labels;
+  final ValueChanged<int> onTap;
+
+  // As LiquidGlassTabBar's platter inset, on both sides.
+  static const double _pillInset = 8;
+  static const double _minPadding = 6;
+  static const double _maxPadding = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final style =
+        TabBarTheme.of(context).labelStyle ??
+        Theme.of(context).textTheme.titleSmall;
+    final textScaler = MediaQuery.textScalerOf(context);
+    return Semantics(
+      label: '观看记录',
+      header: true,
+      // As GlassAppBar's title: Android reads it as the page's name.
+      namesRoute: switch (defaultTargetPlatform) {
+        .iOS || .macOS => null,
+        _ => true,
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          var textWidth = 0.0;
+          for (final label in labels) {
+            final painter = TextPainter(
+              text: TextSpan(text: label, style: style),
+              textDirection: Directionality.of(context),
+              textScaler: textScaler,
+              maxLines: 1,
+            )..layout();
+            textWidth += painter.width;
+            painter.dispose();
+          }
+          final padding =
+              ((constraints.maxWidth - _pillInset - textWidth) /
+                      (2 * labels.length))
+                  .floorToDouble()
+                  .clamp(_minPadding, _maxPadding);
+          return LiquidGlassTabBar(
+            controller: controller,
+            labels: labels,
+            height: GlassAppBar.buttonSize,
+            labelStyle: style,
+            labelPadding: EdgeInsets.symmetric(horizontal: padding),
+            onTap: onTap,
+          );
+        },
+      ),
+    );
+  }
 }

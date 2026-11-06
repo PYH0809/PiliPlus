@@ -155,4 +155,43 @@ void main() {
     expect(find.byType(LiquidGlassTabBar), findsOneWidget);
     await dispose(tester);
   });
+
+  testWidgets('on a 360 dp phone every tab shows without scrolling', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(360, 780)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    putControllers();
+    // Opened over another page, so it has its back button, as in the app.
+    await tester.pumpWidget(const GetMaterialApp(home: SizedBox()));
+    Get.to<void>(() => const HistoryPage());
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back'), findsOneWidget);
+
+    final pill = tester.getRect(find.byType(LiquidGlassTabBar));
+    for (final label in ['全部', '视频', '直播', '专栏']) {
+      final tab = tester.getRect(find.text(label));
+      expect(tab.left, greaterThanOrEqualTo(pill.left), reason: label);
+      expect(tab.right, lessThanOrEqualTo(pill.right), reason: label);
+    }
+    await dispose(tester);
+  });
+
+  testWidgets('the tabs still name the page to a screen reader', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    putControllers();
+    await tester.pumpWidget(const GetMaterialApp(home: HistoryPage()));
+    await tester.pump();
+
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('观看记录')),
+      isSemantics(label: '观看记录', isHeader: true, namesRoute: true),
+    );
+    semantics.dispose();
+    await dispose(tester);
+  });
 }
