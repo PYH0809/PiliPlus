@@ -2,6 +2,9 @@ import 'package:PiliPlus/common/widgets/appbar/appbar.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
+import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
@@ -29,6 +32,9 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage>
     with AutomaticKeepAliveClientMixin, GridMixin {
   late final HistoryController _historyController;
+
+  /// Whether the title bar and tabs float over the list as glass.
+  final bool _glass = GlassAppBar.enabled;
 
   @override
   void initState() {
@@ -67,6 +73,12 @@ class _HistoryPageState extends State<HistoryPage>
         physics: const AlwaysScrollableScrollPhysics(),
         controller: _historyController.scrollController,
         slivers: [
+          if (_glass) ...[
+            const SliverHeaderOverlaySpace(),
+            Obx(
+              () => SliverToBoxAdapter(child: _buildPauseTip),
+            ),
+          ],
           SliverPadding(
             padding: EdgeInsets.only(
               top: 7,
@@ -94,11 +106,13 @@ class _HistoryPageState extends State<HistoryPage>
             }
           },
           child: SimpleScaffold(
-            appBar: MultiSelectAppBarWidget(
-              visible: enableMultiSelect,
-              ctr: currCtr(),
-              child: _buildAppBar,
-            ),
+            appBar: _glass
+                ? _buildGlassAppBar(enableMultiSelect)
+                : MultiSelectAppBarWidget(
+                    visible: enableMultiSelect,
+                    ctr: currCtr(),
+                    child: _buildAppBar,
+                  ),
             body: Padding(
               padding: .only(left: padding.left, right: padding.right),
               child: Obx(() {
@@ -106,45 +120,22 @@ class _HistoryPageState extends State<HistoryPage>
                 if (tabs.isEmpty) {
                   return child;
                 }
+                if (_glass) {
+                  return _buildTabBarView(enableMultiSelect, child);
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ?_buildPauseTip,
                     TabBar(
                       controller: _historyController.tabController,
-                      onTap: (index) {
-                        if (!_historyController
-                            .tabController!
-                            .indexIsChanging) {
-                          currCtr().scrollController.animToTop();
-                        } else {
-                          if (enableMultiSelect) {
-                            currCtr(
-                              _historyController.tabController!.previousIndex,
-                            ).handleSelect();
-                          }
-                        }
-                      },
+                      onTap: (index) => _onTabTap(index, enableMultiSelect),
                       tabs: [
-                        const Tab(text: '全部'),
-                        ...tabs.map((item) => Tab(text: item.name)),
+                        for (final label in _tabLabels) Tab(text: label),
                       ],
                     ),
                     Expanded(
-                      child: TabBarView(
-                        physics: enableMultiSelect
-                            ? const NeverScrollableScrollPhysics()
-                            : tabBarScrollPhysics,
-                        controller: _historyController.tabController,
-                        horizontalDragGestureRecognizer:
-                            CustomHorizontalDragGestureRecognizer.new,
-                        children: [
-                          KeepAliveWrapper(child: child),
-                          ...tabs.map(
-                            (item) => HistoryPage(type: item.type),
-                          ),
-                        ],
-                      ),
+                      child: _buildTabBarView(enableMultiSelect, child),
                     ),
                   ],
                 );
@@ -156,6 +147,92 @@ class _HistoryPageState extends State<HistoryPage>
     );
   }
 
+  List<String> get _tabLabels => [
+    '全部',
+    ..._historyController.tabs.map((item) => item.name ?? ''),
+  ];
+
+  void _onTabTap(int index, bool enableMultiSelect) {
+    if (!_historyController.tabController!.indexIsChanging) {
+      currCtr().scrollController.animToTop();
+    } else {
+      if (enableMultiSelect) {
+        currCtr(_historyController.tabController!.previousIndex).handleSelect();
+      }
+    }
+  }
+
+  Widget _buildTabBarView(bool enableMultiSelect, Widget child) {
+    return TabBarView(
+      physics: enableMultiSelect
+          ? const NeverScrollableScrollPhysics()
+          : tabBarScrollPhysics,
+      controller: _historyController.tabController,
+      horizontalDragGestureRecognizer:
+          CustomHorizontalDragGestureRecognizer.new,
+      children: [
+        KeepAliveWrapper(child: child),
+        ..._historyController.tabs.map(
+          (item) => HistoryPage(type: item.type),
+        ),
+      ],
+    );
+  }
+
+  /// The title bar on glass, floating over the list with the tabs on a pill
+  /// under it; while picking, the same bar turns into the multi-select one.
+  GlassAppBar _buildGlassAppBar(bool enableMultiSelect) {
+    final tabs = _historyController.tabs.isEmpty
+        ? null
+        : LiquidGlassTabBar(
+            controller: _historyController.tabController!,
+            labels: _tabLabels,
+            onTap: (index) => _onTabTap(index, enableMultiSelect),
+          );
+    if (enableMultiSelect) {
+      final ctr = currCtr();
+      return GlassAppBar(
+        leading: IconButton(
+          tooltip: '取消',
+          onPressed: ctr.handleSelect,
+          icon: const Icon(Icons.close_outlined),
+        ),
+        title: Obx(() => Text('已选: ${ctr.checkedCount}')),
+        actions: [
+          TextButton(
+            onPressed: () => ctr.handleSelect(checked: true),
+            child: const Text('全选'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (ctr.checkedCount == 0) return;
+              ctr.onRemove();
+            },
+            child: Text(
+              '移除',
+              style: TextStyle(color: ColorScheme.of(context).error),
+            ),
+          ),
+        ],
+        tabs: tabs,
+      );
+    }
+    return GlassAppBar(
+      title: const Text('观看记录'),
+      actions: [
+        GlassMorphSource(
+          builder: (context, source) => IconButton(
+            tooltip: '搜索',
+            onPressed: () => source.toNamed('/historySearch'),
+            icon: const Icon(Icons.search_outlined),
+          ),
+        ),
+        _buildMenu,
+      ],
+      tabs: tabs,
+    );
+  }
+
   AppBar get _buildAppBar => AppBar(
     title: const Text('观看记录'),
     actions: [
@@ -164,43 +241,43 @@ class _HistoryPageState extends State<HistoryPage>
         onPressed: () => Get.toNamed('/historySearch'),
         icon: const Icon(Icons.search_outlined),
       ),
-      PopupMenuButton(
-        itemBuilder: (_) => [
-          PopupMenuItem(
-            onTap: () => _historyController.baseCtr.onPauseHistory(context),
-            child: Text(
-              !_historyController.baseCtr.pauseStatus.value
-                  ? '暂停观看记录'
-                  : '恢复观看记录',
-            ),
-          ),
-          PopupMenuItem(
-            onTap: () => _historyController.baseCtr.onClearHistory(
-              context,
-              () {
-                _historyController.loadingState.value = const Success(null);
-                if (_historyController.tabController != null) {
-                  for (final item in _historyController.tabs) {
-                    try {
-                      Get.find<HistoryController>(
-                        tag: item.type,
-                      ).loadingState.value = const Success(
-                        null,
-                      );
-                    } catch (_) {}
-                  }
-                }
-              },
-            ),
-            child: const Text('清空观看记录'),
-          ),
-          PopupMenuItem(
-            onTap: currCtr().onDelViewedHistory,
-            child: const Text('删除已看记录'),
-          ),
-        ],
-      ),
+      _buildMenu,
       const SizedBox(width: 6),
+    ],
+  );
+
+  Widget get _buildMenu => PopupMenuButton(
+    itemBuilder: (_) => [
+      PopupMenuItem(
+        onTap: () => _historyController.baseCtr.onPauseHistory(context),
+        child: Text(
+          !_historyController.baseCtr.pauseStatus.value ? '暂停观看记录' : '恢复观看记录',
+        ),
+      ),
+      PopupMenuItem(
+        onTap: () => _historyController.baseCtr.onClearHistory(
+          context,
+          () {
+            _historyController.loadingState.value = const Success(null);
+            if (_historyController.tabController != null) {
+              for (final item in _historyController.tabs) {
+                try {
+                  Get.find<HistoryController>(
+                    tag: item.type,
+                  ).loadingState.value = const Success(
+                    null,
+                  );
+                } catch (_) {}
+              }
+            }
+          },
+        ),
+        child: const Text('清空观看记录'),
+      ),
+      PopupMenuItem(
+        onTap: currCtr().onDelViewedHistory,
+        child: const Text('删除已看记录'),
+      ),
     ],
   );
 
