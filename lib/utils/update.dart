@@ -538,12 +538,30 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       child: Text('浏览器下载', style: TextStyle(color: colorScheme.onSurface)),
     );
     final failures = _message.split('\n');
+    final progress = _received > 0 && total > 0
+        ? (_received / total).clamp(0.0, 1.0)
+        : null;
     return AlertDialog(
-      title: Text(switch (_stage) {
-        .downloading => '正在下载',
-        .failed => '下载失败',
-        .install => _title,
-      }),
+      title: _stage == .downloading
+          ? Row(
+              children: [
+                const Expanded(child: Text('正在下载')),
+                if (progress != null)
+                  Text(
+                    '${(progress * 100).floor()}%',
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.normal,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+              ],
+            )
+          : Text(switch (_stage) {
+              .downloading => '正在下载',
+              .failed => '下载失败',
+              .install => _title,
+            }),
       // 和「发现新版本」一样宽，换对话框时不跳
       content: SizedBox(
         width: double.maxFinite,
@@ -552,42 +570,40 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             mainAxisSize: .min,
             crossAxisAlignment: .start,
             children: [
-              const SizedBox(height: 4),
-              // 还在连下载源时没有进度，给不定进度条
-              LinearProgressIndicator(
-                value: _received > 0 && total > 0 ? _received / total : null,
-                minHeight: 6,
-                borderRadius: const .all(.circular(3)),
-              ),
-              const SizedBox(height: 4),
-              // 定高，换下载源的链接没了也不跳
-              SizedBox(
-                height: 32,
-                child: Row(
-                  children: [
-                    // 窄屏、大字号时这段让位给右边的链接
-                    Expanded(
-                      child: Text(
-                        _speed == null
-                            ? '${_mb(_received)} / ${_mb(total)} MB'
-                            : '${_mb(_received)} / ${_mb(total)} MB · '
-                                  '${_mb(_speed!.round())} MB/s',
-                        style: muted,
-                        maxLines: 1,
-                        overflow: .ellipsis,
-                      ),
-                    ),
-                    // 卡住时换一个下载源；已经是最后一个就不给
-                    if (_sourceIndex < updateMirrors.length - 1)
-                      Transform.translate(
-                        offset: const Offset(4, 0),
-                        child: DialogLink(
-                          label: '换下载源',
-                          onTap: () => _downloader?.skip(),
-                        ),
-                      ),
-                  ],
+              const SizedBox(height: 6),
+              // 细的实心进度条：不要 Material 3 的断口和末端圆点
+              TweenAnimationBuilder<double>(
+                tween: Tween(end: progress ?? 0),
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                builder: (context, value, _) => LinearProgressIndicator(
+                  // 还在连下载源时没有进度，给不定进度条
+                  value: progress == null ? null : value,
+                  minHeight: 4,
+                  borderRadius: const .all(.circular(2)),
+                  trackGap: 0,
+                  stopIndicatorRadius: 0,
+                  color: colorScheme.primary,
+                  backgroundColor: colorScheme.onSurface.withValues(
+                    alpha: 0.08,
+                  ),
                 ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${_mb(_received)} / ${_mb(total)} MB',
+                      style: muted,
+                      maxLines: 1,
+                      overflow: .ellipsis,
+                    ),
+                  ),
+                  // 还没收到数据时不显示 0.0 MB/s
+                  if (_speed case final speed? when _received > 0)
+                    Text('${_mb(speed.round())} MB/s', style: muted),
+                ],
               ),
             ],
           ),
@@ -609,7 +625,18 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       // 一行放得下时主按钮在最右，竖排时在最上
       actionsOverflowDirection: VerticalDirection.up,
       actions: switch (_stage) {
-        .downloading => [cancel],
+        .downloading => [
+          cancel,
+          // 卡住时换一个下载源；已经是最后一个就不给
+          if (_sourceIndex < updateMirrors.length - 1)
+            TextButton(
+              onPressed: () => _downloader?.skip(),
+              child: Text(
+                '换下载源',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ),
+        ],
         .failed => [
           cancel,
           browser,
