@@ -2,7 +2,6 @@ import 'package:PiliPlus/common/widgets/appbar/appbar.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/gesture/horizontal_drag_gesture_recognizer.dart';
-import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_page_morph.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
@@ -75,7 +74,7 @@ class _HistoryPageState extends State<HistoryPage>
         controller: _historyController.scrollController,
         slivers: [
           if (_glass) ...[
-            HeaderOverlayInset.sliver(context),
+            const SliverHeaderOverlaySpace(),
             Obx(
               () => SliverToBoxAdapter(child: _buildPauseTip),
             ),

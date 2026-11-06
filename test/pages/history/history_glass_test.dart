@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:PiliPlus/common/widgets/header_overlay_inset.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/glass_app_bar.dart';
 import 'package:PiliPlus/common/widgets/liquid_glass/liquid_glass_tab_bar.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -100,13 +99,14 @@ void main() {
       findsNothing,
     );
 
-    // The list starts under the bar, so it scrolls under it.
+    // The 全部 list leaves room for the bar at its top, so its first rows
+    // start under the bar and scroll under it.
     final bar = tester.widget<GlassAppBar>(find.byType(GlassAppBar));
-    final list = find.byType(CustomScrollView).first;
-    expect(
-      HeaderOverlayInset.of(tester.element(list)),
-      bar.preferredSize.height,
+    final space = find.descendant(
+      of: find.byType(SliverHeaderOverlaySpace).first,
+      matching: find.byType(SizedBox),
     );
+    expect(tester.getSize(space).height, bar.preferredSize.height);
     await dispose(tester);
   });
 
