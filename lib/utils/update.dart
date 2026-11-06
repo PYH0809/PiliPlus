@@ -543,19 +543,25 @@ class _DownloadDialogState extends State<_DownloadDialog> {
         : null;
     return AlertDialog(
       title: _stage == .downloading
-          ? Row(
-              children: [
-                const Expanded(child: Text('正在下载')),
-                if (progress != null)
-                  Text(
-                    '${(progress * 100).floor()}%',
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.normal,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+          // 放不下时百分比换到下一行，不横向溢出
+          ? SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: .spaceBetween,
+                crossAxisAlignment: .center,
+                children: [
+                  const Text('正在下载'),
+                  if (progress != null)
+                    Text(
+                      '${(progress * 100).floor()}%',
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.normal,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             )
           : Text(switch (_stage) {
               .downloading => '正在下载',
@@ -590,20 +596,19 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                 ),
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${_mb(_received)} / ${_mb(total)} MB',
-                      style: muted,
-                      maxLines: 1,
-                      overflow: .ellipsis,
-                    ),
-                  ),
-                  // 还没收到数据时不显示 0.0 MB/s
-                  if (_speed case final speed? when _received > 0)
-                    Text('${_mb(speed.round())} MB/s', style: muted),
-                ],
+              // 窄屏、大字号时速度换到下一行，不横向溢出
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: .spaceBetween,
+                  spacing: 12,
+                  children: [
+                    Text('${_mb(_received)} / ${_mb(total)} MB', style: muted),
+                    // 还没收到数据时不显示 0.0 MB/s
+                    if (_speed case final speed? when _received > 0)
+                      Text('${_mb(speed.round())} MB/s', style: muted),
+                  ],
+                ),
               ),
             ],
           ),
