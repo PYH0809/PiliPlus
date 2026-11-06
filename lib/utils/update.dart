@@ -581,6 +581,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
                 const SizedBox(height: 6),
                 // 细的实心进度条：不要 Material 3 的断口和末端圆点
                 TweenAnimationBuilder<double>(
+                  // 换下载源时从新源的进度重新开始，不从旧源的进度倒退
+                  key: ValueKey(_sourceIndex),
                   tween: Tween(end: progress ?? 0),
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeOut,
