@@ -572,45 +572,51 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       content: SizedBox(
         width: double.maxFinite,
         child: switch (_stage) {
-          .downloading => Column(
-            mainAxisSize: .min,
-            crossAxisAlignment: .start,
-            children: [
-              const SizedBox(height: 6),
-              // 细的实心进度条：不要 Material 3 的断口和末端圆点
-              TweenAnimationBuilder<double>(
-                tween: Tween(end: progress ?? 0),
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
-                builder: (context, value, _) => LinearProgressIndicator(
-                  // 还在连下载源时没有进度，给不定进度条
-                  value: progress == null ? null : value,
-                  minHeight: 4,
-                  borderRadius: const .all(.circular(2)),
-                  trackGap: 0,
-                  stopIndicatorRadius: 0,
-                  color: colorScheme.primary,
-                  backgroundColor: colorScheme.onSurface.withValues(
-                    alpha: 0.08,
+          // 窄而矮的窗口里按钮竖排时，内容滚动，给按钮留出地方
+          .downloading => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: .min,
+              crossAxisAlignment: .start,
+              children: [
+                const SizedBox(height: 6),
+                // 细的实心进度条：不要 Material 3 的断口和末端圆点
+                TweenAnimationBuilder<double>(
+                  tween: Tween(end: progress ?? 0),
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  builder: (context, value, _) => LinearProgressIndicator(
+                    // 还在连下载源时没有进度，给不定进度条
+                    value: progress == null ? null : value,
+                    minHeight: 4,
+                    borderRadius: const .all(.circular(2)),
+                    trackGap: 0,
+                    stopIndicatorRadius: 0,
+                    color: colorScheme.primary,
+                    backgroundColor: colorScheme.onSurface.withValues(
+                      alpha: 0.08,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              // 窄屏、大字号时速度换到下一行，不横向溢出
-              SizedBox(
-                width: double.infinity,
-                child: Wrap(
-                  alignment: .spaceBetween,
-                  spacing: 12,
-                  children: [
-                    Text('${_mb(_received)} / ${_mb(total)} MB', style: muted),
-                    // 还没收到数据时不显示 0.0 MB/s
-                    if (_speed case final speed? when _received > 0)
-                      Text('${_mb(speed.round())} MB/s', style: muted),
-                  ],
+                const SizedBox(height: 10),
+                // 窄屏、大字号时速度换到下一行，不横向溢出
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: .spaceBetween,
+                    spacing: 12,
+                    children: [
+                      Text(
+                        '${_mb(_received)} / ${_mb(total)} MB',
+                        style: muted,
+                      ),
+                      // 还没收到数据时不显示 0.0 MB/s
+                      if (_speed case final speed? when _received > 0)
+                        Text('${_mb(speed.round())} MB/s', style: muted),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           // 长的提示在横屏或大字号下也要看得全
           .failed => SingleChildScrollView(
