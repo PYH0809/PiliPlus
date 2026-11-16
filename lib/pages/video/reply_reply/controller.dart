@@ -257,7 +257,8 @@ class VideoReplyReplyController extends ReplyController
 
   Future<void> _fetchNextReply() async {
     try {
-      if (isEnd && foldCard != null) {
+      // Folded replies come a page at a time: the tree waits for them all.
+      if (isEnd && (foldCard != null || foldNext != null)) {
         await loadFoldList(toast: false);
       } else {
         await queryData(false);
@@ -266,7 +267,7 @@ class VideoReplyReplyController extends ReplyController
       _inflightReply = null;
     }
     if (!isClosed) {
-      if (isEnd && foldCard == null) {
+      if (isEnd && foldCard == null && foldNext == null) {
         buildTree();
       } else {
         _createReplyTimer();

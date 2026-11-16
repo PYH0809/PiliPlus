@@ -270,12 +270,16 @@ class _VideoReplyReplyPanelState extends State<VideoReplyReplyPanel>
                   return;
                 }
 
-                if (controller.isEnd && controller.foldCard == null) {
+                if (controller.isEnd &&
+                    controller.foldCard == null &&
+                    controller.foldNext == null) {
                   controller.buildTree();
                 } else if (controller.inFetchReply) {
                   SmartDialog.showToast('正在拉取评论，请稍后');
                 } else {
-                  if (controller.foldCard != null) {
+                  // Folded replies left, a page at a time: load them first.
+                  if (controller.foldCard != null ||
+                      controller.foldNext != null) {
                     controller.nextReplyRound();
                     return;
                   }
