@@ -13,6 +13,7 @@ import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/search.dart';
 import 'package:PiliPlus/http/video.dart';
+import 'package:PiliPlus/models/common/dynamic/article_type.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
@@ -255,16 +256,22 @@ abstract final class PageUtils {
     // another's dynamic, as a forwarded one, whose content is not the card's.
     final detailFrom = expandIntoDetail ? expandFrom : null;
     void pushOpus() {
-      final parameters = <String, String>{
+      // As ArticlePage.toArticlePage passes them: the page reads its id and
+      // type from the arguments.
+      final arguments = <String, Object>{
         'id': '${item.idStr}',
-        'type': 'opus',
-        if (viewComment) 'viewComment': '',
+        'type': ArticleType.opus,
+        if (viewComment) 'viewComment': true,
       };
-      if (detailFrom?.expand<void>('/articlePage', parameters: parameters)
+      if (detailFrom?.expand<void>('/articlePage', arguments: arguments)
           case _?) {
         return;
       }
-      toDupNamed('/articlePage', parameters: parameters);
+      ArticlePage.toArticlePage(
+        id: '${item.idStr}',
+        type: .opus,
+        viewComment: viewComment,
+      );
     }
 
     void push() {
