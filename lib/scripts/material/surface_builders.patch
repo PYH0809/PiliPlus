@@ -1,5 +1,5 @@
 diff --git a/lib/material_ui.dart b/lib/material_ui.dart
-index 32e00a3..2db60f3 100644
+index a7d3193..e0e0a51 100644
 --- a/lib/material_ui.dart
 +++ b/lib/material_ui.dart
 @@ -178,6 +178,7 @@ export 'src/snack_bar_theme.dart';
@@ -41,7 +41,7 @@ index 321af0e..4c4597f 100644
        width: _kToolbarWidth,
        child: Material(
 diff --git a/lib/src/dialog.dart b/lib/src/dialog.dart
-index eb3580d..d924e5a 100644
+index 2668c5a..c613de9 100644
 --- a/lib/src/dialog.dart
 +++ b/lib/src/dialog.dart
 @@ -22,6 +22,7 @@ import 'dialog_theme.dart';
@@ -52,31 +52,31 @@ index eb3580d..d924e5a 100644
  import 'text_theme.dart';
  import 'theme.dart';
  
-@@ -289,7 +290,14 @@ class Dialog extends StatelessWidget {
-         alignment: alignment ?? dialogTheme.alignment ?? defaults.alignment!,
-         child: ConstrainedBox(
-           constraints: boxConstraints,
--          child: Material(
-+          // PiliPlus: the app's surface in place of the dialog's Material.
-+          child: switch (SurfaceBuilders.dialog) {
-+            final SurfaceBuilder builder => builder(
-+              context,
-+              shape ?? dialogTheme.shape ?? defaults.shape!,
-+              child ?? const SizedBox.shrink(),
-+            ),
-+            null => Material(
-             color: backgroundColor ?? dialogTheme.backgroundColor ?? defaults.backgroundColor,
-             elevation: elevation ?? dialogTheme.elevation ?? defaults.elevation!,
-             shadowColor: shadowColor ?? dialogTheme.shadowColor ?? defaults.shadowColor,
-@@ -300,6 +308,7 @@ class Dialog extends StatelessWidget {
-             clipBehavior: clipBehavior ?? dialogTheme.clipBehavior ?? defaults.clipBehavior!,
-             child: child,
+@@ -303,7 +304,14 @@ class Dialog extends StatelessWidget {
+           alignment: alignment ?? dialogTheme.alignment ?? defaults.alignment!,
+           child: ConstrainedBox(
+             constraints: boxConstraints,
+-            child: Material(
++            // PiliPlus: the app's surface in place of the dialog's Material.
++            child: switch (SurfaceBuilders.dialog) {
++              final SurfaceBuilder builder => builder(
++                context,
++                shape ?? dialogTheme.shape ?? defaults.shape!,
++                child ?? const SizedBox.shrink(),
++              ),
++              null => Material(
+               color: backgroundColor ?? dialogTheme.backgroundColor ?? defaults.backgroundColor,
+               elevation: elevation ?? dialogTheme.elevation ?? defaults.elevation!,
+               shadowColor: shadowColor ?? dialogTheme.shadowColor ?? defaults.shadowColor,
+@@ -314,6 +322,7 @@ class Dialog extends StatelessWidget {
+               clipBehavior: clipBehavior ?? dialogTheme.clipBehavior ?? defaults.clipBehavior!,
+               child: child,
+             ),
++            },
            ),
-+          },
          ),
        );
-     }
-@@ -917,7 +926,8 @@ class AlertDialog extends StatelessWidget {
+@@ -940,7 +949,8 @@ class AlertDialog extends StatelessWidget {
              (theme.useMaterial3
                  ? defaults.actionsPadding!
                  : defaults.actionsPadding!.add(EdgeInsets.all(spacing))),
@@ -87,7 +87,7 @@ index eb3580d..d924e5a 100644
            spacing: spacing,
            overflowAlignment: actionsOverflowAlignment ?? OverflowBarAlignment.end,
 diff --git a/lib/src/popup_menu.dart b/lib/src/popup_menu.dart
-index 0022a99..8cf43c2 100644
+index a1d71f2..222374c 100644
 --- a/lib/src/popup_menu.dart
 +++ b/lib/src/popup_menu.dart
 @@ -26,6 +26,7 @@ import 'list_tile.dart';
@@ -98,7 +98,7 @@ index 0022a99..8cf43c2 100644
  import 'popup_menu_theme.dart';
  import 'text_theme.dart';
  import 'theme.dart';
-@@ -443,7 +444,21 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+@@ -445,7 +446,21 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
          constraints: BoxConstraints(minHeight: widget.height),
          child: Padding(
            padding: padding,
@@ -121,7 +121,7 @@ index 0022a99..8cf43c2 100644
          ),
        ),
      );
-@@ -461,11 +476,13 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+@@ -463,11 +478,13 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
        );
      }
  
@@ -136,7 +136,7 @@ index 0022a99..8cf43c2 100644
            mouseCursor: _EffectiveMouseCursor(widget.mouseCursor, popupMenuTheme.mouseCursor),
            child: ListTileTheme.merge(
              contentPadding: EdgeInsets.zero,
-@@ -475,6 +492,10 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
+@@ -477,6 +494,10 @@ class PopupMenuItemState<T, W extends PopupMenuItem<T>> extends State<W> {
          ),
        ),
      );
@@ -147,7 +147,7 @@ index 0022a99..8cf43c2 100644
    }
  
    /// Builds the semantic wrapper for the popup menu item.
-@@ -677,6 +698,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
+@@ -679,6 +700,14 @@ class _CheckedPopupMenuItemState<T> extends PopupMenuItemState<T, CheckedPopupMe
    }
  }
  
@@ -162,7 +162,7 @@ index 0022a99..8cf43c2 100644
  class _PopupMenu<T> extends StatefulWidget {
    const _PopupMenu({
      required this.itemKeys,
-@@ -756,7 +785,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -758,7 +787,10 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
        Widget item = widget.route.items[i];
        if (widget.route.initialValue != null &&
            widget.route.items[i].represents(widget.route.initialValue)) {
@@ -174,7 +174,7 @@ index 0022a99..8cf43c2 100644
        }
        children.add(
          _MenuItem(
-@@ -792,6 +824,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
+@@ -794,6 +826,20 @@ class _PopupMenuState<T> extends State<_PopupMenu<T>> {
        ),
      );
  
@@ -195,7 +195,7 @@ index 0022a99..8cf43c2 100644
      return AnimatedBuilder(
        animation: widget.route.animation!,
        builder: (BuildContext context, Widget? child) {
-@@ -947,6 +993,7 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -949,6 +995,7 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
    _PopupMenuRoute({
      this.position,
      this.positionBuilder,
@@ -203,7 +203,7 @@ index 0022a99..8cf43c2 100644
      required this.items,
      required this.itemKeys,
      this.initialValue,
-@@ -975,6 +1022,13 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -977,6 +1024,13 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
  
    final RelativeRect? position;
    final PopupMenuPositionBuilder? positionBuilder;
@@ -217,7 +217,7 @@ index 0022a99..8cf43c2 100644
    final List<PopupMenuEntry<T>> items;
    final List<GlobalKey> itemKeys;
    final List<Size?> itemSizes;
-@@ -1017,6 +1071,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -1019,6 +1073,11 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
    @override
    Duration get transitionDuration => popUpAnimationStyle?.duration ?? _kMenuDuration;
  
@@ -229,7 +229,7 @@ index 0022a99..8cf43c2 100644
    @override
    bool get barrierDismissible => true;
  
-@@ -1063,9 +1122,12 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
+@@ -1065,9 +1124,12 @@ class _PopupMenuRoute<T> extends PopupRoute<T> {
        removeRight: true,
        child: LayoutBuilder(
          builder: (BuildContext context, BoxConstraints constraints) {
@@ -243,7 +243,7 @@ index 0022a99..8cf43c2 100644
                itemSizes,
                selectedItemIndex,
                Directionality.of(context),
-@@ -1187,6 +1249,8 @@ Future<T?> showMenu<T>({
+@@ -1189,6 +1251,8 @@ Future<T?> showMenu<T>({
    required BuildContext context,
    RelativeRect? position,
    PopupMenuPositionBuilder? positionBuilder,
@@ -252,7 +252,7 @@ index 0022a99..8cf43c2 100644
    required List<PopupMenuEntry<T>> items,
    T? initialValue,
    double? elevation,
-@@ -1227,6 +1291,7 @@ Future<T?> showMenu<T>({
+@@ -1229,6 +1293,7 @@ Future<T?> showMenu<T>({
      _PopupMenuRoute<T>(
        position: position,
        positionBuilder: positionBuilder,
@@ -260,7 +260,7 @@ index 0022a99..8cf43c2 100644
        items: items,
        itemKeys: menuItemKeys,
        initialValue: initialValue,
-@@ -1637,6 +1702,7 @@ class PopupMenuButton<T> extends StatefulWidget {
+@@ -1639,6 +1704,7 @@ class PopupMenuButton<T> extends StatefulWidget {
  class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
    bool _isMenuExpanded = false;
    RelativeRect? _lastPosition;
@@ -268,7 +268,7 @@ index 0022a99..8cf43c2 100644
    late PopupMenuThemeData _popupMenuTheme;
    RenderBox? _cachedButtonRenderBox;
    RenderBox? _cachedOverlayRenderBox;
-@@ -1678,6 +1744,23 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+@@ -1680,6 +1746,23 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
      return _lastPosition ?? RelativeRect.fromSize(Rect.zero, constraints.biggest);
    }
  
@@ -292,7 +292,7 @@ index 0022a99..8cf43c2 100644
    RelativeRect _positionBuilder(BuildContext _, BoxConstraints constraints) {
      if (!mounted) {
        // When the route is displayed, the `_positionBuilder` closure is stored.
-@@ -1748,6 +1831,7 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+@@ -1750,6 +1833,7 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
          items: items,
          initialValue: widget.initialValue,
          positionBuilder: _positionBuilder,
@@ -300,7 +300,7 @@ index 0022a99..8cf43c2 100644
          shape: widget.shape,
          menuPadding: widget.menuPadding,
          color: widget.color,
-@@ -1819,15 +1903,17 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+@@ -1821,15 +1905,17 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
        // that assistive technologies describe the popup menu button the same way
        // regardless of whether it is built from [child] or from [icon], in which
        // case the semantics come from the [IconButton].
@@ -324,7 +324,7 @@ index 0022a99..8cf43c2 100644
        child: IconButton(
          key: StandardComponentType.moreButton.key,
          icon: Semantics(expanded: _isMenuExpanded, child: widget.icon ?? Icon(Icons.adaptive.more)),
-@@ -1840,8 +1926,15 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
+@@ -1842,8 +1928,15 @@ class PopupMenuButtonState<T> extends State<PopupMenuButton<T>> {
          enableFeedback: enableFeedback,
          style: widget.style,
        ),
@@ -417,7 +417,7 @@ index 0000000..bff9d94
 +  static Duration? popupMenuReverseDuration;
 +}
 diff --git a/lib/src/switch.dart b/lib/src/switch.dart
-index dd0fc48..d369502 100644
+index 5cc32b0..d0b9315 100644
 --- a/lib/src/switch.dart
 +++ b/lib/src/switch.dart
 @@ -23,6 +23,7 @@ import 'constants.dart';
@@ -428,7 +428,7 @@ index dd0fc48..d369502 100644
  import 'switch_theme.dart';
  import 'theme.dart';
  import 'theme_data.dart';
-@@ -591,6 +592,10 @@ class Switch extends StatelessWidget {
+@@ -593,6 +594,10 @@ class Switch extends StatelessWidget {
  
    @override
    Widget build(BuildContext context) {

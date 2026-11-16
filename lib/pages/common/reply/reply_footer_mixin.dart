@@ -24,13 +24,13 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
     if (controller.foldNext != null) return _buildFoldNext();
 
     controller.onLoadMore();
-    return _buildEndItem();
+    return buildEndItem();
   }
 
   Widget _buildFoldNext() {
     if (controller.foldFailed) return _buildTapItem('加载失败，点击重试');
     controller.loadFoldList();
-    return _buildEndItem(loading: true);
+    return buildEndItem(loading: true);
   }
 
   Widget _buildFoldItem(FoldCard fold) => _buildTapItem(fold.bottomText);
@@ -60,7 +60,7 @@ mixin ReplyFooterMixin<T extends StatefulWidget, R> on State<T> {
     );
   }
 
-  Widget _buildEndItem({bool loading = false}) {
+  Widget buildEndItem({bool loading = false}) {
     return Container(
       height: 125,
       alignment: .center,

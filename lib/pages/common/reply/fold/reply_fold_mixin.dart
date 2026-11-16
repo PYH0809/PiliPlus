@@ -34,7 +34,7 @@ mixin BaseReplyFoldMixin<R> on ReplyController<R> {
     }
   }
 
-  Future<void> loadFoldList() async {
+  Future<void> loadFoldList({bool toast = true}) async {
     final pagination = foldNext ?? foldCard?.foldPagination;
     if (isLoading || pagination == null) return;
     final first = foldNext == null;
@@ -48,13 +48,14 @@ mixin BaseReplyFoldMixin<R> on ReplyController<R> {
         foldCard = null;
         final next = response.paginationReply.nextOffset;
         foldNext = next.isEmpty ? null : FeedPagination(offset: next);
+        count.value += response.replies.length;
         if (loadingState.value case Success(response: final replies?)) {
           replies.addAll(response.replies);
           loadingState.refresh();
         } else {
           loadingState.value = Success(response.replies);
         }
-        if (first && response.hasTitle()) {
+        if (toast && first && response.hasTitle()) {
           SmartDialog.showToast(response.title);
         }
       } else {

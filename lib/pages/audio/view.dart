@@ -36,9 +36,7 @@ import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/services/shutdown_timer_service.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
-import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
-import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
@@ -100,6 +98,9 @@ class _AudioPageState extends State<AudioPage>
     AudioPage.debugController?.call() ?? AudioController(),
     tag: Utils.generateRandomString(8),
   );
+  late bool isPortrait;
+  late ColorScheme colorScheme;
+  late EdgeInsets padding;
 
   @override
   void didPushNext() {
@@ -117,6 +118,9 @@ class _AudioPageState extends State<AudioPage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _controller.didChangeDependencies(context);
+    colorScheme = ColorScheme.of(context);
+    isPortrait = MediaQuery.isPortraitOf(context);
+    padding = MediaQuery.viewPaddingOf(context);
   }
 
   /// Dark in either theme, as iOS's Now Playing is, over the cover's
@@ -167,7 +171,7 @@ class _AudioPageState extends State<AudioPage>
 
   Widget _buildPage(BuildContext context) {
     final colorScheme = ColorScheme.of(context);
-    final isPortrait = MediaQuery.sizeOf(context).isPortrait;
+    final isPortrait = MediaQuery.isPortraitOf(context);
     final padding = MediaQuery.viewPaddingOf(context);
     return SimpleScaffold(
       backgroundColor: Colors.transparent,
@@ -320,7 +324,7 @@ class _AudioPageState extends State<AudioPage>
     final padding = MediaQuery.viewPaddingOf(context);
     final top = HeaderOverlayInset.of(context);
     final controls = _buildGlassControls(colorScheme);
-    if (MediaQuery.sizeOf(context).isPortrait) {
+    if (MediaQuery.isPortraitOf(context)) {
       final bottom = padding.bottom + _glassControlsBottom;
       return Stack(
         children: [
@@ -399,7 +403,7 @@ class _AudioPageState extends State<AudioPage>
         useSafeArea: true,
         isScrollControlled: true,
         constraints: BoxConstraints(
-          maxWidth: min(640, context.mediaQueryShortestSide),
+          maxWidth: min(640, MediaQuery.shortestSideOf(context)),
         ),
         builder: (context) {
           final colorScheme = ColorScheme.of(context);
@@ -586,7 +590,7 @@ class _AudioPageState extends State<AudioPage>
           }
           return FractionallySizedBox(
             heightFactor:
-                PlatformUtils.isMobile && !context.mediaQuerySize.isPortrait
+                PlatformUtils.isMobile && !MediaQuery.isPortraitOf(context)
                 ? 1.0
                 : 0.7,
             alignment: Alignment.bottomCenter,
@@ -650,7 +654,7 @@ class _AudioPageState extends State<AudioPage>
       useSafeArea: true,
       isScrollControlled: true,
       constraints: BoxConstraints(
-        maxWidth: min(640, context.mediaQueryShortestSide),
+        maxWidth: min(640, MediaQuery.shortestSideOf(context)),
       ),
       builder: (context) {
         final colorScheme = ColorScheme.of(context);
