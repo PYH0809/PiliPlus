@@ -34,7 +34,7 @@ class _Replies extends ReplyController<MainListReply>
       const Error(null);
 
   @override
-  Future<void> loadFoldList() async => folds++;
+  Future<void> loadFoldList({bool toast = true}) async => folds++;
 
   @override
   Future<void> onLoadMore() async => mains++;

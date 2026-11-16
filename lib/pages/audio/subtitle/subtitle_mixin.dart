@@ -254,8 +254,10 @@ mixin AudioSubtitleMixin on GetxController {
             response.subtitle.subtitles
                 .map(
                   (i) => Subtitle(
+                    id: i.id.toInt(),
                     lan: i.lan,
                     lanDoc: i.lanDoc,
+                    type: i.type.value,
                     subtitleUrl: i.subtitleUrl.replaceFirst(
                       RegExp('^https?:'),
                       '',

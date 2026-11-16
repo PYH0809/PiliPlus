@@ -13,7 +13,7 @@ int _scan(List<SubtitleLine> lines, Duration position) =>
     lines.lastIndexWhere((e) => e.from <= position);
 
 Subtitle _subtitle(String lan, {bool isAi = false}) =>
-    Subtitle(lan: lan, lanDoc: lan, isAi: isAi);
+    Subtitle(id: null, lan: lan, lanDoc: lan, isAi: isAi);
 
 void main() {
   group('SubtitleLine.fromJson', () {

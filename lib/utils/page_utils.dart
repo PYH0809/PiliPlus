@@ -13,11 +13,13 @@ import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/search.dart';
 import 'package:PiliPlus/http/video.dart';
+import 'package:PiliPlus/models/common/dynamic/article_type.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart';
 import 'package:PiliPlus/models_new/video/video_detail/dimension.dart';
+import 'package:PiliPlus/pages/article/view.dart';
 import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/contact/view.dart';
@@ -26,9 +28,7 @@ import 'package:PiliPlus/pages/share/view.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
-import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
 import 'package:PiliPlus/utils/global_data.dart';
@@ -135,16 +135,11 @@ abstract final class PageUtils {
     SmartDialog.dismiss();
     if (res case Success(:final response)) {
       if (response.basic?.commentType == 12) {
-        toDupNamed(
-          '/articlePage',
-          parameters: {
-            'id': id!,
-            'type': 'opus',
-          },
-          arguments: {
-            rootRpIdKey: ?rootRpId,
-            secondRpIdKey: ?secondRpId,
-          },
+        ArticlePage.toArticlePage(
+          id: id!,
+          type: .opus,
+          rootRpId: rootRpId,
+          secondRpId: secondRpId,
           off: off,
         );
       } else {
@@ -181,11 +176,11 @@ abstract final class PageUtils {
       useSafeArea: true,
       isScrollControlled: true,
       constraints: BoxConstraints(
-        maxWidth: min(640, context.mediaQueryShortestSide),
+        maxWidth: min(640, MediaQuery.shortestSideOf(context)),
       ),
       builder: (BuildContext context) {
         final maxChildSize =
-            PlatformUtils.isMobile && !context.mediaQuerySize.isPortrait
+            PlatformUtils.isMobile && !MediaQuery.isPortraitOf(context)
             ? 1.0
             : 0.7;
         return DraggableScrollableSheet(
@@ -261,16 +256,22 @@ abstract final class PageUtils {
     // another's dynamic, as a forwarded one, whose content is not the card's.
     final detailFrom = expandIntoDetail ? expandFrom : null;
     void pushOpus() {
-      final parameters = <String, String>{
+      // As ArticlePage.toArticlePage passes them: the page reads its id and
+      // type from the arguments.
+      final arguments = <String, Object>{
         'id': '${item.idStr}',
-        'type': 'opus',
-        if (viewComment) 'viewComment': '',
+        'type': ArticleType.opus,
+        if (viewComment) 'viewComment': true,
       };
-      if (detailFrom?.expand<void>('/articlePage', parameters: parameters)
+      if (detailFrom?.expand<void>('/articlePage', arguments: arguments)
           case _?) {
         return;
       }
-      toDupNamed('/articlePage', parameters: parameters);
+      ArticlePage.toArticlePage(
+        id: '${item.idStr}',
+        type: .opus,
+        viewComment: viewComment,
+      );
     }
 
     void push() {
@@ -324,7 +325,7 @@ abstract final class PageUtils {
             }
           }
           // redirectUrl from jumpUrl
-          if (await UrlUtils.parseRedirectUrl(archive.jumpUrl.http2https, false)
+          if (await UrlUtils.parseRedirectUrl(archive.jumpUrl.http2https)
               case final redirectUrl?) {
             if (viewPgcFromUri(redirectUrl)) {
               return;
@@ -521,7 +522,7 @@ abstract final class PageUtils {
     // can be the page's glass, reading what the host captured below it.
     final onPage = pageGlass && !glass && GlassSurfaces.installed;
     // The page the sheet opens over, its glass drawn from a picture of it.
-    final frost = onPage && context.isPortrait
+    final frost = onPage && MediaQuery.isPortraitOf(context)
         ? StaticFrostPicture.take(
             Get.routing.route as ModalRoute<dynamic>?,
             (theme ?? Theme.of(context)).colorScheme,
@@ -534,18 +535,19 @@ abstract final class PageUtils {
     // The panel's glass draws the video again under all of it; with the
     // controls' glass left behind the barrier as well, a 90 Hz phone drew
     // 80 frames a second. They go as the panel comes, as they would soon.
-    if (glass && !context.isPortrait) {
+    if (glass && !MediaQuery.isPortraitOf(context)) {
       PlPlayerController.instance?.controls = false;
     }
     final route = PublishRoute<void>(
       barrierCloses: barrierCloses,
       barrierColor:
-          (glass && !context.isPortrait) || (onPage && context.isPortrait)
+          (glass && !MediaQuery.isPortraitOf(context)) ||
+              (onPage && MediaQuery.isPortraitOf(context))
           ? (theme ?? Theme.of(context)).dialogTheme.barrierColor ??
                 const Color(0x80000000)
           : const Color(0x80000000),
       pageBuilder: (context, animation, secondaryAnimation) {
-        final isPortrait = context.isPortrait;
+        final isPortrait = MediaQuery.isPortraitOf(context);
         Widget content = Padding(
           padding: isPortrait ? padding?.call() ?? .zero : .zero,
           child: child,
@@ -577,7 +579,7 @@ abstract final class PageUtils {
       },
       transitionDuration: const Duration(milliseconds: 350),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final begin = context.isPortrait
+        final begin = MediaQuery.isPortraitOf(context)
             ? const Offset(0.0, 1.0)
             : const Offset(1.0, 0.0);
         return SlideTransition(

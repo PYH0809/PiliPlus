@@ -434,9 +434,7 @@ class _DynamicDetailPageState extends CommonDynPageMultiState<DynamicDetailPage>
             right: 0,
             top:
                 displacement + (GlassSurfaces.installed ? _glassTabsExtent : 0),
-            child: Obx(
-              () => RefreshIndicator_(isRefreshing: _isRefreshing.value),
-            ),
+            child: RefreshIndicator_(isRefreshing: _isRefreshing),
           ),
         ],
       );
